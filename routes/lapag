@@ -1,0 +1,37 @@
+Route::get('/test-ai-laravel', function () {
+    try {
+        /** @var \App\Services\CloudflareAI $ai */
+        $ai = app(\App\Services\CloudflareAI::class);
+
+        // Use the newer, recommended model (Llama 3.1 8B is generally better/faster)
+        // You can change this back to llama-3-8b-instruct if you prefer
+        $result = $ai->run('@cf/meta/llama-3.2-3b-instruct', [
+            'messages' => [
+                ['role' => 'system', 'content' => 'You are a friendly assistant that helps give ai insight about the grades of students on each subjecs'],
+                ['role' => 'user',   'content' => ''],
+            ],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'story'   => trim($result['response'] ?? 'No response received'), // trim whitespace, fallback if missing
+            'usage'   => $result['usage'] ?? null,
+            'model'   => '@cf/meta/llama-3.2-3b-instruct', // helpful for debugging
+        ]);
+    } catch (\Throwable $e) {
+        // Log the full exception for debugging (safe in local/dev)
+        \Log::error('Cloudflare AI test route failed', [
+            'message' => $e->getMessage(),
+            'file'    => $e->getFile(),
+            'line'    => $e->getLine(),
+            'trace'   => $e->getTraceAsString(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'error'   => $e->getMessage(),
+            // Do NOT expose full trace in production – comment out in prod
+            // 'trace'   => $e->getTraceAsString(),
+        ], 500);
+    }
+})->name('test.ai.laravel'); // optional – named route is useful for testing/linking

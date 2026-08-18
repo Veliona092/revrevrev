@@ -1,0 +1,8 @@
+{
+    "agents": [
+        "copilot",
+        "cursor",
+        "claude_code"
+    ],
+    "guidelines": true
+}

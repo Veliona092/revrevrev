@@ -1,0 +1,241 @@
+erDiagram
+    USERS ||--o{ CLASSES : creates
+    USERS ||--o{ CLASS_USER : enrolls
+    CLASSES ||--o{ CLASS_USER : has_students
+
+    USERS ||--o{ ANNOUNCEMENTS : posts
+    CLASSES ||--o{ ANNOUNCEMENTS : has
+    ANNOUNCEMENTS ||--o{ ANNOUNCEMENT_READS : read_by
+    USERS ||--o{ ANNOUNCEMENT_READS : reads
+
+    USERS ||--o{ CHATS : creates
+    CLASSES ||--o{ CHATS : context
+    CHATS ||--o{ CHAT_USER : has_members
+    USERS ||--o{ CHAT_USER : joins
+    CHATS ||--o{ CHAT_MESSAGES : contains
+    USERS ||--o{ CHAT_MESSAGES : sends
+
+    CLASSES ||--o{ MODULES : has
+    MODULES ||--o{ MODULE_PROGRESS : tracked_in
+    USERS ||--o{ MODULE_PROGRESS : progresses
+
+    MODULES ||--o{ MODULE_USER_VISIBILITY : visible_to
+    USERS ||--o{ MODULE_USER_VISIBILITY : can_view
+
+    MODULES ||--o{ QUIZ_QUESTIONS : has
+    MODULES ||--o{ QUIZ_ATTEMPTS : attempted_in
+    USERS ||--o{ QUIZ_ATTEMPTS : attempts
+    QUIZ_ATTEMPTS ||--o{ QUIZ_ANSWERS : includes
+    QUIZ_QUESTIONS ||--o{ QUIZ_ANSWERS : answered_as
+
+    USERS ||--o{ LECTURES : uploads
+    USERS ||--o{ SESSIONS : owns
+
+    USERS {
+      bigint id PK
+      varchar idnumber UK
+      varchar name
+      varchar email UK
+      varchar role
+      varchar program
+      boolean program_locked
+      varchar status
+      text rejection_reason
+      timestamp email_verified_at
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    SIGNUPS {
+      bigint id PK
+      varchar email UK
+      varchar idnumber UK
+      varchar name
+      varchar role
+      varchar verification_token UK
+      timestamp verified_at
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    CLASSES {
+      bigint id PK
+      varchar name
+      varchar code UK
+      year school_year
+      text description
+      text ai_summary
+      text assessment_ai_summary
+      json ai_settings
+      bigint created_by FK
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    CLASS_USER {
+      bigint id PK
+      bigint class_id FK
+      bigint user_id FK
+      timestamp joined_at
+      text assessment_ai_analysis
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    ANNOUNCEMENTS {
+      bigint id PK
+      bigint class_id FK
+      bigint user_id FK
+      text message
+      boolean is_pinned
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    ANNOUNCEMENT_READS {
+      bigint id PK
+      bigint announcement_id FK
+      bigint user_id FK
+      timestamp read_at
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    CHATS {
+      bigint id PK
+      varchar kind
+      bigint created_by FK
+      bigint class_id FK
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    CHAT_USER {
+      bigint id PK
+      bigint chat_id FK
+      bigint user_id FK
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    CHAT_MESSAGES {
+      bigint id PK
+      bigint chat_id FK
+      bigint sender_id FK
+      longtext body
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    MODULES {
+      bigint id PK
+      bigint class_id FK
+      varchar title
+      text description
+      text content
+      varchar file_path
+      varchar file_type
+      int order
+      boolean is_quiz
+      boolean is_assignment
+      boolean is_formal_assessment
+      varchar visibility
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    MODULE_PROGRESS {
+      bigint id PK
+      bigint module_id FK
+      bigint user_id FK
+      decimal progress
+      boolean completed
+      timestamp completed_at
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    MODULE_USER_VISIBILITY {
+      bigint module_id PK,FK
+      bigint user_id PK,FK
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    QUIZ_QUESTIONS {
+      bigint id PK
+      bigint module_id FK
+      text question_text
+      json options
+      varchar correct_option
+      int points
+      int order
+      varchar difficulty
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    QUIZ_ATTEMPTS {
+      bigint id PK
+      bigint user_id FK
+      bigint module_id FK
+      int score
+      int total
+      int percentage
+      boolean passed
+      timestamp attempted_at
+      smallint attempt_count
+      text ai_strong
+      text ai_weak
+      text ai_recommendation
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    QUIZ_ANSWERS {
+      bigint id PK
+      bigint attempt_id FK
+      bigint question_id FK
+      varchar selected_option
+      boolean is_correct
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    LECTURES {
+      bigint id PK
+      bigint teacher_id FK
+      varchar title
+      text description
+      varchar file_path
+      varchar file_name
+      varchar file_type
+      bigint file_size
+      varchar mime_type
+      timestamp uploaded_at
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    AI_SETTINGS {
+      bigint id PK
+      varchar key UK
+      longtext value
+      timestamp created_at
+      timestamp updated_at
+    }
+
+    SESSIONS {
+      varchar id PK
+      bigint user_id FK
+      varchar ip_address
+      text user_agent
+      longtext payload
+      int last_activity
+    }
+
+    PASSWORD_RESET_TOKENS {
+      varchar email PK
+      varchar token
+      timestamp created_at
+    }

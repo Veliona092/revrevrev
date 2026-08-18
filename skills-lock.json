@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "skills": {
+    "check": {
+      "source": "continuedev/skills",
+      "sourceType": "github",
+      "computedHash": "cb8628001e6326af7e69f6c5d441280b1d0cd1b477992cb99e8e0e98ae7c242b"
+    },
+    "ckm:banner-design": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "computedHash": "2237d5aafec7ab0223a91a9c4a13a8d25a4bd8a29b4ae9f9ea74d2cbfb9c6f91"
+    },
+    "ckm:brand": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "computedHash": "a5f623ca3998b832a4a254426bc184479bf1cfbf4275b786a6319d014d06803c"
+    },
+    "ckm:design": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "computedHash": "356a9ffc8ae2174dee4ac0b35458b383756e349dfa00de17b79394154cc99905"
+    },
+    "ckm:design-system": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "computedHash": "0206bc1d866ba6a93c6683d28b801314979fd164939d53830a7592ce0fb7a8a2"
+    },
+    "ckm:slides": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "computedHash": "f3e6594f5dd3f341afbd2b6c71d8b7cc44a97cdb85f76d5868b715f650c97ac2"
+    },
+    "ckm:ui-styling": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "computedHash": "b5f892864e479f969820c353f44faeedc61981bf2d7a854367069a80e0a264e1"
+    },
+    "laravel-security": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "86d246c2eb8fcda4586e13f9e32cd55e3ff222f6079a7f0b4442ef5e4e0971e7"
+    },
+    "laravel-tdd": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "02918544e96bc9b84d13b3c75f60f30414c27c90c6bc8222a2d04c71e7850b67"
+    },
+    "scan": {
+      "source": "continuedev/skills",
+      "sourceType": "github",
+      "computedHash": "b24ea7b345ca7a3e507118ce8f9f6352c4f9c861fa786cf58e5f37f5c36dd916"
+    },
+    "sql-optimization": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "computedHash": "47c930907f25d67454ac8c2d155785eae3dce72242960d0c0e9ebf2ced9cd231"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "computedHash": "6337038fe1fe6bbe1b9f252ab678ee575859190bab6f0f246f4061824eb40875"
+    },
+    "writing-checks": {
+      "source": "continuedev/skills",
+      "sourceType": "github",
+      "computedHash": "5b0b98267d7c76ef45549c7aac4c9c087ed16ec3c41eb545f9f14d19828e3d7f"
+    }
+  }
+}

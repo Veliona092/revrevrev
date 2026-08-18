@@ -1,0 +1,543 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\ClassModel;
+use App\Models\Module;
+use App\Models\QuizAnswer;
+use App\Models\QuizAttempt;
+use App\Models\QuizQuestion;
+use App\Services\AiSettingsResolver;
+use App\Services\CloudflareAI;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+
+class QuizController extends Controller
+{
+    private function buildFallbackQuizInsights(?QuizAttempt $attempt, $answers): array
+    {
+        if (! $attempt) {
+            return [
+                'strong' => 'Your quiz result was shown, but the saved attempt details are not available yet.',
+                'weak' => 'Detailed answer analysis could not be loaded for this attempt.',
+                'recommendation' => 'Refresh once to retry loading insights. If it still fails, retake the quiz after resetting the attempt.',
+            ];
+        }
+
+        $answers = collect($answers ?? []);
+        $correctAnswers = $answers->where('is_correct', true)->values();
+        $wrongAnswers = $answers->where('is_correct', false)->values();
+
+        $strong = 'You answered '.$attempt->score.' out of '.$attempt->total.' questions correctly.';
+        if ($correctAnswers->isNotEmpty()) {
+            $correctTopics = $correctAnswers
+                ->take(2)
+                ->map(fn ($answer) => trim((string) data_get($answer, 'question.question_text', '')))
+                ->filter()
+                ->map(fn (string $text) => Str::limit($text, 80))
+                ->implode(' | ');
+
+            if ($correctTopics !== '') {
+                $strong .= ' Strong items: '.$correctTopics.'.';
+            }
+        }
+
+        $weak = 'No major weak areas were detected from this attempt.';
+        if ($wrongAnswers->isNotEmpty()) {
+            $weakTopics = $wrongAnswers
+                ->take(2)
+                ->map(fn ($answer) => trim((string) data_get($answer, 'question.question_text', '')))
+                ->filter()
+                ->map(fn (string $text) => Str::limit($text, 80))
+                ->implode(' | ');
+
+            $weak = $weakTopics !== ''
+                ? 'Review these items: '.$weakTopics.'.'
+                : 'Some questions were missed and should be reviewed.';
+        }
+
+        $recommendation = match (true) {
+            $attempt->percentage >= 85 => 'Keep the pace and review the missed items once for retention.',
+            $attempt->percentage >= 50 => 'Review the incorrect questions and revisit the related lesson sections before the next attempt.',
+            default => 'Revisit the module content first, then retake the quiz with focus on the missed questions.',
+        };
+
+        return [
+            'strong' => $strong,
+            'weak' => $weak,
+            'recommendation' => $recommendation,
+        ];
+    }
+
+    /**
+     * Load all questions for a quiz module (used in the Cisco-style quiz page)
+     */
+    public function getQuestions(Module $module)
+    {
+        if (! $module->is_quiz) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This is not a quiz module.',
+            ], 400);
+        }
+
+        $questions = QuizQuestion::where('module_id', $module->id)
+            ->orderBy('order')
+            ->get();
+
+        if ($questions->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No questions found for this quiz yet.',
+            ], 404);
+        }
+
+        $formattedQuestions = $questions->map(function ($q) {
+            return [
+                'id' => $q->id,
+                'question_text' => $q->question_text,
+                'options' => $q->options,
+                'correct' => $q->correct_option,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'questions' => $formattedQuestions,
+            'time_limit' => $module->time_limit ?? 0,   // ← This line was missing
+        ]);
+    }
+
+    /**
+     * Submit quiz and save score
+     */
+    /**
+     * Submit quiz and save score to database
+     */
+    /**
+     * Handle quiz submission and save score
+     */
+    public function generateInsights(Request $request, Module $module)
+    {
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'attempt_id' => ['nullable', 'integer'],
+        ]);
+
+        $class = ClassModel::find($module->class_id);
+        $resolver = app(AiSettingsResolver::class);
+
+        if (! $resolver->isFeatureEnabled('quiz_insights', $class)) {
+            return response()->json(['success' => false, 'message' => 'AI insights are disabled for this class.'], 403);
+        }
+
+        $attemptId = data_get($validated, 'attempt_id');
+
+        $attempt = null;
+        if ($attemptId !== null) {
+            $attempt = QuizAttempt::where('id', $attemptId)
+                ->where('user_id', $user->id)
+                ->where('module_id', $module->id)
+                ->first();
+        }
+
+        if (! $attempt) {
+            $attempt = QuizAttempt::where('user_id', $user->id)
+                ->where('module_id', $module->id)
+                ->latest('updated_at')
+                ->first();
+        }
+
+        if (! $attempt) {
+            $fallback = $this->buildFallbackQuizInsights(null, collect());
+
+            return response()->json([
+                'success' => true,
+                'strong' => $fallback['strong'],
+                'weak' => $fallback['weak'],
+                'recommendation' => $fallback['recommendation'],
+            ]);
+        }
+
+        // Return cached insights if already generated for this attempt.
+        if ($attempt->ai_strong !== null) {
+            return response()->json([
+                'success' => true,
+                'strong' => $attempt->ai_strong,
+                'weak' => $attempt->ai_weak,
+                'recommendation' => $attempt->ai_recommendation,
+            ]);
+        }
+
+        $answers = QuizAnswer::where('attempt_id', $attempt->id)
+            ->with('question')
+            ->get();
+
+        $fallback = $this->buildFallbackQuizInsights($attempt, $answers);
+
+        $answersContext = '';
+        foreach ($answers as $a) {
+            $correct = $a->is_correct ? 'Correct' : 'Wrong';
+            $answersContext .= "- Q: {$a->question->question_text}\n  Answer: {$a->selected_option} → {$correct}\n";
+        }
+
+        $systemPrompt = $resolver->getPromptTemplate('quiz_insights', 'system');
+        $userTemplate = $resolver->getPromptTemplate('quiz_insights', 'user_template');
+        $userPrompt = $resolver->renderTemplate($userTemplate, [
+            'score' => (string) $attempt->percentage,
+            'module_title' => (string) $module->title,
+            'answers_context' => trim($answersContext),
+        ]);
+
+        $strong = $fallback['strong'];
+        $weak = $fallback['weak'];
+        $recommendation = $fallback['recommendation'];
+
+        try {
+            $ai = app(CloudflareAI::class);
+            $payload = [
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user', 'content' => $userPrompt],
+                ],
+                'max_tokens' => $resolver->getMaxTokens(),
+                'temperature' => 0.6,
+            ];
+
+            $result = $ai->run($resolver->getModel(), $payload);
+            $text = trim((string) ($result['response'] ?? ''));
+
+            if (preg_match('/Strong Areas:(.*?)Weak Areas:/is', $text, $m)) {
+                $parsedStrong = trim($m[1]);
+                if ($parsedStrong !== '') {
+                    $strong = $parsedStrong;
+                }
+            }
+            if (preg_match('/Weak Areas:(.*?)Recommendation:/is', $text, $m)) {
+                $parsedWeak = trim($m[1]);
+                if ($parsedWeak !== '') {
+                    $weak = $parsedWeak;
+                }
+            }
+            if (preg_match('/Recommendation:(.*)/is', $text, $m)) {
+                $parsedRecommendation = trim($m[1]);
+                if ($parsedRecommendation !== '') {
+                    $recommendation = $parsedRecommendation;
+                }
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('Quiz insights AI fallback used.', [
+                'module_id' => $module->id,
+                'attempt_id' => $attempt->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        // Persist insights so they are not regenerated on subsequent views.
+        $attempt->update([
+            'ai_strong' => $strong,
+            'ai_weak' => $weak,
+            'ai_recommendation' => $recommendation,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'strong' => $strong,
+            'weak' => $weak,
+            'recommendation' => $recommendation,
+        ]);
+    }
+
+    public function submitAnswer(Request $request, Module $module)
+    {
+        $user = Auth::user();
+
+        // Pre-assessment quizzes allow only one attempt.
+        if (! $module->is_formal_assessment) {
+            $alreadyCompleted = QuizAttempt::where('user_id', $user->id)
+                ->where('module_id', $module->id)
+                ->where('total', '>', 0)
+                ->exists();
+
+            if ($alreadyCompleted) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You have already completed this quiz and cannot retake it.',
+                ], 403);
+            }
+        }
+
+        // Validate incoming answer
+        $validated = $request->validate([
+            'question_id' => 'required|exists:quiz_questions,id',
+            'selected_option' => 'required|string|in:A,B,C,D,a,b,c,d',
+        ]);
+
+        $question = QuizQuestion::findOrFail($validated['question_id']);
+
+        if ((int) $question->module_id !== (int) $module->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Question does not belong to this module.',
+            ], 422);
+        }
+
+        // Find or create an attempt for this user/module.
+        $attempt = QuizAttempt::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'module_id' => $module->id,
+            ],
+            [
+                'score' => 0,
+                'total' => 0,
+                'percentage' => 0,
+                'passed' => false,
+            ]
+        );
+
+        $selectedOption = strtoupper((string) $validated['selected_option']);
+
+        // Check correctness
+        $isCorrect = $selectedOption === strtoupper((string) $question->correct_option);
+
+        // Save one final answer per question for the attempt.
+        QuizAnswer::updateOrCreate(
+            [
+                'attempt_id' => $attempt->id,
+                'question_id' => $question->id,
+            ],
+            [
+                'selected_option' => $selectedOption,
+                'is_correct' => $isCorrect,
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'isCorrect' => $isCorrect,
+        ]);
+    }
+
+    /**
+     * Save quiz score + percentage for the current user/module.
+     * The student UI calls this once the quiz is finished.
+     */
+    public function submitQuiz(Request $request, Module $module)
+    {
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'score' => ['required', 'integer', 'min:0'],
+            'total' => ['required', 'integer', 'min:1'],
+            'percentage' => ['required', 'integer', 'min:0', 'max:100'],
+        ]);
+
+        // Pre-assessment quizzes allow only one attempt.
+        if (! $module->is_formal_assessment) {
+            $alreadyCompleted = QuizAttempt::where('user_id', $user->id)
+                ->where('module_id', $module->id)
+                ->where('total', '>', 0)
+                ->exists();
+
+            if ($alreadyCompleted) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You have already completed this quiz and cannot retake it.',
+                ], 403);
+            }
+        }
+
+        // Important: update the existing attempt (created during per-question submissions)
+        // instead of creating a new attempt, so the latest attempt still has quiz_answers.
+        $attempt = QuizAttempt::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'module_id' => $module->id,
+            ],
+            [
+                'score' => 0,
+                'total' => 0,
+                'percentage' => 0,
+                'passed' => false,
+            ]
+        );
+
+        $attempt->score = $validated['score'];
+        $attempt->total = $validated['total'];
+        $attempt->percentage = $validated['percentage'];
+        $attempt->ai_strong = null;
+        $attempt->ai_weak = null;
+        $attempt->ai_recommendation = null;
+
+        $passingGrade = $module->passing_grade ?? (int) config('quiz.pass_threshold', 50);
+        $attempt->passed = $attempt->percentage >= $passingGrade;
+        $attempt->attempt_count = ($attempt->attempt_count ?? 0) + 1;
+        $attempt->save();
+
+        return response()->json([
+            'success' => true,
+            'score' => $attempt->score,
+            'total' => $attempt->total,
+            'percentage' => $attempt->percentage,
+            'passed' => $attempt->passed,
+            'attempt_id' => $attempt->id,
+            'attempt_count' => $attempt->attempt_count,
+        ]);
+    }
+
+    /**
+     * Reset all student attempts for a pre-assessment quiz (teacher/admin only).
+     */
+    public function resetAttempts(Module $module)
+    {
+        $user = Auth::user();
+        $class = $module->class;
+
+        if ($class->created_by !== $user->id && $user->role !== 'admin') {
+            abort(403, 'You are not authorized to reset quiz attempts.');
+        }
+
+        if (! $module->is_quiz || $module->is_formal_assessment) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Reset is only allowed for practice quizzes, not formal assessments.',
+            ], 422);
+        }
+
+        $attemptIds = QuizAttempt::where('module_id', $module->id)->pluck('id');
+        QuizAnswer::whereIn('attempt_id', $attemptIds)->delete();
+        QuizAttempt::where('module_id', $module->id)->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'All student attempts for this quiz have been reset.',
+        ]);
+    }
+
+    /**
+     * Reset the authenticated student's own attempt for a pre-assessment quiz.
+     */
+    public function resetMyAttempt(Module $module)
+    {
+        $user = Auth::user();
+
+        if (! $module->is_quiz || $module->is_formal_assessment) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Reset is only allowed for practice quizzes, not formal assessments.',
+            ], 422);
+        }
+
+        $attempt = QuizAttempt::where('user_id', $user->id)
+            ->where('module_id', $module->id)
+            ->first();
+
+        if ($attempt) {
+            QuizAnswer::where('attempt_id', $attempt->id)->delete();
+
+            // Preserve the record so attempt_count is not lost; just reset the scores.
+            $attempt->update([
+                'score' => 0,
+                'total' => 0,
+                'percentage' => 0,
+                'passed' => false,
+                'attempt_count' => $attempt->attempt_count + 1,
+                'ai_strong' => null,
+                'ai_weak' => null,
+                'ai_recommendation' => null,
+            ]);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Show quiz with timer based on teacher's input
+     */
+    public function show(Module $module)
+    {
+        // Teacher sets time_limit in minutes when creating the quiz
+        $durationMinutes = $module->time_limit ?? 0;
+
+        // Convert to seconds for JS timer
+        $durationSeconds = $durationMinutes * 60;
+
+        return view('quiz.show', [
+            'module' => $module,
+            'questions' => $module->questions, // assuming relation exists
+            'durationSeconds' => $durationSeconds,
+        ]);
+    }
+
+    public function createQuizDraft(Request $request, ClassModel $class)
+    {
+        if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
+            abort(403);
+        }
+        \Log::info('createQuizDraft - Received data:', $request->all());
+        $validated = $request->validate([
+            'title' => 'required|string|max:150',
+            'description' => 'nullable|string',
+            'time_limit' => 'nullable',
+            'is_formal_assessment' => 'nullable|boolean',
+            'visibility' => 'nullable|in:all,selected,except',
+            'visible_user_ids' => 'nullable|array',
+            'visible_user_ids.*' => 'integer|exists:users,id',
+        ]);
+
+        // Normalize time_limit: accept numeric strings, null, or empty -> store null or int minutes
+        $rawTime = $request->input('time_limit', null);
+
+        // If user submitted an empty string, treat as null (no limit)
+        if ($rawTime === '' || $rawTime === null) {
+            $minutes = null;
+        } else {
+            // Remove non-digits, then cast to int. This accepts "5", "05", " 5 ", etc.
+            // If you expect formats like "00:05", handle that separately below.
+            if (is_numeric($rawTime)) {
+                $minutes = (int) $rawTime;
+            } elseif (preg_match('/^(\d+):(\d{1,2})$/', trim($rawTime), $m)) {
+                // Accept "MM:SS" or "H:MM" style and convert to minutes (round up if seconds > 0)
+                $mins = (int) $m[1];
+                $secs = (int) $m[2];
+                $minutes = $mins + ($secs > 0 ? 1 : 0);
+            } else {
+                // fallback: try to extract digits
+                preg_match('/\d+/', $rawTime, $m2);
+                $minutes = isset($m2[0]) ? (int) $m2[0] : null;
+            }
+        }
+
+        $visibility = $request->input('visibility', 'all');
+        $visibleUserIds = $request->input('visible_user_ids', []);
+
+        if (in_array($visibility, ['selected', 'except']) && ! empty($visibleUserIds)) {
+            $enrolledIds = $class->users()->pluck('users.id')->toArray();
+            $visibleUserIds = array_values(array_intersect($visibleUserIds, $enrolledIds));
+        }
+
+        $module = Module::create([
+            'class_id' => $class->id,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'time_limit' => $minutes ?? 0,
+            'file_path' => null,
+            'file_type' => null,
+            'is_quiz' => true,
+            'is_assignment' => false,
+            'is_formal_assessment' => (bool) ($request->input('is_formal_assessment', false)),
+            'visibility' => $visibility,
+        ]);
+
+        // Visibility is set at creation time only — editing is a future feature.
+        if (in_array($visibility, ['selected', 'except']) && ! empty($visibleUserIds)) {
+            $module->visibleTo()->sync($visibleUserIds);
+        }
+
+        return redirect()->route('quiz.create', $module);
+    }
+}

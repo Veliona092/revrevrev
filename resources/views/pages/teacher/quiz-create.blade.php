@@ -1,0 +1,691 @@
+﻿@php
+    $layout = in_array(auth()->user()->role, ['admin', 'superadmin'])
+        ? 'layouts.appAdmin'
+        : 'layouts.appTeach';
+@endphp
+@extends($layout)
+@php
+    $existingQuestions = collect($existingQuestions ?? []);
+    $isEditing = $existingQuestions->isNotEmpty();
+    $isAssessment = (bool) $module->is_formal_assessment;
+    $pageLabel = $isEditing
+        ? ($isAssessment ? 'Edit Exam' : 'Edit Quiz')
+        : ($isAssessment ? 'Create Exam' : 'Create Quiz');
+@endphp
+
+@section('title', $pageLabel)
+@section('page-heading', $pageLabel)
+
+@section('header-actions')
+    <a href="{{ $backUrl ?? url()->previous() }}" class="rv-btn rv-btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back
+    </a>
+@endsection
+
+@section('content')
+<style>
+    .qc-card {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 14px;
+        padding: 28px 28px 24px;
+        margin-bottom: 20px;
+    }
+
+    .qc-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 24px;
+    }
+
+    .qc-meta-icon {
+        width: 40px; height: 40px; border-radius: 10px;
+        background: #f3f3f3; display: flex; align-items: center;
+        justify-content: center; font-size: 16px; color: #888;
+    }
+
+    .qc-meta-title { font-size: 16px; font-weight: 500; color: #111; }
+    .qc-meta-sub { font-size: 16px; color: #aaa; }
+
+    /* Tabs */
+    .qc-tabs { display: flex; gap: 4px; border-bottom: 2px solid #ebebeb; margin-bottom: 24px; }
+
+    .qc-tab {
+        padding: 9px 18px; font-size: 16px; font-weight: 500; color: #888;
+        border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent;
+        margin-bottom: -2px; transition: color 0.15s, border-color 0.15s;
+    }
+
+    .qc-tab:hover { color: #444; }
+    .qc-tab.active { color: #ED773C; border-bottom-color: #ED773C; }
+
+    .qc-tab-panel { display: none; }
+    .qc-tab-panel.active { display: block; }
+
+    /* Form rows */
+    .qc-row { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 16px; }
+    .qc-row-single { margin-bottom: 16px; }
+
+    .qc-label {
+        display: block; font-size: 16px; font-weight: 500;
+        letter-spacing: 0.06em; text-transform: uppercase;
+        color: #aaa; margin-bottom: 6px;
+    }
+
+    /* Question blocks */
+    .qb-block {
+        background: #fafafa;
+        border: 1px solid #e8e8e8;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+        animation: qb-in 0.18s ease both;
+    }
+
+    @keyframes qb-in {
+        from { opacity: 0; transform: translateY(4px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .qb-header {
+        display: flex; justify-content: space-between;
+        align-items: center; margin-bottom: 14px;
+    }
+
+    .qb-num { font-size: 16px; font-weight: 600; color: #555; }
+
+.qb-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.qb-radio-opt {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.qb-remove-opt {
+    width: 32px !important;
+    height: 32px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+    .qb-option-letter {
+        width: 26px; height: 26px; border-radius: 6px;
+        background: #ebebeb; display: flex; align-items: center;
+        justify-content: center; font-size: 14px; font-weight: 600;
+        color: #666; flex-shrink: 0;
+    }
+
+    .qb-correct-row {
+        display: flex; align-items: center; gap: 8px;
+        margin-top: 14px;
+    }
+    .qb-correct-label { font-size: 16px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 4px; }
+
+    .qb-radio-opt {
+        display: flex; align-items: center; gap: 4px;
+        font-size: 16px; color: #555; cursor: pointer;
+    }
+
+    /* File list item adjustments */
+    .qc-file-item {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 12px; background: #fafafa; border: 1px solid #ebebeb;
+        border-radius: 8px; margin-bottom: 6px; font-size: 16px; gap: 16px;
+    }
+
+    .qc-file-name { font-weight: 500; color: #333; word-break: break-all; }
+    .qc-file-size { font-size: 14px; color: #aaa; margin-top: 1px; }
+
+    .qc-empty { color: #bbb; font-size: 16px; text-align: center; padding: 24px 0; }
+
+    .qc-add-q-bar {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .qc-section-title { font-size: 16px; font-weight: 600; color: #666; }
+
+    .qc-toast {
+        position: fixed;
+        top: 22px;
+        right: 22px;
+        z-index: 12000;
+        min-width: 240px;
+        max-width: min(92vw, 360px);
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #f4b3b2;
+        background: #fff4f3;
+        color: #7b2220;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+        font-size: 16px;
+        opacity: 0;
+        transform: translateY(-6px);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        pointer-events: none;
+    }
+
+    .qc-toast.show {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .qc-toast.success {
+        border-color: #c9e8d4;
+        background: #e9f8ef;
+        color: #17653f;
+    }
+</style>
+
+<div class="qc-card">
+    <div class="qc-meta">
+        <div class="qc-meta-icon"><i class="fas fa-clipboard-list"></i></div>
+      <div>
+            <div class="qc-meta-title">{{ $module->title }}</div>
+            <div class="qc-meta-sub">
+                @if($class)
+                    {{ $class->name }}
+                    
+                    @php
+                        $yr = $class->year_level ?? $class->year ?? null;
+                        $yrLabel = match((string)$yr) {
+                            '1' => '1st Year',
+                            '2' => '2nd Year',
+                            '3' => '3rd Year',
+                            '4' => '4th Year',
+                            default => $yr ? $yr . ' Year' : null
+                        };
+                    @endphp
+
+                    @if($yrLabel)
+                        &bull; {{ $yrLabel }}
+                    @endif
+
+                    @if($class->school_year)
+                        (S.Y. {{ $class->school_year }})
+                    @endif
+                @else
+                    {{ ($isMockBoard ?? false) ? 'Mock Board Exam' : 'No Class Assigned' }}
+                @endif
+            </div>
+        </div>
+    </div>
+
+    @if($isAssessment)
+    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; background:#fafafa; border:1px solid #ebebeb; border-radius:10px; margin-bottom:20px;">
+        <label style="font-size:16px; font-weight:500; color:#666; white-space:nowrap;">Max Attempts (base):</label>
+        <input type="number" id="maxAttemptsInput" min="1" max="20" value="{{ $module->max_attempts ?? 1 }}" class="rv-input" style="width:80px;">
+        <button type="button" id="saveMaxAttemptsBtn" class="rv-btn rv-btn-secondary" style="height:34px;font-size:14px;">
+            <i class="fas fa-save"></i> Save
+        </button>
+        <span id="maxAttemptsStatus" style="font-size:14px; color:#1d9e75; display:none;"></span>
+    </div>
+    @endif
+
+    @if(!($isMockBoard ?? false))
+        <div class="qc-tabs">
+            <button class="qc-tab {{ $isEditing ? '' : 'active' }}" data-panel="ai">
+                <i class="fas fa-robot" style="margin-right:5px;"></i> AI Generator
+            </button>
+            <button class="qc-tab {{ $isEditing ? 'active' : '' }}" data-panel="manual">
+                <i class="fas fa-pen" style="margin-right:5px;"></i> Manual
+            </button>
+        </div>
+    @endif
+
+    {{-- AI Tab (Only rendered if it's NOT a mock board) --}}
+    @if(!($isMockBoard ?? false))
+        <div class="qc-tab-panel {{ $isEditing ? '' : 'active' }}" id="panel-ai">
+            <form id="aiQuizForm" method="POST" action="{{ route('quiz.generate', $module) }}" enctype="multipart/form-data">
+                @csrf
+<div class="qc-row" style="grid-template-columns: 1fr 1fr;">
+                    <div>
+                        <label class="qc-label">Global Difficulty</label>
+                        <select name="difficulty" class="rv-input" required>
+                            @php($quizDifficulty = (string) ($classQuizDefaults['difficulty'] ?? 'Normal'))
+                            <option value="Average" {{ $quizDifficulty === 'Average' ? 'selected' : '' }}>Average</option>
+                            <option value="Normal" {{ $quizDifficulty === 'Normal' ? 'selected' : '' }}>Normal</option>
+                            <option value="Hard" {{ $quizDifficulty === 'Hard' ? 'selected' : '' }}>Difficult</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="qc-label">Choices per Question</label>
+                        <input type="number" name="choice_count" class="rv-input" min="2" max="10" value="4" placeholder="4">
+                    </div>
+                </div>
+
+                <div class="qc-row-single">
+                    <label class="qc-label">Additional Instructions (Optional)</label>
+                    <textarea name="extra_instructions" class="rv-textarea" rows="2" placeholder="e.g. Focus on higher order thinking skills (HOTS), avoid pure recall questions"></textarea>
+                </div>
+
+                <div id="aiDisabledNotice" class="qc-toast show" style="position:static;margin-top:8px;transform:none;pointer-events:auto;{{ (isset($isAiQuizGenerationEnabled) && ! $isAiQuizGenerationEnabled) ? '' : 'display:none;' }}">
+                    AI quiz generation is currently disabled for this class.
+                </div>
+
+                <div class="qc-row-single" style="margin-top:16px;">
+                    <label class="qc-label">Upload PDFs / Documents & Set Target Question Balance</label>
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                        <input type="file" id="fileInput" style="display:none;" accept=".pdf,.docx,.txt" multiple>
+                        <button type="button" id="addFilesBtn" class="rv-btn rv-btn-secondary">
+                            <i class="fas fa-paperclip"></i> Attach Files
+                        </button>
+                        <span style="font-size: 16px;color:#aaa;">PDF, DOC, DOCX, TXT supported</span>
+                    </div>
+                    
+                    <div id="selectedFilesList"></div>
+                </div>
+
+                <button type="submit" id="aiSubmitBtn" class="rv-btn rv-btn-primary" style="margin-top:14px;" {{ (isset($isAiQuizGenerationEnabled) && ! $isAiQuizGenerationEnabled) ? 'disabled' : '' }}>
+                    <i class="fas fa-robot"></i> Generate with AI
+                </button>
+            </form>
+        </div>
+    @endif
+
+    {{-- Manual Tab (Always visible and active instantly for Mock Boards) --}}
+    <div class="qc-tab-panel {{ ($isEditing || ($isMockBoard ?? false)) ? 'active' : '' }}" id="panel-manual">
+        <div class="qc-add-q-bar">
+            <span class="qc-section-title" id="qCountLabel">0 question(s)</span>
+            <button type="button" id="addQuestionBtn" class="rv-btn rv-btn-primary" style="height:34px;font-size: 16px;">
+                <i class="fas fa-plus"></i> Add Question
+            </button>
+        </div>
+
+        <form id="manualQuizForm" method="POST" action="{{ route('quiz.store', $module) }}">
+            @csrf
+            <div id="questionsContainer"></div>
+            <div id="emptyState" class="qc-empty">
+                <i class="fas fa-clipboard" style="font-size:24px;margin-bottom:8px;display:block;"></i>
+                No questions yet. Click "Add Question" to start.
+            </div>
+            
+            {{-- Shuffle Option --}}
+            <div style="margin: 16px 0; padding: 12px 16px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 15px; color: #495057;">
+                    <input type="checkbox" name="shuffle_questions" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+                    <span><i class="fas fa-random" style="margin-right: 6px; color: #6c757d;"></i> Shuffle question order when saving</span>
+                </label>
+                <p style="margin: 6px 0 0 28px; font-size: 13px; color: #6c757d;">Questions will be randomly reordered before saving to the database.</p>
+            </div>
+            
+            <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;margin-top:8px;" id="saveQuestionsBtn">
+                <i class="fas fa-save"></i> {{ $isEditing ? ($isAssessment ? 'Update Exam Questions' : 'Update Questions') : ($isAssessment ? 'Save Exam Questions' : 'Save All Questions') }}
+            </button>
+        </form>
+    </div>
+</div>
+@endsection
+
+@section('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    let qcToastTimer = null;
+    const isMockBoard = {{ ($isMockBoard ?? false) ? 'true' : 'false' }};
+
+    // Max Attempts save (formal assessments lang)
+    const saveMaxAttemptsBtn = document.getElementById('saveMaxAttemptsBtn');
+    if (saveMaxAttemptsBtn) {
+        saveMaxAttemptsBtn.addEventListener('click', function () {
+            const input = document.getElementById('maxAttemptsInput');
+            const status = document.getElementById('maxAttemptsStatus');
+            const value = parseInt(input.value, 10) || 1;
+
+            saveMaxAttemptsBtn.disabled = true;
+
+            fetch('{{ route('quiz.max-attempts.update', $module) }}', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ max_attempts: value }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        status.textContent = 'Saved!';
+                        status.style.display = 'inline';
+                        setTimeout(() => { status.style.display = 'none'; }, 2000);
+                    } else {
+                        alert(data.message || 'Hindi na-save ang max attempts.');
+                    }
+                })
+                .catch(() => alert('May error habang nagse-save ng max attempts.'))
+                .finally(() => { saveMaxAttemptsBtn.disabled = false; });
+        });
+    }
+
+    function showQuizCreateToast(message, type) {
+        type = type || 'error';
+        let toast = document.getElementById('qcToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'qcToast';
+            toast.className = 'qc-toast';
+            document.body.appendChild(toast);
+        }
+
+        toast.classList.remove('success');
+        if (type === 'success') {
+            toast.classList.add('success');
+        }
+        toast.textContent = message;
+        toast.classList.add('show');
+
+        if (qcToastTimer) {
+            clearTimeout(qcToastTimer);
+        }
+        qcToastTimer = setTimeout(function () {
+            toast.classList.remove('show');
+        }, 2800);
+    }
+
+    const existingQuestions = @json($existingQuestions->values());
+    const classId = {{ $class?->id ?? 'null' }};
+    const serverQuizSettings = {
+        quiz_defaults: {
+            question_count: {{ (int) ($classQuizDefaults['question_count'] ?? max($existingQuestions->count(), 5)) }},
+            difficulty: @json((string) ($classQuizDefaults['difficulty'] ?? 'Normal')),
+        },
+        features: {
+            quiz_generation_enabled: {{ (isset($isAiQuizGenerationEnabled) && ! $isAiQuizGenerationEnabled) ? 'false' : 'true' }},
+        },
+    };
+
+    function applyAiSettingsToForm(settings) {
+        if (isMockBoard || !settings) { return; }
+
+        const quizDefaults = settings.quiz_defaults || {};
+        const features = settings.features || {};
+        const difficultySelect = document.querySelector('#aiQuizForm select[name="difficulty"]');
+        const aiSubmitBtn = document.getElementById('aiSubmitBtn');
+        const aiDisabledNotice = document.getElementById('aiDisabledNotice');
+
+        if (difficultySelect && Object.prototype.hasOwnProperty.call(quizDefaults, 'difficulty')) {
+            difficultySelect.value = String(quizDefaults.difficulty || 'Normal');
+        }
+
+        if (Object.prototype.hasOwnProperty.call(features, 'quiz_generation_enabled')) {
+            const isEnabled = Boolean(features.quiz_generation_enabled);
+            if (aiSubmitBtn) { aiSubmitBtn.disabled = !isEnabled; }
+            if (aiDisabledNotice) { aiDisabledNotice.style.display = isEnabled ? 'none' : ''; }
+        }
+    }
+
+    function syncAiSettingsFromStorage() {
+        if (isMockBoard) return;
+        try {
+            const raw = localStorage.getItem(`aiSettings.class.${classId}`);
+            if (!raw) { return; }
+            const parsed = JSON.parse(raw);
+            if (Number(parsed.class_id) !== Number(classId)) { return; }
+            applyAiSettingsToForm(parsed.settings || {});
+        } catch (_) {}
+    }
+
+    applyAiSettingsToForm(serverQuizSettings);
+    syncAiSettingsFromStorage();
+    window.addEventListener('pageshow', function () {
+        applyAiSettingsToForm(serverQuizSettings);
+        syncAiSettingsFromStorage();
+    });
+    window.addEventListener('storage', function (event) {
+        if (event.key === `aiSettings.class.${classId}` || event.key === 'aiSettings.lastUpdateAt') {
+            syncAiSettingsFromStorage();
+        }
+    });
+
+    // ── Tabs Switching ──
+    if (!isMockBoard) {
+        document.querySelectorAll('.qc-tab').forEach(tab => {
+            tab.addEventListener('click', function () {
+                document.querySelectorAll('.qc-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.qc-tab-panel').forEach(p => p.classList.remove('active'));
+                this.classList.add('active');
+                document.getElementById('panel-' + this.dataset.panel).classList.add('active');
+            });
+        });
+    }
+
+    // ── Manual Setup Engine ──
+    let questionCount = 0;
+
+    function updateCountLabel() {
+        const n = document.querySelectorAll('.qb-block').length;
+        document.getElementById('qCountLabel').textContent = n + ' question(s)';
+        document.getElementById('emptyState').style.display = n === 0 ? 'block' : 'none';
+        document.getElementById('saveQuestionsBtn').style.display = n === 0 ? 'none' : 'block';
+    }
+
+   window.addQuestionBlock = function (text = '', options = {A:'',B:'',C:'',D:''}, correct = 'A') {
+        questionCount++;
+        const qn = questionCount;
+        const block = document.createElement('div');
+        block.className = 'qb-block';
+        block.id = 'q' + qn;
+
+        const optionKeys = Object.keys(options).length ? Object.keys(options) : ['A', 'B'];
+
+        block.innerHTML = `
+            <div class="qb-header">
+                <span class="qb-num">Question ${qn}</span>
+                <button type="button" class="rv-btn rv-btn-danger" style="height:28px;padding:0 10px;font-size: 16px;" onclick="removeQuestion('q${qn}')">
+                    <i class="fas fa-trash"></i> Remove
+                </button>
+            </div>
+            <label class="qc-label">Question Text</label>
+            <textarea name="questions[${qn}][text]" class="rv-textarea" rows="3" placeholder="Enter question..." required>${text}</textarea>
+
+            <div class="qb-options-list" id="options-${qn}" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;"></div>
+
+            <button type="button" class="rv-btn rv-btn-secondary" style="margin-top:8px;height:32px;font-size:14px;" onclick="addOption(${qn})">
+                <i class="fas fa-plus"></i> Add Choice
+            </button>
+
+            <div class="qb-correct-row" id="correct-row-${qn}">
+                <span class="qb-correct-label">Correct:</span>
+            </div>
+            <input type="hidden" name="questions[${qn}][points]" value="1">
+        `;
+        document.getElementById('questionsContainer').appendChild(block);
+
+        optionKeys.forEach(key => addOption(qn, key, options[key] || '', correct === key));
+
+        updateCountLabel();
+    };
+
+    // Bumubuo ng susunod na letra (A, B, C... Z, AA, AB...) base sa dami ng options na meron na
+    function nextOptionLetter(qn) {
+        const existing = document.querySelectorAll(`#options-${qn} .qb-option`).length;
+        let n = existing;
+        let letter = '';
+        do {
+            letter = String.fromCharCode(65 + (n % 26)) + letter;
+            n = Math.floor(n / 26) - 1;
+        } while (n >= 0);
+        return letter;
+    }
+
+    window.addOption = function (qn, key = null, value = '', isCorrect = false) {
+        const optionsList = document.getElementById(`options-${qn}`);
+        const currentCount = optionsList.querySelectorAll('.qb-option').length;
+
+        if (currentCount >= 10) {
+            alert('Maximum na 10 choices lang ang pwede bawat tanong.');
+            return;
+        }
+
+        const letter = key || nextOptionLetter(qn);
+        const optDiv = document.createElement('div');
+        optDiv.className = 'qb-option';
+        optDiv.dataset.key = letter;
+        optDiv.style = 'display:flex;align-items:center;gap:8px;';
+      optDiv.innerHTML = `
+    <div class="qb-option-letter">${letter}</div>
+    <input type="text" name="questions[${qn}][options][${letter}]" class="rv-input" placeholder="Option ${letter}" value="${value}" required style="flex:1; min-width:0;">
+    <label class="qb-radio-opt">
+        <input type="radio" name="questions[${qn}][correct]" value="${letter}" ${isCorrect ? 'checked' : ''}> Correct
+    </label>
+    <button type="button" class="rv-btn rv-btn-danger qb-remove-opt" onclick="removeOption(${qn}, this)">
+        <i class="fas fa-times"></i>
+    </button>
+`;
+        optionsList.appendChild(optDiv);
+
+        // Kung ito ang unang option, awtomatikong markahan bilang tama
+        if (optionsList.querySelectorAll('.qb-option').length === 1) {
+            optDiv.querySelector('input[type="radio"]').checked = true;
+        }
+    };
+
+    window.removeOption = function (qn, btn) {
+        const optionsList = document.getElementById(`options-${qn}`);
+        if (optionsList.querySelectorAll('.qb-option').length <= 2) {
+            alert('Kailangan ng minimum na 2 choices bawat tanong.');
+            return;
+        }
+        const wasChecked = btn.closest('.qb-option').querySelector('input[type="radio"]').checked;
+        btn.closest('.qb-option').remove();
+
+        // Kung natanggal ang na-mark na tamang sagot, i-set ulit sa una
+        if (wasChecked) {
+            const firstRadio = optionsList.querySelector('input[type="radio"]');
+            if (firstRadio) firstRadio.checked = true;
+        }
+    };
+
+    window.removeQuestion = function (id) {
+        const el = document.getElementById(id);
+        if (el) { el.remove(); }
+        updateCountLabel();
+    };
+
+    document.getElementById('addQuestionBtn').addEventListener('click', () => addQuestionBlock());
+
+    if (existingQuestions.length) {
+        existingQuestions.forEach(question => {
+            addQuestionBlock(
+                question.text || '',
+                question.options || {A:'',B:'',C:'',D:''},
+                question.correct || 'A'
+            );
+        });
+    }
+
+    updateCountLabel();
+
+    // ── Balanced File Upload Setup ──
+    const aiForm = document.getElementById('aiQuizForm');
+    if (aiForm) {
+        const fileInput    = document.getElementById('fileInput');
+        const addFilesBtn  = document.getElementById('addFilesBtn');
+        const fileListDiv  = document.getElementById('selectedFilesList');
+        let selectedFiles  = [];
+
+        addFilesBtn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', function () {
+            Array.from(this.files).forEach(file => {
+                if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                    file.targetQuestionsCount = 5; 
+                    selectedFiles.push(file);
+                }
+            });
+            fileInput.value = '';
+            renderFileList();
+        });
+
+        function renderFileList() {
+            fileListDiv.innerHTML = '';
+            if (selectedFiles.length === 0) { return; }
+            
+            selectedFiles.forEach((file, i) => {
+                const div = document.createElement('div');
+                div.className = 'qc-file-item';
+                div.innerHTML = `
+                    <div style="flex-grow:1;">
+                        <div class="qc-file-name"><i class="fas fa-file-alt" style="color:#888;margin-right:6px;"></i>${file.name}</div>
+                        <div class="qc-file-size">${(file.size/1024).toFixed(1)} KB</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                        <label style="font-size:14px;color:#666;font-weight:500;white-space:nowrap;margin:0;">Questions:</label>
+                        <input type="number" class="rv-input target-count-input" style="width:70px;height:34px;padding:4px 8px;text-align:center;margin:0;" min="0" max="25" value="${file.targetQuestionsCount}" data-index="${i}">
+                    </div>
+                    <button type="button" class="rv-btn rv-btn-danger" style="height:34px;width:34px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" data-index="${i}">
+                        <i class="fas fa-times"></i>
+                    </button>`;
+                
+                div.querySelector('.target-count-input').addEventListener('input', function() {
+                    const idx = parseInt(this.dataset.index);
+                    selectedFiles[idx].targetQuestionsCount = parseInt(this.value) || 0;
+                });
+
+                div.querySelector('button').addEventListener('click', function () {
+                    selectedFiles.splice(parseInt(this.dataset.index), 1);
+                    renderFileList();
+                });
+                fileListDiv.appendChild(div);
+            });
+        }
+
+        aiForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            
+            if (selectedFiles.length === 0) {
+                showQuizCreateToast('Please attach at least one file before generating.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('aiSubmitBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+            const formData = new FormData(this);
+            
+            selectedFiles.forEach((file, index) => {
+                formData.append('context_files[' + index + ']', file);
+                formData.append('file_question_counts[' + index + ']', file.targetQuestionsCount);
+            });
+
+            fetch(this.action, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                body: formData,
+            })
+            .then(r => r.json())
+            .then(response => {
+                if (response.success && response.questions) {
+                    document.getElementById('questionsContainer').innerHTML = '';
+                    questionCount = 0;
+                    response.questions.forEach(q =>
+                        addQuestionBlock(q.question_text || q.question || '', q.options || {A:'',B:'',C:'',D:''}, q.correct_option || 'A')
+                    );
+                    document.querySelector('[data-panel="manual"]').click();
+                    showQuizCreateToast(response.message, 'success');
+                } else {
+                    showQuizCreateToast(response.message || 'No questions returned.', 'error');
+                }
+            })
+            .catch(() => showQuizCreateToast('Failed to generate questions. Verify files are readable text content.', 'error'))
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-robot"></i> Generate with AI';
+            });
+        });
+    }
+});
+</script>
+@endsection
