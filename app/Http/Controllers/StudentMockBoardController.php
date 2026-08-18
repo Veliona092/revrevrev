@@ -405,6 +405,11 @@ class StudentMockBoardController extends Controller
         $module = $mockBoardPhase->module;
         $questions = $module->quizQuestions;
 
+        $quizAttempt = QuizAttempt::query()
+            ->where('user_id', $user->id)
+            ->where('module_id', $module->id)
+            ->first();
+
         return view('pages.student.assessment-take', [
             'module' => $module,
             'questions' => $questions,
@@ -412,6 +417,9 @@ class StudentMockBoardController extends Controller
             'mockBoard' => $mockBoard,
             'mockBoardPhase' => $mockBoardPhase,
             'phase' => $phase,
+            'attemptsUsed' => $quizAttempt->attempt_count ?? 0,
+            'attemptsAllowed' => $module->allowedAttemptsFor($user->id),
+            'isResuming' => $quizAttempt !== null && $quizAttempt->status === 'in_progress',
         ]);
     }
 

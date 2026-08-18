@@ -116,6 +116,10 @@
                 @php
                     $attempt   = $assessment->student_attempt;
                     $pct       = $attempt?->percentage;
+                    $used      = $assessment->attempts_used ?? 0;
+                    $allowed   = $assessment->attempts_allowed ?? 1;
+                    $inProgress = $attempt !== null && $attempt->status === 'in_progress';
+                    $exhausted = ! $inProgress && $used >= $allowed;
                     $pillClass = $attempt === null ? 'neutral'
                         : ($pct >= 75 ? 'high' : ($pct >= 50 ? 'mid' : 'low'));
                     $pillLabel = $attempt === null ? 'Not Started'
@@ -146,22 +150,34 @@
                                 <i class="fas fa-calendar-alt"></i> Due {{ $assessment->due_date->format('M d, Y g:i A') }}
                             </span>
                         @endif
+                        <span class="as-stat" style="{{ $exhausted ? 'color:#a32d2d;' : '' }}">
+                            <i class="fas fa-redo"></i> Attempts: {{ $used }} / {{ $allowed }}
+                        </span>
                         @if($attempt !== null)
                             <span class="as-score-chip"><i class="fas fa-star"></i> {{ $pct }}%</span>
                         @endif
                     </div>
 
-                    @if($attempt !== null)
-                        <span class="as-btn disabled">
-                            <i class="fas fa-check"></i> View Results
-                        </span>
-                    @elseif($assessment->isOverdue())
+                    @if($assessment->isOverdue())
                         <span class="as-btn disabled">
                             <i class="fas fa-lock"></i> Past Due
                         </span>
-                    @else
+                    @elseif($inProgress)
+                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn">
+                            <i class="fas fa-play"></i> Resume
+                        </a>
+                    @elseif($attempt === null)
                         <a href="{{ route('assessment.take', $assessment) }}" class="as-btn">
                             <i class="fas fa-play"></i> Take Assessment
+                        </a>
+                    @elseif($exhausted)
+                        <span class="as-btn disabled">
+                            <i class="fas fa-lock"></i> Attempts Used Up
+                        </span>
+                    @else
+                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn"
+                           title="Retaking replaces your previous score">
+                            <i class="fas fa-redo"></i> Retake ({{ $used + 1 }} of {{ $allowed }})
                         </a>
                     @endif
                 </div>

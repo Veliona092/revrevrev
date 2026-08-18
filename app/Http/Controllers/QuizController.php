@@ -129,13 +129,7 @@ class QuizController extends Controller
      */
     private function getAllowedAttempts(Module $module, int $userId): int
     {
-        $base = $module->max_attempts ?? 1;
-
-        $grant = \App\Models\AssessmentAttemptGrant::where('module_id', $module->id)
-            ->where('user_id', $userId)
-            ->first();
-
-        return $base + ($grant->extra_attempts ?? 0);
+        return $module->allowedAttemptsFor($userId);
     }
 /**
      * I-mark ang simula ng pagkuha ng quiz — dito gagawa ng record kahit

@@ -49,22 +49,26 @@ class StudentAssessmentController extends Controller
                             ->whereDoesntHave('visibleTo', fn ($q) => $q->where('users.id', $user->id));
                     });
             })
-            ->with('class')
+            ->with(['class', 'attemptGrants' => fn ($query) => $query->where('user_id', $user->id)])
             ->withCount('quizQuestions')
-->orderBy('title')
+            ->orderBy('title')
             ->get()
             ->each(function (Module $module) use ($user) {
-                $module->student_attempt = QuizAttempt::query()
+                $attempt = QuizAttempt::query()
                     ->where('user_id', $user->id)
                     ->where('module_id', $module->id)
                     ->orderByDesc('percentage')
                     ->first();
+
+                $module->student_attempt = $attempt;
+                $module->attempts_used = $attempt->attempt_count ?? 0;
+                $module->attempts_allowed = $module->allowedAttemptsFor($user->id);
             });
 
         return view('pages.student.assessment', compact('assessments', 'classes', 'layout'));
     }
 
-public function take(Module $module)
+    public function take(Module $module)
     {
         $user = Auth::user();
 
@@ -82,6 +86,21 @@ public function take(Module $module)
 
         $questions = $module->quizQuestions()->orderBy('order')->get();
 
-        return view('pages.student.assessment-take', compact('module', 'questions'));
+        $attempt = QuizAttempt::query()
+            ->where('user_id', $user->id)
+            ->where('module_id', $module->id)
+            ->first();
+
+        $attemptsUsed = $attempt->attempt_count ?? 0;
+        $attemptsAllowed = $module->allowedAttemptsFor($user->id);
+        $isResuming = $attempt !== null && $attempt->status === 'in_progress';
+
+        return view('pages.student.assessment-take', compact(
+            'module',
+            'questions',
+            'attemptsUsed',
+            'attemptsAllowed',
+            'isResuming',
+        ));
     }
 }
