@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p ~/.claude/skills)",
+      "Bash(ln -s ~/.claude/plugins/claude-code-pm/skill/ccpm ~/.claude/skills/ccpm)",
+      "Bash(mkdir -p .claude/skills)",
+      "Bash(ln -sf ~/.claude/plugins/claude-code-pm/skill/ccpm .claude/skills/ccpm)",
+      "mcp__laravel-boost__application-info",
+      "mcp__laravel-boost__read-log-entries",
+      "mcp__laravel-boost__last-error",
+      "mcp__laravel-boost__database-query",
+      "mcp__laravel-boost__database-schema",
+      "mcp__laravel-boost__browser-logs"
+    ]
+  }
+}

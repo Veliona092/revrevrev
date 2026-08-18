@@ -1,0 +1,22 @@
+flowchart LR
+    Student[Student]
+    Teacher[Teacher]
+    Admin[Admin]
+    Email[Email Service]
+    AI[AI Service]
+
+    System[Reviso LMS]
+
+    Student -->|signup, login, learning actions, quiz answers, messages| System
+    Teacher -->|login, class/content management, reviews, announcements| System
+    Admin -->|login, approvals, user management, AI settings| System
+
+    System -->|verification email| Email
+    Email -->|verification link| Student
+
+    System -->|insight request| AI
+    AI -->|generated insight| System
+
+    System -->|authentication status, classes, content, scores, notifications| Student
+    System -->|class rosters, monitoring and insight dashboards| Teacher
+    System -->|approval queues and administration dashboards| Admin
