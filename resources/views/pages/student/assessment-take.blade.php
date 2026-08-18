@@ -452,6 +452,47 @@
 
                 @endif
 
+                @php
+                    $attemptsUsed = $attemptsUsed ?? 0;
+                    $attemptsAllowed = $attemptsAllowed ?? 1;
+                    $isResuming = $isResuming ?? false;
+                    $attemptNumber = $isResuming ? $attemptsUsed : $attemptsUsed + 1;
+                    $attemptsExhausted = ! $isResuming && $attemptsUsed >= $attemptsAllowed;
+                    $isFinalAttempt = ! $isResuming && $attemptNumber === $attemptsAllowed;
+                @endphp
+
+                <span class="at-start-stat" style="{{ $isFinalAttempt || $attemptsExhausted ? 'color:#a32d2d;' : '' }}">
+
+                    <i class="fas fa-redo"></i>
+
+                    @if($attemptsExhausted)
+
+                        No attempts remaining ({{ $attemptsUsed }} of {{ $attemptsAllowed }} used)
+
+                    @elseif($isResuming)
+
+                        Resuming attempt {{ $attemptNumber }} of {{ $attemptsAllowed }}
+
+                    @else
+
+                        Attempt {{ $attemptNumber }} of {{ $attemptsAllowed }}{{ $isFinalAttempt ? ' — last attempt' : '' }}
+
+                    @endif
+
+                </span>
+
+                @if($attemptsUsed > 0 && ! $isResuming && ! $attemptsExhausted)
+
+                    <span class="at-start-stat">
+
+                        <i class="fas fa-exclamation-circle"></i>
+
+                        Retaking replaces your previous score
+
+                    </span>
+
+                @endif
+
             </div>
 
 
