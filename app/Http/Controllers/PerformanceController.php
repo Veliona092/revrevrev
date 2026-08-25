@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AssessmentAttemptGrant;
 use App\Models\ClassModel;
 use App\Models\Module;
 use App\Models\ModuleProgress;
@@ -295,7 +296,7 @@ class PerformanceController extends Controller
         // dahil practice modules ay walang enforced na limit (self-reset lang).
         $module = $latestAttempt->module;
         $grant = $isAssessment
-            ? \App\Models\AssessmentAttemptGrant::where('module_id', $latestAttempt->module_id)
+            ? AssessmentAttemptGrant::where('module_id', $latestAttempt->module_id)
                 ->where('user_id', $student->id)
                 ->first()
             : null;
@@ -644,7 +645,7 @@ class PerformanceController extends Controller
         // Then supplement with QuizAttempt data for assessments
         foreach ($quizAttempts as $attempt) {
             // If no ModuleProgress record exists, use quiz data
-            if (!isset($progressMap[$attempt->module_id][$attempt->user_id])) {
+            if (! isset($progressMap[$attempt->module_id][$attempt->user_id])) {
                 $progressMap[$attempt->module_id][$attempt->user_id] = [
                     'pct' => (int) $attempt->percentage,
                     'completed' => true,

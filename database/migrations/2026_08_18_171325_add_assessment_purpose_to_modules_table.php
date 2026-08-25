@@ -6,19 +6,24 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
         Schema::table('modules', function (Blueprint $table) {
-            // Base na bilang ng attempts na pwede sa lahat ng estudyante (default 1).
-            // Editable ng teacher/admin bawat module/assessment.
-            $table->unsignedTinyInteger('max_attempts')->default(1)->after('passing_grade');
+            $table->string('assessment_purpose')->nullable()->after('is_formal_assessment')->index();
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
         Schema::table('modules', function (Blueprint $table) {
-            $table->dropColumn('max_attempts');
+            $table->dropIndex(['assessment_purpose']);
+            $table->dropColumn('assessment_purpose');
         });
     }
 };

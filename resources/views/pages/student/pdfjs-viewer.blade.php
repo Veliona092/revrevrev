@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Preview: {{ $file->original_name ?? 'Document' }}</title>
+    <title>Preview: {{ $module->title ?? $module->name ?? 'Document' }}</title>
     <style>
         html, body {
             margin: 0;
@@ -56,18 +56,24 @@
 
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.mjs';
 
-        const fileId = {{ (int) $file->id }};
-        const subtopicId = {{ (int) $file->board_exam_subtopic_id }};
+        // NOTE: pdfjsViewer() in ClassManagerController only passes $pdfUrl and $module.
+        // This view previously referenced a $file variable (original_name, id,
+        // board_exam_subtopic_id) that the controller never provides — that was the
+        // source of the "Undefined variable $file" 500 error. Everything below now
+        // reads off $module, which the controller actually passes in.
+        const moduleId = {{ (int) $module->id }};
         const pdfUrl = @json($pdfUrl);
         const viewerContainer = document.getElementById('viewerContainer');
         const viewerStatus = document.getElementById('viewerStatus');
 
         function postPdfProgress(progress) {
             const clamped = Math.max(0, Math.min(100, Math.round(progress || 0)));
+            // modules.blade.php's message listener only accepts type:
+            // 'pdf-scroll-progress' — the old 'board-exam-pdf-progress' type was
+            // silently dropped by the parent, so progress never persisted.
             window.parent.postMessage({
-                type: 'board-exam-pdf-progress',
-                fileId,
-                subtopicId,
+                type: 'pdf-scroll-progress',
+                moduleId,
                 progress: clamped,
             }, window.location.origin);
         }

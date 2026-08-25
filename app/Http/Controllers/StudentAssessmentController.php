@@ -49,22 +49,26 @@ class StudentAssessmentController extends Controller
                             ->whereDoesntHave('visibleTo', fn ($q) => $q->where('users.id', $user->id));
                     });
             })
-            ->with('class')
+            ->with([
+                'class',
+                'attemptGrants' => fn ($query) => $query->where('user_id', $user->id),
+                'attempts' => fn ($query) => $query
+                    ->where('user_id', $user->id)
+                    ->latest('updated_at'),
+            ])
             ->withCount('quizQuestions')
-->orderBy('title')
+            ->orderBy('title')
             ->get()
             ->each(function (Module $module) use ($user) {
-                $module->student_attempt = QuizAttempt::query()
-                    ->where('user_id', $user->id)
-                    ->where('module_id', $module->id)
-                    ->orderByDesc('percentage')
-                    ->first();
+                $module->student_attempt = $module->attempts->first();
+                $module->attempts_used = $module->student_attempt?->attempt_count ?? 0;
+                $module->attempts_allowed = $module->allowedAttemptsFor($user->id);
             });
 
         return view('pages.student.assessment', compact('assessments', 'classes', 'layout'));
     }
 
-public function take(Module $module)
+    public function take(Module $module)
     {
         $user = Auth::user();
 
@@ -82,6 +86,25 @@ public function take(Module $module)
 
         $questions = $module->quizQuestions()->orderBy('order')->get();
 
-        return view('pages.student.assessment-take', compact('module', 'questions'));
+        $module->load([
+            'attemptGrants' => fn ($query) => $query->where('user_id', $user->id),
+        ]);
+        $attempt = QuizAttempt::where('user_id', $user->id)
+            ->where('module_id', $module->id)
+            ->orderByDesc('percentage')
+            ->first();
+        $attempts_used = $attempt?->attempt_count ?? 0;
+        $attempts_allowed = $module->allowedAttemptsFor($user->id);
+        $is_resuming = $attempt?->status === 'in_progress';
+        $can_start_attempt = $is_resuming || $attempts_used < $attempts_allowed;
+
+        return view('pages.student.assessment-take', compact(
+            'module',
+            'questions',
+            'attempts_used',
+            'attempts_allowed',
+            'is_resuming',
+            'can_start_attempt',
+        ));
     }
 }

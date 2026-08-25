@@ -632,7 +632,7 @@
                             <p class="qi-rules-title">Instructions</p>
                             <div class="qi-rule"><div class="qi-rule-dot"></div><span>A score of 70% or higher is required to pass.</span></div>
                             <div class="qi-rule"><div class="qi-rule-dot"></div><span>${getAttemptRuleText(moduleId)}</span></div>
-                            <div class="qi-rule"><div class="qi-rule-dot"></div><span>Do not switch tabs - you will be warned twice before auto-fail.</span></div>
+                            <div class="qi-rule"><div class="qi-rule-dot"></div><span>Do not switch tabs.</span></div>
                             <div class="qi-rule"><div class="qi-rule-dot"></div><span>Answer all questions before submitting.</span></div>
                         </div>
                         <button class="qi-start-btn" onclick="startQuiz(${moduleId})">
@@ -1136,22 +1136,22 @@
         window.removeEventListener('blur', handleTab);
     }
 
-    function handleTab() {
-        if (!isQuizActive) return;
-        if (!isFormalAssessment) return; // Skip anti-cheat for pre-assessments
-        
-        // Prevent duplicate warnings within 2 seconds
-        let now = Date.now();
-        if (now - lastWarningTime < 2000) return;
-        lastWarningTime = now;
-        
-        warningCount++;
-        if (warningCount >= 4) {
-            showQuizWarningToast('You switched tabs too many times.\nThe quiz is now auto-submitted as FAILED.', 'fail');
-            submitQuiz(true); stopAntiCheat(); return;
-        }
-        showQuizWarningToast(`Warning ${warningCount}/2: You switched tabs.\nDo this again and the quiz will fail automatically.`, 'warn');
+function handleTab() {
+    if (!isQuizActive) return;
+    if (!isFormalAssessment) return; // Skip anti-cheat for pre-assessments
+
+    // Prevent duplicate warnings within 2 seconds
+    let now = Date.now();
+    if (now - lastWarningTime < 2000) return;
+    lastWarningTime = now;
+
+    warningCount++;
+    if (warningCount >= 4) {
+        showQuizWarningToast('You switched tabs too many times.\nThe quiz is now auto-submitted as FAILED.', 'fail');
+        submitQuiz(true); stopAntiCheat(); return;
     }
+    showQuizWarningToast('Tab switching detected. Continued tab switching may cause this assessment to be auto-submitted as failed.', 'warn');
+}
 
     function performReset(moduleId) {
         $.ajax({

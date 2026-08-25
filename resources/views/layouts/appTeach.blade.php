@@ -302,6 +302,10 @@
                 <span class="rv-nav-icon"><i class="fas fa-chalkboard-teacher"></i></span> Class Management
             </a>
 
+            <a class="rv-nav-item {{ request()->routeIs('test-bank.*') ? 'active' : '' }}" href="{{ route('test-bank.index') }}">
+                <span class="rv-nav-icon"><i class="fas fa-database"></i></span> Test Bank
+            </a>
+
             <a class="rv-nav-item {{ request()->routeIs('student.performance', 'student.performance.*', 'student.assessment.analysis*') ? 'active' : '' }}"
                     href="{{ $teacherNavClassId ? route('student.performance', ['class' => $teacherNavClassId]) : route('manageclass') }}">
                 <span class="rv-nav-icon"><i class="fas fa-chart-bar"></i></span> Student Performance

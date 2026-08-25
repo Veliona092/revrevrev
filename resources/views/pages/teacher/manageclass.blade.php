@@ -1617,7 +1617,7 @@
 
                     <div class="rv-form-group">
 
-                        
+                            
                         <label class="rv-label">Passing Grade (%, leave blank for default 50%)</label>
                         <input type="number" name="passing_grade" class="rv-input" min="1" max="100" placeholder="50" style="width:50%;">
                     </div>
@@ -1694,6 +1694,15 @@
                     <input type="hidden" name="class_id" id="assessmentClassId" value="0">
 
                     <input type="hidden" name="is_formal_assessment" value="1">
+
+                    <div class="rv-form-group">
+                        <label class="rv-label">Assessment Purpose</label>
+                        <select name="assessment_purpose" class="rv-input" style="width:100%;">
+                            <option value="formal_assessment">Formal Assessment</option>
+                            <option value="pre_test">Pre-Test</option>
+                            <option value="post_test">Post-Test</option>
+                        </select>
+                    </div>
 
                     <div class="rv-form-group">
 

@@ -17,6 +17,12 @@
 @section('page-heading', $pageLabel)
 
 @section('header-actions')
+    @if($existingQuestions->isNotEmpty())
+        <form method="POST" action="{{ route('test-bank.modules.import', $module) }}" style="display:inline;">
+            @csrf
+            <button type="submit" class="rv-btn rv-btn-secondary"><i class="fas fa-database"></i> Save Questions to Test Bank</button>
+        </form>
+    @endif
     <a href="{{ $backUrl ?? url()->previous() }}" class="rv-btn rv-btn-secondary">
         <i class="fas fa-arrow-left"></i> Back
     </a>
@@ -186,6 +192,38 @@
         background: #e9f8ef;
         color: #17653f;
     }
+    .tb-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border: 1px solid #ebebeb;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    background: #fafafa;
+}
+.tb-item label { cursor: pointer; flex: 1; margin: 0; }
+.tb-item .tb-q-text { font-size: 15px; color: #222; font-weight: 500; }
+.tb-item .tb-meta { margin-top: 4px; font-size: 13px; color: #888; }
+.tb-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: #eef1ff;
+    color: #3a4180;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 8px;
+}
+.qb-from-tb {
+    font-size: 12px;
+    font-weight: 600;
+    color: #3a4180;
+    background: #eef1ff;
+    padding: 2px 8px;
+    border-radius: 99px;
+    margin-left: 8px;
+}
 </style>
 
 <div class="qc-card">
@@ -233,37 +271,31 @@
     </div>
     @endif
 
-    @if(!($isMockBoard ?? false))
-        <div class="qc-tabs">
-            <button class="qc-tab {{ $isEditing ? '' : 'active' }}" data-panel="ai">
-                <i class="fas fa-robot" style="margin-right:5px;"></i> AI Generator
-            </button>
-            <button class="qc-tab {{ $isEditing ? 'active' : '' }}" data-panel="manual">
-                <i class="fas fa-pen" style="margin-right:5px;"></i> Manual
-            </button>
-        </div>
-    @endif
+@if(!($isMockBoard ?? false))
+    <div class="qc-tabs">
+        <button class="qc-tab {{ $isEditing ? '' : 'active' }}" data-panel="ai">
+            <i class="fas fa-robot" style="margin-right:5px;"></i> AI Generator
+        </button>
+        <button class="qc-tab {{ $isEditing ? 'active' : '' }}" data-panel="manual">
+            <i class="fas fa-pen" style="margin-right:5px;"></i> Manual
+        </button>
+        <button class="qc-tab" data-panel="testbank">
+            <i class="fas fa-database" style="margin-right:5px;"></i> Test Bank
+        </button>
+    </div>
+@endif
 
     {{-- AI Tab (Only rendered if it's NOT a mock board) --}}
     @if(!($isMockBoard ?? false))
         <div class="qc-tab-panel {{ $isEditing ? '' : 'active' }}" id="panel-ai">
             <form id="aiQuizForm" method="POST" action="{{ route('quiz.generate', $module) }}" enctype="multipart/form-data">
                 @csrf
-<div class="qc-row" style="grid-template-columns: 1fr 1fr;">
-                    <div>
-                        <label class="qc-label">Global Difficulty</label>
-                        <select name="difficulty" class="rv-input" required>
-                            @php($quizDifficulty = (string) ($classQuizDefaults['difficulty'] ?? 'Normal'))
-                            <option value="Average" {{ $quizDifficulty === 'Average' ? 'selected' : '' }}>Average</option>
-                            <option value="Normal" {{ $quizDifficulty === 'Normal' ? 'selected' : '' }}>Normal</option>
-                            <option value="Hard" {{ $quizDifficulty === 'Hard' ? 'selected' : '' }}>Difficult</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="qc-label">Choices per Question</label>
-                        <input type="number" name="choice_count" class="rv-input" min="2" max="10" value="4" placeholder="4">
-                    </div>
-                </div>
+<div class="qc-row" style="grid-template-columns: 1fr;">
+    <div>
+        <label class="qc-label">Choices per Question</label>
+        <input type="number" name="choice_count" class="rv-input" min="2" max="10" value="4" placeholder="4" style="max-width:200px;">
+    </div>
+</div>
 
                 <div class="qc-row-single">
                     <label class="qc-label">Additional Instructions (Optional)</label>
@@ -293,7 +325,38 @@
             </form>
         </div>
     @endif
+    {{-- Test Bank Tab --}}
+@if(!($isMockBoard ?? false))
+<div class="qc-tab-panel" id="panel-testbank">
+    <div class="qc-row" style="grid-template-columns: 1fr 160px auto; gap: 10px; margin-bottom: 16px;">
+        <div>
+            <input type="text" id="tbSearch" class="rv-input" placeholder="Search questions...">
+        </div>
+        <div>
+            <select id="tbDifficulty" class="rv-input">
+                <option value="">All difficulties</option>
+                <option value="Average">Average</option>
+                <option value="Normal">Normal</option>
+                <option value="Hard">Hard</option>
+            </select>
+        </div>
+        <button type="button" id="tbFilterBtn" class="rv-btn rv-btn-secondary">
+            <i class="fas fa-search"></i> Filter
+        </button>
+    </div>
 
+    <div class="qc-add-q-bar">
+        <span class="qc-section-title" id="tbSelectedLabel">0 selected</span>
+        <button type="button" id="tbAddSelectedBtn" class="rv-btn rv-btn-primary" style="height:34px;font-size:16px;" disabled>
+            <i class="fas fa-plus"></i> Add selected to Manual
+        </button>
+    </div>
+
+    <div id="tbList" style="max-height: 420px; overflow-y: auto;">
+        <div class="qc-empty">Click Filter to load Test Bank questions.</div>
+    </div>
+</div>
+@endif
     {{-- Manual Tab (Always visible and active instantly for Mock Boards) --}}
     <div class="qc-tab-panel {{ ($isEditing || ($isMockBoard ?? false)) ? 'active' : '' }}" id="panel-manual">
         <div class="qc-add-q-bar">
@@ -333,6 +396,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     let qcToastTimer = null;
     const isMockBoard = {{ ($isMockBoard ?? false) ? 'true' : 'false' }};
+    const loadedTestBankIds = new Set();
 
     // Max Attempts save (formal assessments lang)
     const saveMaxAttemptsBtn = document.getElementById('saveMaxAttemptsBtn');
@@ -410,13 +474,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const quizDefaults = settings.quiz_defaults || {};
         const features = settings.features || {};
-        const difficultySelect = document.querySelector('#aiQuizForm select[name="difficulty"]');
         const aiSubmitBtn = document.getElementById('aiSubmitBtn');
         const aiDisabledNotice = document.getElementById('aiDisabledNotice');
 
-        if (difficultySelect && Object.prototype.hasOwnProperty.call(quizDefaults, 'difficulty')) {
-            difficultySelect.value = String(quizDefaults.difficulty || 'Normal');
-        }
+ 
 
         if (Object.prototype.hasOwnProperty.call(features, 'quiz_generation_enabled')) {
             const isEnabled = Boolean(features.quiz_generation_enabled);
@@ -470,22 +531,28 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('saveQuestionsBtn').style.display = n === 0 ? 'none' : 'block';
     }
 
-   window.addQuestionBlock = function (text = '', options = {A:'',B:'',C:'',D:''}, correct = 'A') {
+    window.addQuestionBlock = function (text = '', options = {A:'',B:'',C:'',D:''}, correct = 'A', testBankId = null) {
         questionCount++;
         const qn = questionCount;
         const block = document.createElement('div');
         block.className = 'qb-block';
         block.id = 'q' + qn;
+        if (testBankId) {
+            block.dataset.testBankId = testBankId;
+            loadedTestBankIds.add(String(testBankId));
+        }
 
         const optionKeys = Object.keys(options).length ? Object.keys(options) : ['A', 'B'];
+        const tbBadge = testBankId ? '<span class="qb-from-tb">From Test Bank</span>' : '';
 
         block.innerHTML = `
             <div class="qb-header">
-                <span class="qb-num">Question ${qn}</span>
+                <span class="qb-num">Question ${qn}${tbBadge}</span>
                 <button type="button" class="rv-btn rv-btn-danger" style="height:28px;padding:0 10px;font-size: 16px;" onclick="removeQuestion('q${qn}')">
                     <i class="fas fa-trash"></i> Remove
                 </button>
             </div>
+            ${testBankId ? `<input type="hidden" name="questions[${qn}][test_bank_question_id]" value="${testBankId}">` : ''}
             <label class="qc-label">Question Text</label>
             <textarea name="questions[${qn}][text]" class="rv-textarea" rows="3" placeholder="Enter question..." required>${text}</textarea>
 
@@ -507,7 +574,6 @@ document.addEventListener('DOMContentLoaded', function () {
         updateCountLabel();
     };
 
-    // Bumubuo ng susunod na letra (A, B, C... Z, AA, AB...) base sa dami ng options na meron na
     function nextOptionLetter(qn) {
         const existing = document.querySelectorAll(`#options-${qn} .qb-option`).length;
         let n = existing;
@@ -533,19 +599,18 @@ document.addEventListener('DOMContentLoaded', function () {
         optDiv.className = 'qb-option';
         optDiv.dataset.key = letter;
         optDiv.style = 'display:flex;align-items:center;gap:8px;';
-      optDiv.innerHTML = `
-    <div class="qb-option-letter">${letter}</div>
-    <input type="text" name="questions[${qn}][options][${letter}]" class="rv-input" placeholder="Option ${letter}" value="${value}" required style="flex:1; min-width:0;">
-    <label class="qb-radio-opt">
-        <input type="radio" name="questions[${qn}][correct]" value="${letter}" ${isCorrect ? 'checked' : ''}> Correct
-    </label>
-    <button type="button" class="rv-btn rv-btn-danger qb-remove-opt" onclick="removeOption(${qn}, this)">
-        <i class="fas fa-times"></i>
-    </button>
-`;
+        optDiv.innerHTML = `
+            <div class="qb-option-letter">${letter}</div>
+            <input type="text" name="questions[${qn}][options][${letter}]" class="rv-input" placeholder="Option ${letter}" value="${value}" required style="flex:1; min-width:0;">
+            <label class="qb-radio-opt">
+                <input type="radio" name="questions[${qn}][correct]" value="${letter}" ${isCorrect ? 'checked' : ''}> Correct
+            </label>
+            <button type="button" class="rv-btn rv-btn-danger qb-remove-opt" onclick="removeOption(${qn}, this)">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
         optionsList.appendChild(optDiv);
 
-        // Kung ito ang unang option, awtomatikong markahan bilang tama
         if (optionsList.querySelectorAll('.qb-option').length === 1) {
             optDiv.querySelector('input[type="radio"]').checked = true;
         }
@@ -560,7 +625,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const wasChecked = btn.closest('.qb-option').querySelector('input[type="radio"]').checked;
         btn.closest('.qb-option').remove();
 
-        // Kung natanggal ang na-mark na tamang sagot, i-set ulit sa una
         if (wasChecked) {
             const firstRadio = optionsList.querySelector('input[type="radio"]');
             if (firstRadio) firstRadio.checked = true;
@@ -569,7 +633,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     window.removeQuestion = function (id) {
         const el = document.getElementById(id);
-        if (el) { el.remove(); }
+        if (el) {
+            const tbId = el.dataset.testBankId;
+            if (tbId) loadedTestBankIds.delete(String(tbId));
+            el.remove();
+        }
         updateCountLabel();
     };
 
@@ -580,12 +648,128 @@ document.addEventListener('DOMContentLoaded', function () {
             addQuestionBlock(
                 question.text || '',
                 question.options || {A:'',B:'',C:'',D:''},
-                question.correct || 'A'
+                question.correct || 'A',
+                question.test_bank_question_id || null
             );
         });
     }
 
     updateCountLabel();
+
+    // ── Test Bank Tab ──
+    const tbList = document.getElementById('tbList');
+    const tbSearch = document.getElementById('tbSearch');
+    const tbDifficulty = document.getElementById('tbDifficulty');
+    const tbFilterBtn = document.getElementById('tbFilterBtn');
+    const tbAddSelectedBtn = document.getElementById('tbAddSelectedBtn');
+    const tbSelectedLabel = document.getElementById('tbSelectedLabel');
+
+    function updateTbSelectedLabel() {
+        if (!tbList) return;
+        const n = tbList.querySelectorAll('input[name="tb_pick"]:checked').length;
+        tbSelectedLabel.textContent = n + ' selected';
+        tbAddSelectedBtn.disabled = n === 0;
+    }
+
+    function renderTbList(questions) {
+        if (!questions.length) {
+            tbList.innerHTML = '<div class="qc-empty">No Test Bank questions found.</div>';
+            updateTbSelectedLabel();
+            return;
+        }
+
+        tbList.innerHTML = questions.map(q => {
+            const already = loadedTestBankIds.has(String(q.id));
+            const preview = (q.question_text || '').length > 140
+                ? (q.question_text || '').slice(0, 140) + '…'
+                : (q.question_text || '');
+            const keys = q.options ? Object.keys(q.options).join(', ') : '';
+            return `
+                <div class="tb-item">
+                    <input type="checkbox" name="tb_pick" value="${q.id}"
+                        data-question='${JSON.stringify(q).replace(/'/g, '&#39;')}'
+                        ${already ? 'disabled' : ''}>
+                    <label>
+                        <div class="tb-q-text">
+                            ${preview}
+                            ${already ? '<span class="tb-badge">Already added</span>' : ''}
+                        </div>
+                        <div class="tb-meta">
+                            ${q.difficulty || '—'} · Choices: ${keys || '—'}
+                        </div>
+                    </label>
+                </div>
+            `;
+        }).join('');
+
+        tbList.querySelectorAll('input[name="tb_pick"]').forEach(cb => {
+            cb.addEventListener('change', updateTbSelectedLabel);
+        });
+        updateTbSelectedLabel();
+    }
+
+    function loadTestBankQuestions() {
+        if (!tbList) return;
+        tbList.innerHTML = '<div class="qc-empty"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+
+        const params = new URLSearchParams();
+        if (tbSearch && tbSearch.value.trim()) params.set('search', tbSearch.value.trim());
+        if (tbDifficulty && tbDifficulty.value) params.set('difficulty', tbDifficulty.value);
+
+        fetch(`{{ route('test-bank.questions.json') }}?${params.toString()}`, {
+            headers: { 'Accept': 'application/json' },
+        })
+        .then(r => r.json())
+        .then(payload => renderTbList(payload.data || []))
+        .catch(() => {
+            tbList.innerHTML = '<div class="qc-empty">Failed to load Test Bank questions.</div>';
+        });
+    }
+
+    if (tbFilterBtn) {
+        tbFilterBtn.addEventListener('click', loadTestBankQuestions);
+
+        document.querySelector('.qc-tab[data-panel="testbank"]')?.addEventListener('click', function () {
+            if (tbList && tbList.dataset.loaded !== '1') {
+                tbList.dataset.loaded = '1';
+                loadTestBankQuestions();
+            }
+        });
+    }
+
+    if (tbAddSelectedBtn) {
+        tbAddSelectedBtn.addEventListener('click', function () {
+            const checked = tbList.querySelectorAll('input[name="tb_pick"]:checked');
+            if (!checked.length) return;
+
+            let added = 0;
+            checked.forEach(cb => {
+                if (cb.disabled) return;
+                let q;
+                try { q = JSON.parse(cb.getAttribute('data-question')); } catch (_) { return; }
+                if (!q || loadedTestBankIds.has(String(q.id))) return;
+
+                addQuestionBlock(
+                    q.question_text || '',
+                    q.options || { A: '', B: '' },
+                    q.correct_option || 'A',
+                    q.id
+                );
+                loadedTestBankIds.add(String(q.id));
+                added++;
+            });
+
+            document.querySelector('.qc-tab[data-panel="manual"]')?.click();
+
+            if (added > 0) {
+                showQuizCreateToast(added + ' question(s) added from Test Bank. Review then Save.', 'success');
+            } else {
+                showQuizCreateToast('No new questions added (already on the form).', 'error');
+            }
+
+            loadTestBankQuestions();
+        });
+    }
 
     // ── Balanced File Upload Setup ──
     const aiForm = document.getElementById('aiQuizForm');
@@ -600,7 +784,8 @@ document.addEventListener('DOMContentLoaded', function () {
         fileInput.addEventListener('change', function () {
             Array.from(this.files).forEach(file => {
                 if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
-                    file.targetQuestionsCount = 5; 
+                    file.targetQuestionsCount = 5;
+                    file.difficulty = 'Normal';
                     selectedFiles.push(file);
                 }
             });
@@ -608,42 +793,59 @@ document.addEventListener('DOMContentLoaded', function () {
             renderFileList();
         });
 
-        function renderFileList() {
-            fileListDiv.innerHTML = '';
-            if (selectedFiles.length === 0) { return; }
-            
-            selectedFiles.forEach((file, i) => {
-                const div = document.createElement('div');
-                div.className = 'qc-file-item';
-                div.innerHTML = `
-                    <div style="flex-grow:1;">
-                        <div class="qc-file-name"><i class="fas fa-file-alt" style="color:#888;margin-right:6px;"></i>${file.name}</div>
-                        <div class="qc-file-size">${(file.size/1024).toFixed(1)} KB</div>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                        <label style="font-size:14px;color:#666;font-weight:500;white-space:nowrap;margin:0;">Questions:</label>
-                        <input type="number" class="rv-input target-count-input" style="width:70px;height:34px;padding:4px 8px;text-align:center;margin:0;" min="0" max="25" value="${file.targetQuestionsCount}" data-index="${i}">
-                    </div>
-                    <button type="button" class="rv-btn rv-btn-danger" style="height:34px;width:34px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" data-index="${i}">
-                        <i class="fas fa-times"></i>
-                    </button>`;
-                
-                div.querySelector('.target-count-input').addEventListener('input', function() {
-                    const idx = parseInt(this.dataset.index);
-                    selectedFiles[idx].targetQuestionsCount = parseInt(this.value) || 0;
-                });
+function renderFileList() {
+    fileListDiv.innerHTML = '';
+    if (selectedFiles.length === 0) { return; }
 
-                div.querySelector('button').addEventListener('click', function () {
-                    selectedFiles.splice(parseInt(this.dataset.index), 1);
-                    renderFileList();
-                });
-                fileListDiv.appendChild(div);
-            });
-        }
+    selectedFiles.forEach((file, i) => {
+        if (!file.difficulty) file.difficulty = 'Normal';
+        if (file.targetQuestionsCount === undefined) file.targetQuestionsCount = 5;
+
+        const div = document.createElement('div');
+        div.className = 'qc-file-item';
+        div.style = 'flex-wrap:wrap;';
+        div.innerHTML = `
+            <div style="flex-grow:1;min-width:160px;">
+                <div class="qc-file-name"><i class="fas fa-file-alt" style="color:#888;margin-right:6px;"></i>${file.name}</div>
+                <div class="qc-file-size">${(file.size/1024).toFixed(1)} KB</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;">
+                <label style="font-size:14px;color:#666;font-weight:500;white-space:nowrap;margin:0;">Questions:</label>
+                <input type="number" class="rv-input target-count-input" style="width:70px;height:34px;padding:4px 8px;text-align:center;margin:0;" min="0" max="25" value="${file.targetQuestionsCount}" data-index="${i}">
+
+                <label style="font-size:14px;color:#666;font-weight:500;white-space:nowrap;margin:0;">Difficulty:</label>
+                <select class="rv-input file-difficulty-select" style="width:120px;height:34px;padding:4px 8px;margin:0;" data-index="${i}">
+                    <option value="Average" ${file.difficulty === 'Average' ? 'selected' : ''}>Average</option>
+                    <option value="Normal" ${file.difficulty === 'Normal' ? 'selected' : ''}>Normal</option>
+                    <option value="Hard" ${file.difficulty === 'Hard' ? 'selected' : ''}>Hard</option>
+                </select>
+            </div>
+            <button type="button" class="rv-btn rv-btn-danger" style="height:34px;width:34px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" data-index="${i}">
+                <i class="fas fa-times"></i>
+            </button>`;
+
+        div.querySelector('.target-count-input').addEventListener('input', function () {
+            const idx = parseInt(this.dataset.index, 10);
+            selectedFiles[idx].targetQuestionsCount = parseInt(this.value, 10) || 0;
+        });
+
+        div.querySelector('.file-difficulty-select').addEventListener('change', function () {
+            const idx = parseInt(this.dataset.index, 10);
+            selectedFiles[idx].difficulty = this.value;
+        });
+
+        div.querySelector('button').addEventListener('click', function () {
+            selectedFiles.splice(parseInt(this.dataset.index, 10), 1);
+            renderFileList();
+        });
+
+        fileListDiv.appendChild(div);
+    });
+}
 
         aiForm.addEventListener('submit', function (e) {
             e.preventDefault();
-            
+
             if (selectedFiles.length === 0) {
                 showQuizCreateToast('Please attach at least one file before generating.', 'error');
                 return;
@@ -654,11 +856,12 @@ document.addEventListener('DOMContentLoaded', function () {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
 
             const formData = new FormData(this);
-            
-            selectedFiles.forEach((file, index) => {
-                formData.append('context_files[' + index + ']', file);
-                formData.append('file_question_counts[' + index + ']', file.targetQuestionsCount);
-            });
+
+        selectedFiles.forEach((file, index) => {
+    formData.append('context_files[' + index + ']', file);
+    formData.append('file_question_counts[' + index + ']', file.targetQuestionsCount);
+    formData.append('file_difficulties[' + index + ']', file.difficulty || 'Normal');
+});
 
             fetch(this.action, {
                 method: 'POST',
@@ -670,6 +873,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (response.success && response.questions) {
                     document.getElementById('questionsContainer').innerHTML = '';
                     questionCount = 0;
+                    loadedTestBankIds.clear();
                     response.questions.forEach(q =>
                         addQuestionBlock(q.question_text || q.question || '', q.options || {A:'',B:'',C:'',D:''}, q.correct_option || 'A')
                     );
