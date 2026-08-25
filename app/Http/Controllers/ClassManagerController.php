@@ -1286,8 +1286,8 @@ POWERSHELL;
         // url()->previous(), na nagiging self-referencing pagkatapos ng save/redirect loop.
         $isMockBoardModule = \DB::table('mock_board_phases')->where('module_id', $module->id)->exists() || ($module->is_mock_board ?? false);
         $backUrl = $isMockBoardModule
-            ? route('mock-boards.index')
-            : route('manageclass');
+? route('student.mock-boards.index')
+: route('manageclass');
 
         if (! $module->is_quiz) {
             abort(404, 'This module is not a quiz.');
@@ -1321,14 +1321,22 @@ POWERSHELL;
             $isAiQuizGenerationEnabled = false;
         }
 
+$existingTopics = \App\Models\TestBankQuestion::query()
+            ->whereNotNull('topic')
+            ->where('topic', '!=', '')
+            ->distinct()
+            ->orderBy('topic')
+            ->pluck('topic');
+
         return view('pages.teacher.quiz-create', compact(
-            'module',
-            'class',
-            'existingQuestions',
-            'classQuizDefaults',
+            'module', 
+            'class', 
+            'existingQuestions', 
+            'classQuizDefaults', 
             'isAiQuizGenerationEnabled',
             'isMockBoard',
-            'backUrl'
+            'backUrl',
+            'existingTopics'
         ));
     }
 
@@ -1338,7 +1346,7 @@ POWERSHELL;
     /**
      * Generate quiz questions using AI, with precise target counts per uploaded document
      */
-public function generateQuizAi(Request $request, Module $module)
+public function generateQuizAi(Request $request, Module $module, AiSettingsResolver $settingsResolver)
 {
     $class = $module->class;
 
@@ -1356,43 +1364,86 @@ public function generateQuizAi(Request $request, Module $module)
         abort(404, 'This module is not a quiz.');
     }
 
+    // Sundin ang Global/Class AI feature toggle. Dati, frontend lang (disabled
+    // button) ang nag-e-enforce nito, kaya pwedeng ma-bypass sa direktang request.
+    if (! $settingsResolver->isFeatureEnabled('quiz_generation', $class)) {
+        abort(403, 'AI quiz generation is currently disabled for this class.');
+    }
+
     $validator = Validator::make($request->all(), [
         'context_files' => 'required|array|min:1',
         'context_files.*' => 'file|mimes:pdf,doc,docx,txt|max:20480',
-        'file_question_counts' => 'required|array|min:1',
-        'file_question_counts.*' => 'integer|min:0|max:20',
-        'file_difficulties' => 'nullable|array',
-        'file_difficulties.*' => 'nullable|in:Average,Normal,Hard',
+        'file_difficulty_counts' => 'required|array|min:1',
+        'file_difficulty_counts.*' => 'array',
+        'file_difficulty_counts.*.Average' => 'nullable|integer|min:0',
+        'file_difficulty_counts.*.Normal' => 'nullable|integer|min:0',
+        'file_difficulty_counts.*.Hard' => 'nullable|integer|min:0',
         'extra_instructions' => 'nullable|string|max:500',
         'choice_count' => 'nullable|integer|min:2|max:10',
     ]);
 
     $validator->after(function ($v) use ($request) {
-        $counts = $request->input('file_question_counts', []);
-        if (is_array($counts)) {
-            $sum = array_sum(array_map('intval', $counts));
-            if ($sum > 50) {
-                $v->errors()->add(
-                    'file_question_counts',
-                    "The total requested questions across all files ({$sum}) exceeds the maximum allowed limit of 50."
-                );
+        $allCounts = $request->input('file_difficulty_counts', []);
+        $grandTotal = 0;
+
+        if (is_array($allCounts)) {
+            foreach ($allCounts as $index => $tiers) {
+                if (! is_array($tiers)) {
+                    continue;
+                }
+
+                $fileTotal = ((int) ($tiers['Average'] ?? 0))
+                    + ((int) ($tiers['Normal'] ?? 0))
+                    + ((int) ($tiers['Hard'] ?? 0));
+
+                if ($fileTotal > 20) {
+                    $v->errors()->add(
+                        "file_difficulty_counts.{$index}",
+                        "The total requested questions for this file ({$fileTotal}) exceeds the maximum allowed per-file limit of 20."
+                    );
+                }
+
+                $grandTotal += $fileTotal;
             }
+        }
+
+        if ($grandTotal > 50) {
+            $v->errors()->add(
+                'file_difficulty_counts',
+                "The total requested questions across all files ({$grandTotal}) exceeds the maximum allowed limit of 50."
+            );
+        }
+
+        if ($grandTotal === 0) {
+            $v->errors()->add(
+                'file_difficulty_counts',
+                'Please request at least one question for at least one file.'
+            );
         }
     });
 
     $validated = $validator->validate();
 
-    $counts = $validated['file_question_counts'] ?? [];
-    $activeFileCount = count(array_filter($counts, fn ($c) => (int) $c > 0));
-    // More AI calls (per type) — allow more time
-    set_time_limit(max(90, $activeFileCount * 90));
+    $difficultyCounts = $validated['file_difficulty_counts'] ?? [];
+    $allowedDifficulties = ['Average', 'Normal', 'Hard'];
+
+    // Count active (file, tier) jobs to size the time limit correctly.
+    $activeJobCount = 0;
+    foreach ($difficultyCounts as $tiers) {
+        foreach ($allowedDifficulties as $tier) {
+            if ((int) ($tiers[$tier] ?? 0) > 0) {
+                $activeJobCount++;
+            }
+        }
+    }
+    // More AI calls (per file × per tier × per type) — allow more time
+    set_time_limit(max(90, $activeJobCount * 90));
 
     $allGeneratedQuestions = [];
     $ai = app(CloudflareAI::class);
 
     $choiceCount = (int) ($validated['choice_count'] ?? 4);
     $choiceLetters = array_slice(range('A', 'J'), 0, $choiceCount);
-    $allowedDifficulties = ['Average', 'Normal', 'Hard'];
 
     $typePatterns = [
         // what, why, how  (base = 5)
@@ -1402,9 +1453,14 @@ public function generateQuizAi(Request $request, Module $module)
     ];
 
     foreach ($request->file('context_files') as $index => $file) {
-        $requestedCount = (int) ($validated['file_question_counts'][$index] ?? 0);
+        $fileTiers = $difficultyCounts[$index] ?? [];
 
-        if ($requestedCount === 0 || ! $file->isValid()) {
+        $fileTotalRequested = 0;
+        foreach ($allowedDifficulties as $tier) {
+            $fileTotalRequested += (int) ($fileTiers[$tier] ?? 0);
+        }
+
+        if ($fileTotalRequested === 0 || ! $file->isValid()) {
             continue;
         }
 
@@ -1440,250 +1496,258 @@ public function generateQuizAi(Request $request, Module $module)
         $optionsExample = '{'.implode(',', array_map(fn ($l) => "\"{$l}\":\"...\"", $choiceLetters)).'}';
         $letterList = implode('|', $choiceLetters);
 
-        $fileDifficulties = $validated['file_difficulties'] ?? [];
-        $targetDifficulty = $fileDifficulties[$index] ?? 'Normal';
-
-        $pattern = $typePatterns[$targetDifficulty] ?? $typePatterns['Normal'];
-        $base = array_sum($pattern);
-
-        $targetWhat = (int) round($requestedCount * ($pattern[0] / $base));
-        $targetWhy = (int) round($requestedCount * ($pattern[1] / $base));
-        $targetHow = (int) round($requestedCount * ($pattern[2] / $base));
-
-        $sum = $targetWhat + $targetWhy + $targetHow;
-        if ($sum < $requestedCount) {
-            if ($targetDifficulty === 'Average') {
-                $targetWhat += ($requestedCount - $sum);
-            } else {
-                $targetHow += ($requestedCount - $sum);
-            }
-        } elseif ($sum > $requestedCount) {
-            $overflow = $sum - $requestedCount;
-            if ($targetWhat >= $overflow) {
-                $targetWhat -= $overflow;
-            } else {
-                $overflow -= $targetWhat;
-                $targetWhat = 0;
-                if ($targetWhy >= $overflow) {
-                    $targetWhy -= $overflow;
-                } else {
-                    $overflow -= $targetWhy;
-                    $targetWhy = 0;
-                    $targetHow = max(0, $targetHow - $overflow);
-                }
-            }
-        }
-
-        Log::info('AI quiz per-type plan', [
-            'file' => $file->getClientOriginalName(),
-            'targetDifficulty' => $targetDifficulty,
-            'targetWhat' => $targetWhat,
-            'targetWhy' => $targetWhy,
-            'targetHow' => $targetHow,
-        ]);
-
-        $typeJobs = [
-            'what' => $targetWhat,
-            'why' => $targetWhy,
-            'how' => $targetHow,
-        ];
-
         $fileQuestions = [];
 
-        foreach ($typeJobs as $questionType => $typeCount) {
-            if ($typeCount <= 0) {
+        // Loop over each difficulty tier that has a count > 0 for this file.
+        foreach ($allowedDifficulties as $targetDifficulty) {
+            $requestedCount = (int) ($fileTiers[$targetDifficulty] ?? 0);
+
+            if ($requestedCount <= 0) {
                 continue;
             }
 
-            $typeInstructions = match ($questionType) {
-                'why' => "ALL {$typeCount} questions MUST be WHY questions.\n"
-                    ."- Stem MUST start with \"Why...\" or \"What is the rationale...\" or \"What best explains...\".\n"
-                    ."- Ask for reasoning behind a rule, principle, choice, or outcome.\n"
-                    ."- Set question_type to \"why\" on every object.\n"
-                    ."- Do NOT use \"Which of the following\".\n",
-                'how' => "ALL {$typeCount} questions MUST be HOW questions.\n"
-                    ."- Stem MUST start with \"How should...\" or \"How is ... computed/applied...\" or \"What is the correct procedure to...\".\n"
-                    ."- Ask for procedure, process, or application steps.\n"
-                    ."- Set question_type to \"how\" on every object.\n"
-                    ."- Do NOT use \"Which of the following\".\n",
-                default => "ALL {$typeCount} questions MUST be WHAT questions.\n"
-                    ."- Identify something FROM a scenario, case, computation, or data — never bare definition.\n"
-                    ."- Set question_type to \"what\" on every object.\n"
-                    ."- Do NOT start every item with \"Given...\".\n",
-            };
+            $pattern = $typePatterns[$targetDifficulty] ?? $typePatterns['Normal'];
+            $base = array_sum($pattern);
 
-            $prompt = "Generate EXACTLY {$typeCount} multiple-choice questions based ONLY on the text below.\n"
-                ."Each question must have EXACTLY {$choiceCount} answer choices ({$letterList}).\n"
-                ."Batch difficulty target: {$targetDifficulty}.\n"
-                ."Source file: {$file->getClientOriginalName()}\n\n"
-                ."════════════════════════════════════════\n"
-                .$typeInstructions
-                ."════════════════════════════════════════\n\n"
-                ."Difficulty guide (most items should feel {$targetDifficulty}):\n"
-                ."- Average: one concept, simple scenario.\n"
-                ."- Normal: two related concepts or richer scenario.\n"
-                ."- Hard: multi-step reasoning or nuanced case.\n\n"
-                .$extraInstructionsBlock
-                ."Content:\n{$text}\n\n"
-                ."Rules:\n"
-                ."- Return ONLY a valid JSON array with EXACTLY {$typeCount} objects.\n"
-                ."- Format: {\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"Average|Normal|Hard\",\"question_type\":\"{$questionType}\"}\n"
-                ."- Every question_type MUST be \"{$questionType}\".\n"
-                .'- No markdown, no backticks, no extra text.';
+            $targetWhat = (int) round($requestedCount * ($pattern[0] / $base));
+            $targetWhy = (int) round($requestedCount * ($pattern[1] / $base));
+            $targetHow = (int) round($requestedCount * ($pattern[2] / $base));
 
-            try {
-                $payload = [
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' => "You generate board-exam MCQs. Output ONLY a JSON array of exactly {$typeCount} objects. Every object must have question_type \"{$questionType}\". No markdown.",
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => $prompt,
-                        ],
-                    ],
-                    'max_tokens' => min(320 * $typeCount, 4096),
-                    'temperature' => 0.2,
-                    'response_format' => [
-                        'type' => 'json_schema',
-                        'json_schema' => [
-                            'type' => 'array',
-                            'items' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'question' => ['type' => 'string'],
-                                    'options' => [
-                                        'type' => 'object',
-                                        'properties' => array_fill_keys($choiceLetters, ['type' => 'string']),
-                                        'required' => $choiceLetters,
-                                    ],
-                                    'correct' => [
-                                        'type' => 'string',
-                                        'enum' => $choiceLetters,
-                                    ],
-                                    'difficulty' => [
-                                        'type' => 'string',
-                                        'enum' => $allowedDifficulties,
-                                    ],
-                                    'question_type' => [
-                                        'type' => 'string',
-                                        'enum' => ['what', 'why', 'how'],
-                                    ],
-                                ],
-                                'required' => ['question', 'options', 'correct', 'difficulty', 'question_type'],
+            $sum = $targetWhat + $targetWhy + $targetHow;
+            if ($sum < $requestedCount) {
+                if ($targetDifficulty === 'Average') {
+                    $targetWhat += ($requestedCount - $sum);
+                } else {
+                    $targetHow += ($requestedCount - $sum);
+                }
+            } elseif ($sum > $requestedCount) {
+                $overflow = $sum - $requestedCount;
+                if ($targetWhat >= $overflow) {
+                    $targetWhat -= $overflow;
+                } else {
+                    $overflow -= $targetWhat;
+                    $targetWhat = 0;
+                    if ($targetWhy >= $overflow) {
+                        $targetWhy -= $overflow;
+                    } else {
+                        $overflow -= $targetWhy;
+                        $targetWhy = 0;
+                        $targetHow = max(0, $targetHow - $overflow);
+                    }
+                }
+            }
+
+            Log::info('AI quiz per-type plan', [
+                'file' => $file->getClientOriginalName(),
+                'targetDifficulty' => $targetDifficulty,
+                'targetWhat' => $targetWhat,
+                'targetWhy' => $targetWhy,
+                'targetHow' => $targetHow,
+            ]);
+
+            $typeJobs = [
+                'what' => $targetWhat,
+                'why' => $targetWhy,
+                'how' => $targetHow,
+            ];
+
+            foreach ($typeJobs as $questionType => $typeCount) {
+                if ($typeCount <= 0) {
+                    continue;
+                }
+
+                $typeInstructions = match ($questionType) {
+                    'why' => "ALL {$typeCount} questions MUST be WHY questions.\n"
+                        ."- Stem MUST start with \"Why...\" or \"What is the rationale...\" or \"What best explains...\".\n"
+                        ."- Ask for reasoning behind a rule, principle, choice, or outcome.\n"
+                        ."- Set question_type to \"why\" on every object.\n"
+                        ."- Do NOT use \"Which of the following\".\n",
+                    'how' => "ALL {$typeCount} questions MUST be HOW questions.\n"
+                        ."- Stem MUST start with \"How should...\" or \"How is ... computed/applied...\" or \"What is the correct procedure to...\".\n"
+                        ."- Ask for procedure, process, or application steps.\n"
+                        ."- Set question_type to \"how\" on every object.\n"
+                        ."- Do NOT use \"Which of the following\".\n",
+                    default => "ALL {$typeCount} questions MUST be WHAT questions.\n"
+                        ."- Identify something FROM a scenario, case, computation, or data — never bare definition.\n"
+                        ."- Set question_type to \"what\" on every object.\n"
+                        ."- Do NOT start every item with \"Given...\".\n",
+                };
+
+                $prompt = "Generate EXACTLY {$typeCount} multiple-choice questions based ONLY on the text below.\n"
+                    ."Each question must have EXACTLY {$choiceCount} answer choices ({$letterList}).\n"
+                    ."Batch difficulty target: {$targetDifficulty}.\n"
+                    ."Source file: {$file->getClientOriginalName()}\n\n"
+                    ."════════════════════════════════════════\n"
+                    .$typeInstructions
+                    ."════════════════════════════════════════\n\n"
+                    ."Difficulty guide (most items should feel {$targetDifficulty}):\n"
+                    ."- Average: one concept, simple scenario.\n"
+                    ."- Normal: two related concepts or richer scenario.\n"
+                    ."- Hard: multi-step reasoning or nuanced case.\n\n"
+                    .$extraInstructionsBlock
+                    ."Content:\n{$text}\n\n"
+                    ."Rules:\n"
+                    ."- Return ONLY a valid JSON array with EXACTLY {$typeCount} objects.\n"
+                    ."- Format: {\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"Average|Normal|Hard\",\"question_type\":\"{$questionType}\"}\n"
+                    ."- Every question_type MUST be \"{$questionType}\".\n"
+                    .'- No markdown, no backticks, no extra text.';
+
+                try {
+                    // Ang admin-configured max_tokens ay ginagamit bilang ceiling —
+                    // hindi ito papayagang mas mababa sa 320/tanong (structural minimum),
+                    // para hindi ma-truncate ang JSON output kahit mababa ang naka-set.
+                    $configuredCeiling = max($settingsResolver->getMaxTokens(), 320 * $typeCount);
+
+                    $payload = [
+                        'messages' => [
+                            [
+                                'role' => 'system',
+                                'content' => "You generate board-exam MCQs. Output ONLY a JSON array of exactly {$typeCount} objects. Every object must have question_type \"{$questionType}\". No markdown.",
+                            ],
+                            [
+                                'role' => 'user',
+                                'content' => $prompt,
                             ],
                         ],
-                    ],
-                ];
+                        'max_tokens' => min(320 * $typeCount, $configuredCeiling, 4096),
+                        'temperature' => 0.2,
+                        'response_format' => [
+                            'type' => 'json_schema',
+                            'json_schema' => [
+                                'type' => 'array',
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'question' => ['type' => 'string'],
+                                        'options' => [
+                                            'type' => 'object',
+                                            'properties' => array_fill_keys($choiceLetters, ['type' => 'string']),
+                                            'required' => $choiceLetters,
+                                        ],
+                                        'correct' => [
+                                            'type' => 'string',
+                                            'enum' => $choiceLetters,
+                                        ],
+                                        'difficulty' => [
+                                            'type' => 'string',
+                                            'enum' => $allowedDifficulties,
+                                        ],
+                                        'question_type' => [
+                                            'type' => 'string',
+                                            'enum' => ['what', 'why', 'how'],
+                                        ],
+                                    ],
+                                    'required' => ['question', 'options', 'correct', 'difficulty', 'question_type'],
+                                ],
+                            ],
+                        ],
+                    ];
 
-                $result = $ai->run('@cf/meta/llama-3.2-3b-instruct', $payload);
-                $aiResponse = $result['response'] ?? '';
+                    $result = $ai->run($settingsResolver->getModel(), $payload);
+                    $aiResponse = $result['response'] ?? '';
 
-                if (is_array($aiResponse)) {
-                    $batch = $aiResponse;
-                } else {
-                    $raw = trim((string) $aiResponse);
-                    $raw = preg_replace('/^[\s\r\n]*```json\s*/i', '', $raw);
-                    $raw = preg_replace('/\s*```[\s\r\n]*$/i', '', $raw);
-                    $raw = preg_replace('/^[\s\r\n]*```[\s\r\n]*/i', '', $raw);
-                    $raw = preg_replace('/,\s*([}\]])/u', '$1', $raw);
-                    $raw = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw);
-                    $raw = trim($raw);
-                    preg_match('/\[.*\]/s', $raw, $matches);
-                    $jsonBlock = $matches[0] ?? $raw;
-                    if (! str_starts_with($jsonBlock, '[')) {
-                        $jsonBlock = '['.$jsonBlock;
+                    if (is_array($aiResponse)) {
+                        $batch = $aiResponse;
+                    } else {
+                        $raw = trim((string) $aiResponse);
+                        $raw = preg_replace('/^[\s\r\n]*```json\s*/i', '', $raw);
+                        $raw = preg_replace('/\s*```[\s\r\n]*$/i', '', $raw);
+                        $raw = preg_replace('/^[\s\r\n]*```[\s\r\n]*/i', '', $raw);
+                        $raw = preg_replace('/,\s*([}\]])/u', '$1', $raw);
+                        $raw = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw);
+                        $raw = trim($raw);
+                        preg_match('/\[.*\]/s', $raw, $matches);
+                        $jsonBlock = $matches[0] ?? $raw;
+                        if (! str_starts_with($jsonBlock, '[')) {
+                            $jsonBlock = '['.$jsonBlock;
+                        }
+                        if (! str_ends_with($jsonBlock, ']')) {
+                            $jsonBlock .= ']';
+                        }
+                        $batch = json_decode($jsonBlock, true);
+                        if (! is_array($batch)) {
+                            $batch = [];
+                        }
                     }
-                    if (! str_ends_with($jsonBlock, ']')) {
-                        $jsonBlock .= ']';
-                    }
-                    $batch = json_decode($jsonBlock, true);
-                    if (! is_array($batch)) {
-                        $batch = [];
-                    }
-                }
 
-                $batch = array_values(array_filter($batch, function ($q) use ($choiceLetters) {
-                    return isset($q['question'], $q['options'], $q['correct'])
-                        && is_string($q['question'])
-                        && is_string($q['correct'])
-                        && is_array($q['options'])
-                        && count($q['options']) === count($choiceLetters)
-                        && in_array(strtoupper($q['correct']), $choiceLetters, true);
-                }));
+                    $batch = array_values(array_filter($batch, function ($q) use ($choiceLetters) {
+                        return isset($q['question'], $q['options'], $q['correct'])
+                            && is_string($q['question'])
+                            && is_string($q['correct'])
+                            && is_array($q['options'])
+                            && count($q['options']) === count($choiceLetters)
+                            && in_array(strtoupper($q['correct']), $choiceLetters, true);
+                    }));
 
-                $batch = array_slice($batch, 0, $typeCount);
+                    $batch = array_slice($batch, 0, $typeCount);
 
-                // Force correct question_type label for this job
-                foreach ($batch as &$q) {
-                    $q['question_type'] = $questionType;
-                    if (empty($q['difficulty'])) {
+                    // Force correct question_type + difficulty label for this job
+                    foreach ($batch as &$q) {
+                        $q['question_type'] = $questionType;
                         $q['difficulty'] = $targetDifficulty;
                     }
-                }
-                unset($q);
+                    unset($q);
 
-                // If short, one focused retry for this type only
-                if (count($batch) < $typeCount) {
-                    Log::warning('AI per-type short — retry once', [
-                        'file' => $file->getClientOriginalName(),
-                        'type' => $questionType,
-                        'got' => count($batch),
-                        'need' => $typeCount,
-                    ]);
+                    // If short, one focused retry for this (tier, type) only
+                    if (count($batch) < $typeCount) {
+                        Log::warning('AI per-type short — retry once', [
+                            'file' => $file->getClientOriginalName(),
+                            'difficulty' => $targetDifficulty,
+                            'type' => $questionType,
+                            'got' => count($batch),
+                            'need' => $typeCount,
+                        ]);
 
-                    $need = $typeCount - count($batch);
-                    $retryPrompt = $prompt."\n\nRETRY: Return EXACTLY {$need} more \"{$questionType}\" questions only.";
+                        $need = $typeCount - count($batch);
+                        $retryPrompt = $prompt."\n\nRETRY: Return EXACTLY {$need} more \"{$questionType}\" questions only.";
 
-                    try {
-                        $retryPayload = $payload;
-                        $retryPayload['messages'][1]['content'] = $retryPrompt;
-                        $retryPayload['max_tokens'] = min(320 * $need, 4096);
+                        try {
+                            $retryPayload = $payload;
+                            $retryPayload['messages'][1]['content'] = $retryPrompt;
+                            $retryPayload['max_tokens'] = min(320 * $need, 4096);
 
-                        $retryResult = $ai->run('@cf/meta/llama-3.2-3b-instruct', $retryPayload);
-                        $retryResponse = $retryResult['response'] ?? '';
-                        $retryBatch = is_array($retryResponse) ? $retryResponse : null;
+                            $retryResult = $ai->run($settingsResolver->getModel(), $retryPayload);
+                            $retryResponse = $retryResult['response'] ?? '';
+                            $retryBatch = is_array($retryResponse) ? $retryResponse : null;
 
-                        if (! is_array($retryBatch)) {
-                            $rawRetry = trim((string) $retryResponse);
-                            preg_match('/\[.*\]/s', $rawRetry, $m);
-                            $retryBatch = json_decode($m[0] ?? $rawRetry, true);
-                        }
+                            if (! is_array($retryBatch)) {
+                                $rawRetry = trim((string) $retryResponse);
+                                preg_match('/\[.*\]/s', $rawRetry, $m);
+                                $retryBatch = json_decode($m[0] ?? $rawRetry, true);
+                            }
 
-                        if (is_array($retryBatch)) {
-                            $retryBatch = array_values(array_filter($retryBatch, function ($q) use ($choiceLetters) {
-                                return isset($q['question'], $q['options'], $q['correct'])
-                                    && is_string($q['question'])
-                                    && is_string($q['correct'])
-                                    && is_array($q['options'])
-                                    && count($q['options']) === count($choiceLetters)
-                                    && in_array(strtoupper($q['correct']), $choiceLetters, true);
-                            }));
-                            $retryBatch = array_slice($retryBatch, 0, $need);
-                            foreach ($retryBatch as &$rq) {
-                                $rq['question_type'] = $questionType;
-                                if (empty($rq['difficulty'])) {
+                            if (is_array($retryBatch)) {
+                                $retryBatch = array_values(array_filter($retryBatch, function ($q) use ($choiceLetters) {
+                                    return isset($q['question'], $q['options'], $q['correct'])
+                                        && is_string($q['question'])
+                                        && is_string($q['correct'])
+                                        && is_array($q['options'])
+                                        && count($q['options']) === count($choiceLetters)
+                                        && in_array(strtoupper($q['correct']), $choiceLetters, true);
+                                }));
+                                $retryBatch = array_slice($retryBatch, 0, $need);
+                                foreach ($retryBatch as &$rq) {
+                                    $rq['question_type'] = $questionType;
                                     $rq['difficulty'] = $targetDifficulty;
                                 }
+                                unset($rq);
+                                $batch = array_merge($batch, $retryBatch);
                             }
-                            unset($rq);
-                            $batch = array_merge($batch, $retryBatch);
+                        } catch (\Exception $retryEx) {
+                            Log::warning('AI per-type retry failed: '.$retryEx->getMessage());
                         }
-                    } catch (\Exception $retryEx) {
-                        Log::warning('AI per-type retry failed: '.$retryEx->getMessage());
                     }
-                }
 
-                foreach (array_slice($batch, 0, $typeCount) as $q) {
-                    $fileQuestions[] = $q;
+                    foreach (array_slice($batch, 0, $typeCount) as $q) {
+                        $fileQuestions[] = $q;
+                    }
+                } catch (\Exception $typeEx) {
+                    Log::error("AI per-type generation failed [{$targetDifficulty}/{$questionType}] {$file->getClientOriginalName()}: ".$typeEx->getMessage());
                 }
-            } catch (\Exception $typeEx) {
-                Log::error("AI per-type generation failed [{$questionType}] {$file->getClientOriginalName()}: ".$typeEx->getMessage());
             }
         }
 
-        // Optional light shuffle so why/how/what are not clumped by type order
+        // Optional light shuffle so tiers/types are not clumped in output order
         shuffle($fileQuestions);
 
         foreach ($fileQuestions as $q) {

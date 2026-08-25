@@ -18,8 +18,16 @@
 
 @section('header-actions')
     @if($existingQuestions->isNotEmpty())
-        <form method="POST" action="{{ route('test-bank.modules.import', $module) }}" style="display:inline;">
+        <form method="POST" action="{{ route('test-bank.modules.import', $module) }}"
+              style="display:inline-flex;align-items:center;gap:6px;">
             @csrf
+            <input type="text" name="topic" list="existingTopicsList" placeholder="Topic (e.g. Chapter 3)"
+                   class="rv-input" style="width:280px;height:46px;font-size:16px;padding:0 14px;">
+            <datalist id="existingTopicsList">
+                @foreach($existingTopics ?? [] as $topic)
+                    <option value="{{ $topic }}"></option>
+                @endforeach
+            </datalist>
             <button type="submit" class="rv-btn rv-btn-secondary"><i class="fas fa-database"></i> Save Questions to Test Bank</button>
         </form>
     @endif
@@ -781,25 +789,33 @@ document.addEventListener('DOMContentLoaded', function () {
 
         addFilesBtn.addEventListener('click', () => fileInput.click());
 
-        fileInput.addEventListener('change', function () {
-            Array.from(this.files).forEach(file => {
-                if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
-                    file.targetQuestionsCount = 5;
-                    file.difficulty = 'Normal';
-                    selectedFiles.push(file);
-                }
-            });
-            fileInput.value = '';
-            renderFileList();
-        });
-
+fileInput.addEventListener('change', function () {
+    Array.from(this.files).forEach(file => {
+        if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+            file.difficultyCounts = { Average: 0, Normal: 5, Hard: 0 };
+            selectedFiles.push(file);
+        }
+    });
+    fileInput.value = '';
+    renderFileList();
+});
 function renderFileList() {
     fileListDiv.innerHTML = '';
     if (selectedFiles.length === 0) { return; }
 
+    const tiers = ['Average', 'Normal', 'Hard'];
+
     selectedFiles.forEach((file, i) => {
-        if (!file.difficulty) file.difficulty = 'Normal';
-        if (file.targetQuestionsCount === undefined) file.targetQuestionsCount = 5;
+        if (!file.difficultyCounts) {
+            file.difficultyCounts = { Average: 0, Normal: 5, Hard: 0 };
+        }
+
+        const total = tiers.reduce((sum, t) => sum + (parseInt(file.difficultyCounts[t], 10) || 0), 0);
+
+        const tierInputs = tiers.map(t => `
+            <label style="font-size:13px;color:#666;font-weight:500;white-space:nowrap;margin:0;">${t}:</label>
+            <input type="number" class="rv-input tier-count-input" style="width:60px;height:34px;padding:4px 6px;text-align:center;margin:0;" min="0" max="20" value="${file.difficultyCounts[t]}" data-index="${i}" data-tier="${t}">
+        `).join('');
 
         const div = document.createElement('div');
         div.className = 'qc-file-item';
@@ -807,31 +823,25 @@ function renderFileList() {
         div.innerHTML = `
             <div style="flex-grow:1;min-width:160px;">
                 <div class="qc-file-name"><i class="fas fa-file-alt" style="color:#888;margin-right:6px;"></i>${file.name}</div>
-                <div class="qc-file-size">${(file.size/1024).toFixed(1)} KB</div>
+                <div class="qc-file-size">${(file.size/1024).toFixed(1)} KB &bull; <span class="file-total-label" data-index="${i}">${total} question(s) total</span></div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;">
-                <label style="font-size:14px;color:#666;font-weight:500;white-space:nowrap;margin:0;">Questions:</label>
-                <input type="number" class="rv-input target-count-input" style="width:70px;height:34px;padding:4px 8px;text-align:center;margin:0;" min="0" max="25" value="${file.targetQuestionsCount}" data-index="${i}">
-
-                <label style="font-size:14px;color:#666;font-weight:500;white-space:nowrap;margin:0;">Difficulty:</label>
-                <select class="rv-input file-difficulty-select" style="width:120px;height:34px;padding:4px 8px;margin:0;" data-index="${i}">
-                    <option value="Average" ${file.difficulty === 'Average' ? 'selected' : ''}>Average</option>
-                    <option value="Normal" ${file.difficulty === 'Normal' ? 'selected' : ''}>Normal</option>
-                    <option value="Hard" ${file.difficulty === 'Hard' ? 'selected' : ''}>Hard</option>
-                </select>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;">
+                ${tierInputs}
             </div>
             <button type="button" class="rv-btn rv-btn-danger" style="height:34px;width:34px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" data-index="${i}">
                 <i class="fas fa-times"></i>
             </button>`;
 
-        div.querySelector('.target-count-input').addEventListener('input', function () {
-            const idx = parseInt(this.dataset.index, 10);
-            selectedFiles[idx].targetQuestionsCount = parseInt(this.value, 10) || 0;
-        });
+        div.querySelectorAll('.tier-count-input').forEach(input => {
+            input.addEventListener('input', function () {
+                const idx = parseInt(this.dataset.index, 10);
+                const tier = this.dataset.tier;
+                selectedFiles[idx].difficultyCounts[tier] = parseInt(this.value, 10) || 0;
 
-        div.querySelector('.file-difficulty-select').addEventListener('change', function () {
-            const idx = parseInt(this.dataset.index, 10);
-            selectedFiles[idx].difficulty = this.value;
+                const newTotal = tiers.reduce((sum, t) => sum + (parseInt(selectedFiles[idx].difficultyCounts[t], 10) || 0), 0);
+                const label = div.querySelector('.file-total-label');
+                if (label) { label.textContent = newTotal + ' question(s) total'; }
+            });
         });
 
         div.querySelector('button').addEventListener('click', function () {
@@ -859,15 +869,22 @@ function renderFileList() {
 
         selectedFiles.forEach((file, index) => {
     formData.append('context_files[' + index + ']', file);
-    formData.append('file_question_counts[' + index + ']', file.targetQuestionsCount);
-    formData.append('file_difficulties[' + index + ']', file.difficulty || 'Normal');
+    ['Average', 'Normal', 'Hard'].forEach(tier => {
+        formData.append(
+            'file_difficulty_counts[' + index + '][' + tier + ']',
+            (file.difficultyCounts && file.difficultyCounts[tier]) || 0
+        );
+    });
 });
 
-            fetch(this.action, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                body: formData,
-            })
+           fetch(this.action, {
+    method: 'POST',
+    headers: {
+        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+        'Accept': 'application/json',
+    },
+    body: formData,
+})
             .then(r => r.json())
             .then(response => {
                 if (response.success && response.questions) {

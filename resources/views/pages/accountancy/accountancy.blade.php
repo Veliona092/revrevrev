@@ -306,25 +306,7 @@
                 </div>
             </div>
 
-            <div class="db-card">
-                <div class="db-card-head">
-                    <p class="db-card-title">Messages</p>
-                    <a href="{{ route('chat.index') }}" class="db-card-link">Go to inbox →</a>
-                </div>
-                <div class="db-card-body">
-                    @forelse($recentMessages as $msg)
-                        <div class="db-msg" @if(!$loop->first) style="margin-top:10px;" @endif>
-                            <div class="db-msg-avatar">{{ strtoupper(substr($msg['other']->name ?? '?', 0, 2)) }}</div>
-                            <div>
-                                <p class="db-msg-name">{{ $msg['other']->name }}</p>
-                                <p class="db-msg-body">"{{ Str::limit($msg['preview'] ?? 'No messages yet.', 50) }}"</p>
-                            </div>
-                        </div>
-                    @empty
-                        <p style="font-size:13px;color:#9a8f80;text-align:center;padding:8px 0;">No messages yet.</p>
-                    @endforelse
-                </div>
-            </div>
+        
 
         </div>
 

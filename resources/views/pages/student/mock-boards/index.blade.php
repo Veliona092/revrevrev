@@ -1,4 +1,16 @@
-@extends('layouts.appAcc')
+@php
+    // I-map ang program value (galing sa users table) papuntang tamang layout
+    $programLayouts = [
+        'acc'    => 'layouts.appAcc',
+        'psych'  => 'layouts.appPsych',
+        'educ'   => 'layouts.appEduc',
+    ];
+
+    $userProgram = strtolower(auth()->user()->program);
+    $activeLayout = $programLayouts[$userProgram] ?? 'layouts.appAcc'; // fallback kung walang match
+@endphp
+
+@extends($activeLayout)
 
 @section('content')
 <div class="rv-content-container" style="padding: 20px;">
@@ -85,7 +97,7 @@
                             START PRE-TEST ASSESSMENT
                         </a>
                     @elseif($hasPreBoardPhase && !$preBoard)
-                        {{-- PRE-BOARD AVAILABLE --}}
+                        {{-- PRE-BOARD AVAILABLE, HINDI PA KINUKUHA --}}
                         <div style="display: flex; gap: 12px;">
                             @if($preTest)
                                 <a href="{{ route('student.mock-boards.results', $board->id) }}" 
@@ -100,7 +112,14 @@
                                 PRE-BOARD
                             </a>
                         </div>
-              
+                    @elseif($isFullyComplete)
+                        {{-- TAPOS NA LAHAT — dito nawawala dati yung REVIEWS button --}}
+                        <a href="{{ route('student.mock-boards.results', $board->id) }}" 
+                           style="display: block; text-align: center; border: 2px solid #245E55; color: #245E55; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: 700; transition: background 0.2s;"
+                           onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='transparent'">
+                            VIEW RESULTS
+                        </a>
+                    @else
                         {{-- WALANG PHASE PA, WALANG BUTTON --}}
                         <div style="text-align: center; color: #94a3b8; padding: 14px; font-size: 0.9rem; background: #f8fafc; border-radius: 8px;">
                             Not yet available.

@@ -22,12 +22,12 @@
   <!-- Custom profile styles -->
   <style>
     :root {
-      --primary: #5e72e4;
-      --primary-dark: #4a5fd1;
-      --gray-100: #f8f9fa;
-      --gray-200: #e9ecef;
-      --gray-600: #8898aa;
-      --gray-800: #2c3e50;
+      --primary: #B5526E;
+      --primary-dark: #993d59;
+      --gray-100: #FBF5F9;
+      --gray-200: #E8D8E4;
+      --gray-600: #9a8098;
+      --gray-800: #2D2D2B;
     }
 
     body {
@@ -43,7 +43,7 @@
     }
 
     .profile-header {
-      background: #455AE4;
+      background: #3D2540;
       color: white;
       padding: 2.5rem 2rem 1.5rem;
       text-align: center;
@@ -84,7 +84,7 @@
 
     .form-control-custom:focus {
       border-color: var(--primary);
-      box-shadow: 0 0 0 0.2rem rgba(94, 114, 228, 0.25);
+      box-shadow: 0 0 0 0.2rem rgba(181, 82, 110, 0.25);
     }
 
     .input-group-text-custom {
@@ -145,7 +145,7 @@
     
       <!-- Collapse -->
       <div class="collapse navbar-collapse" id="sidenav-collapse-main">
-        @include('reusable.navbarEducation')
+        @include('reusable.navbarPsych')
       </div>
     </div>
   </nav>

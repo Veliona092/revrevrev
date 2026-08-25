@@ -9,6 +9,7 @@ use App\Models\MockBoardPhase;
 use App\Models\Module;
 use App\Models\QuizAnswer;
 use App\Models\QuizAttempt;
+use App\Models\QuizAttemptSnapshot;
 use App\Models\QuizQuestion;
 use App\Models\User;
 use App\Services\AiSettingsResolver;
@@ -84,7 +85,29 @@ class QuizController extends Controller
     public function generateInsights(Request $request, Module $module)
     {
         $user = Auth::user();
-        $attempt = QuizAttempt::where('user_id', $user->id)->where('module_id', $module->id)->latest('updated_at')->first();
+
+        $attemptId = $request->input('attempt_id');
+        $attempt = null;
+
+        if (! empty($attemptId)) {
+            $attempt = QuizAttempt::where('id', $attemptId)
+                ->where('user_id', $user->id)
+                ->where('module_id', $module->id)
+                ->first();
+        }
+
+        if (! $attempt) {
+            // Fallback lang para sa mga lumang cached frontend na hindi pa
+            // nagpapasa ng attempt_id.
+            $mockPhase = MockBoardPhase::where('module_id', $module->id)->first();
+
+            $attempt = QuizAttempt::where('user_id', $user->id)
+                ->where('module_id', $module->id)
+                ->where('mock_board_id', $mockPhase?->mock_board_id)
+                ->whereNotNull('completed_at')
+                ->latest('completed_at')
+                ->first();
+        }
 
         if (! $attempt || $attempt->ai_strong !== null) {
             return response()->json(['success' => true, 'strong' => $attempt?->ai_strong, 'weak' => $attempt?->ai_weak, 'recommendation' => $attempt?->ai_recommendation]);
@@ -117,10 +140,10 @@ class QuizController extends Controller
                 'temperature' => 0.6,
             ]);
 
-            $text = $result['response'] ?? '';
-            if ($text) {
-                $attempt->update(['ai_strong' => $fallback['strong'], 'ai_weak' => $fallback['weak'], 'ai_recommendation' => $fallback['recommendation']]);
-            }
+            // Always persist the fallback insights regardless of whether the
+            // AI call returned usable text — an empty/blank AI response should
+            // not leave ai_strong/ai_weak/ai_recommendation stuck at null.
+            $attempt->update(['ai_strong' => $fallback['strong'], 'ai_weak' => $fallback['weak'], 'ai_recommendation' => $fallback['recommendation']]);
         } catch (\Exception $e) {
             $attempt->update(['ai_strong' => $fallback['strong'], 'ai_weak' => $fallback['weak'], 'ai_recommendation' => $fallback['recommendation']]);
         }
@@ -147,15 +170,48 @@ class QuizController extends Controller
     {
         $user = Auth::user();
 
+        $mockPhase = MockBoardPhase::where('module_id', $module->id)->first();
+        $mockBoardId = $mockPhase?->mock_board_id;
+
         $attempt = QuizAttempt::where('user_id', $user->id)
             ->where('module_id', $module->id)
+            ->where('mock_board_id', $mockBoardId)
             ->first();
+
+        // Kung "in_progress" ang naunang attempt, i-check muna kung lumagpas na
+        // sa 1 minuto mula sa huling activity (updated_at, na na-touch() sa
+        // bawat submitAnswer()). Kung lumagpas na, ituring itong "timed out":
+        // markahan bilang 0/failed, at ituloy sa baba bilang bagong pagsubok.
+        $treatAsFreshStart = false;
+
+        if ($attempt && $attempt->status === 'in_progress') {
+            $minutesSinceActivity = $attempt->updated_at->diffInMinutes(now());
+
+            if ($minutesSinceActivity > 1) {
+                QuizAnswer::where('attempt_id', $attempt->id)->delete();
+
+                $attempt->update([
+                    'score' => 0,
+                    'total' => $attempt->total ?: $module->quizQuestions()->count(),
+                    'percentage' => 0,
+                    'passed' => false,
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'ai_strong' => null,
+                    'ai_weak' => null,
+                    'ai_recommendation' => null,
+                ]);
+
+                $treatAsFreshStart = true;
+            }
+        }
 
         if (! $attempt) {
             // Unang pagkakataon kukuha — palaging pinapayagan, dahil 1 pa lang ang gagamitin.
             $attempt = QuizAttempt::create([
                 'user_id' => $user->id,
                 'module_id' => $module->id,
+                'mock_board_id' => $mockBoardId,
                 'attempt_count' => 1,
                 'score' => 0,
                 'total' => 0,
@@ -164,12 +220,14 @@ class QuizController extends Controller
                 'status' => 'in_progress',
                 'started_at' => now(),
             ]);
-        } elseif ($attempt->status === 'in_progress') {
-            // Nag-abandon dati (halimbawa back button), pinatuloy — huwag na dagdagan ang count
+        } elseif ($attempt->status === 'in_progress' && ! $treatAsFreshStart) {
+            // Nag-abandon dati (halimbawa back button) pero loob pa ng 1 minuto —
+            // pinatuloy, huwag na dagdagan ang count
             $attempt->update(['started_at' => now()]);
         } else {
-            // Natapos na dati — ito ay bagong pagsubok. I-enforce ang attempt limit
-            // dito lamang para sa formal assessments (Pre-Test, Post-Test, Mock Board).
+            // Natapos na dati (o kakatapos lang dahil sa timeout sa itaas) —
+            // ito ay bagong pagsubok. I-enforce ang attempt limit dito lamang
+            // para sa formal assessments (Pre-Test, Post-Test, Mock Board).
             // Ang mga practice modules (is_formal_assessment = false) ay walang limitasyon.
             if ($module->is_formal_assessment) {
                 $allowed = $this->getAllowedAttempts($module, $user->id);
@@ -178,9 +236,12 @@ class QuizController extends Controller
                 if ($used >= $allowed) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Naubos na ang mga pinapayagang pagsubok mo para sa assessment na ito. Makipag-ugnayan sa iyong guro kung kailangan mo ng karagdagang pagkakataon.',
+                        'message' => $treatAsFreshStart
+                            ? 'Nag-timeout ang naunang pagsubok mo (lumagpas sa 1 minuto bago bumalik) at nabigyan ng markang 0. Naubos na rin ang iyong mga pinapayagang pagsubok. Makipag-ugnayan sa iyong guro kung kailangan mo ng karagdagang pagkakataon.'
+                            : 'Naubos na ang mga pinapayagang pagsubok mo para sa assessment na ito. Makipag-ugnayan sa iyong guro kung kailangan mo ng karagdagang pagkakataon.',
                         'attempts_used' => $used,
                         'attempts_allowed' => $allowed,
+                        'timed_out' => $treatAsFreshStart,
                     ], 403);
                 }
             }
@@ -206,6 +267,8 @@ class QuizController extends Controller
         return response()->json([
             'success' => true,
             'attempt_count' => $attempt->attempt_count,
+            'timed_out' => $treatAsFreshStart,
+            'attempt_id' => $attempt->id,
         ]);
     }
 
@@ -215,44 +278,31 @@ class QuizController extends Controller
         $validated = $request->validate([
             'question_id' => 'required|exists:quiz_questions,id',
             'selected_option' => 'required',
+            'attempt_id' => 'nullable|integer|exists:quiz_attempts,id',
         ]);
 
         $question = QuizQuestion::findOrFail($validated['question_id']);
 
-        // Dapat meron nang attempt row mula sa startAttempt() — pero panatilihin
-        // ang fallback na ito bilang safety net kung sakaling hindi na-tawag ang start.
-        $attempt = QuizAttempt::firstOrCreate(
-            ['user_id' => $user->id, 'module_id' => $module->id],
-            [
-                'attempt_count' => 1,
-                'score' => 0,
-                'total' => 0,
-                'percentage' => 0,
-                'passed' => false,
-                'status' => 'in_progress',
-                'started_at' => now(),
-            ]
-        );
+        $attempt = null;
 
-        $selected = trim($validated['selected_option']);
-        $correct = trim($question->correct_option);
-        $isCorrect = (strcasecmp($selected, $correct) === 0);
+        if (! empty($validated['attempt_id'])) {
+            $attempt = QuizAttempt::where('id', $validated['attempt_id'])
+                ->where('user_id', $user->id)
+                ->where('module_id', $module->id)
+                ->first();
+        }
 
-        QuizAnswer::updateOrCreate(
-            ['attempt_id' => $attempt->id, 'question_id' => $question->id],
-            ['selected_option' => $selected, 'is_correct' => $isCorrect]
-        );
+        if (! $attempt) {
+            // Fallback lang ito para sa mga lumang cached frontend na hindi pa
+            // nagpapasa ng attempt_id — dapat na dumaan dito ang mga bago.
+            $mockPhase = MockBoardPhase::where('module_id', $module->id)->first();
 
-        return response()->json(['success' => true, 'isCorrect' => $isCorrect]);
-    }
-
-    public function submitQuiz(Request $request, Module $module)
-    {
-        $user = Auth::user();
-
-        return DB::transaction(function () use ($user, $module, $request) {
             $attempt = QuizAttempt::firstOrCreate(
-                ['user_id' => $user->id, 'module_id' => $module->id],
+                [
+                    'user_id' => $user->id,
+                    'module_id' => $module->id,
+                    'mock_board_id' => $mockPhase?->mock_board_id,
+                ],
                 [
                     'attempt_count' => 1,
                     'score' => 0,
@@ -263,6 +313,64 @@ class QuizController extends Controller
                     'started_at' => now(),
                 ]
             );
+        }
+
+        $selected = trim($validated['selected_option']);
+        $correct = trim($question->correct_option);
+        $isCorrect = (strcasecmp($selected, $correct) === 0);
+
+        QuizAnswer::updateOrCreate(
+            ['attempt_id' => $attempt->id, 'question_id' => $question->id],
+            ['selected_option' => $selected, 'is_correct' => $isCorrect]
+        );
+
+        // I-update ang timestamp ng attempt bilang bakas ng huling activity —
+        // ginagamit ito ng startAttempt() para malaman kung kailan huling
+        // gumalaw ang estudyante (para sa 1-minute grace period sa pag-resume).
+        $attempt->touch();
+
+        return response()->json(['success' => true, 'isCorrect' => $isCorrect]);
+    }
+
+     public function submitQuiz(Request $request, Module $module)
+    {
+        $user = Auth::user();
+
+        return DB::transaction(function () use ($user, $module, $request) {
+            $mockPhase = MockBoardPhase::where('module_id', $module->id)->first();
+            $mockBoardId = $mockPhase?->mock_board_id;
+            $phaseType = $mockPhase?->phase_type;
+
+            $attemptId = $request->input('attempt_id');
+            $attempt = null;
+
+            if (! empty($attemptId)) {
+                $attempt = QuizAttempt::where('id', $attemptId)
+                    ->where('user_id', $user->id)
+                    ->where('module_id', $module->id)
+                    ->first();
+            }
+
+            if (! $attempt) {
+                // Fallback lang ito para sa mga lumang cached frontend na hindi pa
+                // nagpapasa ng attempt_id.
+                $attempt = QuizAttempt::firstOrCreate(
+                    [
+                        'user_id' => $user->id,
+                        'module_id' => $module->id,
+                        'mock_board_id' => $mockBoardId,
+                    ],
+                    [
+                        'attempt_count' => 1,
+                        'score' => 0,
+                        'total' => 0,
+                        'percentage' => 0,
+                        'passed' => false,
+                        'status' => 'in_progress',
+                        'started_at' => now(),
+                    ]
+                );
+            }
 
             $answers = QuizAnswer::where('attempt_id', $attempt->id)->get();
             $correctCount = $answers->where('is_correct', true)->count();
@@ -284,8 +392,39 @@ class QuizController extends Controller
                 'ai_strong' => null,
             ]);
 
+            // Bilang ng snapshot number base sa dati nang naitalang attempts,
+            // hindi sa attempt_count ng QuizAttempt (para hindi ma-desync).
+            $nextAttemptNumber = QuizAttemptSnapshot::where('user_id', $user->id)
+                ->where('module_id', $module->id)
+                ->where('mock_board_id', $mockBoardId)
+                ->max('attempt_number');
+            $nextAttemptNumber = ($nextAttemptNumber ?? 0) + 1;
+
+            QuizAttemptSnapshot::create([
+                'user_id' => $user->id,
+                'module_id' => $module->id,
+                'mock_board_id' => $mockBoardId,
+                'phase_type' => $phaseType,
+                'attempt_number' => $nextAttemptNumber,
+                'score' => $correctCount,
+                'total' => $totalQuestions,
+                'percentage' => $percentage,
+                'passed' => $percentage >= ($module->passing_grade ?? 50),
+                'started_at' => $attempt->started_at,
+                'completed_at' => now(),
+                'questions_snapshot' => $answers->map(function ($a) {
+                    return [
+                        'question_id' => $a->question_id,
+                        'question_text' => $a->question->question_text ?? null,
+                        'options' => $a->question->options ?? null,
+                        'correct_option' => $a->question->correct_option ?? null,
+                        'selected_option' => $a->selected_option,
+                        'is_correct' => $a->is_correct,
+                    ];
+                })->values()->toArray(),
+            ]);
+
             // SYNC TO MOCK BOARD ATTEMPTS (Para lumabas sa Teacher/Admin Analytics)
-            $mockPhase = MockBoardPhase::where('module_id', $module->id)->first();
             if ($mockPhase) {
                 $passingGrade = 75;
                 if ($mockPhase->mockBoard) {
@@ -310,6 +449,55 @@ class QuizController extends Controller
 
             return response()->json(['success' => true, 'score' => $correctCount, 'percentage' => $percentage]);
         });
+    }
+    /**
+     * Return the authenticated user's attempt history for a module,
+     * newest first. Summary fields only — no questions_snapshot,
+     * so the collapsed list view stays light.
+     */
+    public function attemptHistory(Module $module)
+    {
+        $user = Auth::user();
+
+        $snapshots = QuizAttemptSnapshot::where('user_id', $user->id)
+            ->where('module_id', $module->id)
+            ->orderByDesc('attempt_number')
+            ->get([
+                'id',
+                'attempt_number',
+                'score',
+                'total',
+                'percentage',
+                'passed',
+                'completed_at',
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'attempts' => $snapshots,
+        ]);
+    }
+
+    /**
+     * Return the full per-question breakdown for a single attempt
+     * snapshot, lazy-loaded when the student expands a row.
+     */
+    public function attemptSnapshotDetail(QuizAttemptSnapshot $snapshot)
+    {
+        if ($snapshot->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'attempt_number' => $snapshot->attempt_number,
+            'score' => $snapshot->score,
+            'total' => $snapshot->total,
+            'percentage' => $snapshot->percentage,
+            'passed' => $snapshot->passed,
+            'completed_at' => $snapshot->completed_at,
+            'questions' => $snapshot->questions_snapshot,
+        ]);
     }
 
     /**
