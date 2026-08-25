@@ -452,6 +452,17 @@
 
                 @endif
 
+                <span class="at-start-stat">
+                    <i class="fas fa-repeat"></i>
+                    @if(! $can_start_attempt)
+                        No attempts remaining
+                    @elseif($is_resuming)
+                        Resume attempt {{ $attempts_used }} of {{ $attempts_allowed }}
+                    @else
+                        Attempt {{ $attempts_used + 1 }} of {{ $attempts_allowed }}
+                    @endif
+                </span>
+
             </div>
 
 
@@ -462,17 +473,19 @@
 
                 Do not switch tabs or windows during the assessment.
 
-                You will be warned twice before the quiz is auto-submitted as failed.
-
             </p>
 
 
 
-            <button class="qz-btn qz-btn-dark" onclick="launchAssessment()">
-
-                <i class="fas fa-play"></i> Begin Assessment
-
-            </button>
+            @if($can_start_attempt)
+                <button class="qz-btn qz-btn-dark" onclick="launchAssessment()">
+                    <i class="fas fa-play"></i> {{ $is_resuming ? 'Resume Assessment' : 'Begin Assessment' }}
+                </button>
+            @else
+                <button class="qz-btn qz-btn-dark" disabled>
+                    <i class="fas fa-ban"></i> Attempts Used Up
+                </button>
+            @endif
 
         </div>
 

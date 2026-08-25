@@ -9,6 +9,7 @@ use App\Http\Controllers\BatchAnalyticsController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ClassManagerController;
 use App\Http\Controllers\LectureController;
+use App\Http\Controllers\MockBoardApprovalController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuizController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\StudentMockBoardController;
 use App\Http\Controllers\StudentProgressController;
 use App\Http\Controllers\TeacherDashboardController;
 use App\Http\Controllers\TestAiController;
+use App\Http\Controllers\TestBankController;
 use App\Models\ClassModel;
 use App\Models\Module;
 use App\Models\Signup;
@@ -35,8 +37,6 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
-use App\Http\Controllers\MockBoardApprovalController;
-use App\Http\Controllers\MockBoardController;
 
 $client = new Google_Client;
 $client->addScope(Google_Service_Gmail::GMAIL_SEND);
@@ -616,6 +616,16 @@ Route::get('/classes/{class}/modules/list', [ClassManagerController::class, 'lis
 Route::get('/classes/{class}/modules', [ClassManagerController::class, 'listModules'])->name('classes.modules.index');
 Route::get('/classes/{class}/modules/show', [ClassManagerController::class, 'showModules'])->name('manage.modules');
 
+Route::middleware('auth')->prefix('test-bank')->name('test-bank.')->group(function () {
+    Route::get('/', [TestBankController::class, 'index'])->name('index');
+    Route::post('/', [TestBankController::class, 'store'])->name('store');
+    Route::put('{testBankQuestion}', [TestBankController::class, 'update'])->name('update');
+    Route::patch('{testBankQuestion}/archive', [TestBankController::class, 'archive'])->name('archive');
+    Route::post('modules/{module}/questions', [TestBankController::class, 'addToModule'])->name('modules.questions.store');
+    Route::post('modules/{module}/import', [TestBankController::class, 'importModuleQuestions'])->name('modules.import');
+    Route::get('questions.json', [TestBankController::class, 'questionsJson'])->name('questions.json');
+});
+
 // ── Announcements ──
 Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements.index')->middleware('auth');
 Route::post('/classes/{class}/announcements', [AnnouncementController::class, 'store'])->name('announcements.store')->middleware('auth');
@@ -724,13 +734,10 @@ Route::middleware(['auth'])->prefix('admin/mock-boards')->name('admin.mock-board
 // Idagdag ito sa web.php
 Route::get('/pre-assessments', [StudentAssessmentController::class, 'preassessments'])->name('student.preassessments')->middleware('auth');
 
-
 Route::middleware(['auth'])->group(function () {
     Route::get('/announcements/{announcement}/comments', [AnnouncementController::class, 'comments'])->name('announcements.comments');
     Route::post('/announcements/{announcement}/comments', [AnnouncementController::class, 'storeComment'])->name('announcements.comments.store');
 });
-
-
 
 Route::post('/modules/{module}/quiz/start', [QuizController::class, 'startAttempt'])->name('quiz.start');
 Route::put('/modules/{module}/quiz/max-attempts', [QuizController::class, 'updateMaxAttempts'])->name('quiz.max-attempts.update');

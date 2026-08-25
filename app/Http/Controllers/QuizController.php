@@ -2,18 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AssessmentAttemptGrant;
 use App\Models\ClassModel;
+use App\Models\MockBoardAttempt;
+use App\Models\MockBoardPhase;
 use App\Models\Module;
 use App\Models\QuizAnswer;
 use App\Models\QuizAttempt;
 use App\Models\QuizQuestion;
-use App\Models\MockBoardPhase;
-use App\Models\MockBoardAttempt;
+use App\Models\User;
 use App\Services\AiSettingsResolver;
 use App\Services\CloudflareAI;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -38,7 +39,9 @@ class QuizController extends Controller
             $correctTopics = $correctAnswers->take(2)
                 ->map(fn ($answer) => trim((string) data_get($answer, 'question.question_text', '')))
                 ->filter()->map(fn ($text) => Str::limit($text, 80))->implode(' | ');
-            if ($correctTopics !== '') $strong .= ' Strong items: '.$correctTopics.'.';
+            if ($correctTopics !== '') {
+                $strong .= ' Strong items: '.$correctTopics.'.';
+            }
         }
 
         $weak = 'No major weak areas detected.';
@@ -60,13 +63,15 @@ class QuizController extends Controller
 
     public function getQuestions(Module $module)
     {
-        if (! $module->is_quiz) return response()->json(['success' => false, 'message' => 'Not a quiz.'], 400);
+        if (! $module->is_quiz) {
+            return response()->json(['success' => false, 'message' => 'Not a quiz.'], 400);
+        }
 
         $questions = QuizQuestion::where('module_id', $module->id)->orderBy('order')->get();
 
         return response()->json([
             'success' => true,
-            'questions' => $questions->map(fn($q) => [
+            'questions' => $questions->map(fn ($q) => [
                 'id' => $q->id,
                 'question_text' => $q->question_text,
                 'options' => $q->options,
@@ -81,7 +86,7 @@ class QuizController extends Controller
         $user = Auth::user();
         $attempt = QuizAttempt::where('user_id', $user->id)->where('module_id', $module->id)->latest('updated_at')->first();
 
-        if (!$attempt || $attempt->ai_strong !== null) {
+        if (! $attempt || $attempt->ai_strong !== null) {
             return response()->json(['success' => true, 'strong' => $attempt?->ai_strong, 'weak' => $attempt?->ai_weak, 'recommendation' => $attempt?->ai_recommendation]);
         }
 
@@ -122,6 +127,7 @@ class QuizController extends Controller
 
         return response()->json(['success' => true, 'strong' => $attempt->ai_strong, 'weak' => $attempt->ai_weak, 'recommendation' => $attempt->ai_recommendation]);
     }
+
     /**
      * Kunin ang totoong pinapayagang bilang ng attempts para sa estudyanteng
      * ito sa module na ito = base max_attempts ng module + kung may extra
@@ -129,15 +135,10 @@ class QuizController extends Controller
      */
     private function getAllowedAttempts(Module $module, int $userId): int
     {
-        $base = $module->max_attempts ?? 1;
-
-        $grant = \App\Models\AssessmentAttemptGrant::where('module_id', $module->id)
-            ->where('user_id', $userId)
-            ->first();
-
-        return $base + ($grant->extra_attempts ?? 0);
+        return $module->allowedAttemptsFor($userId);
     }
-/**
+
+    /**
      * I-mark ang simula ng pagkuha ng quiz — dito gagawa ng record kahit
      * hindi pa nag-a-answer ang estudyante, para hindi mawala ang bakas
      * kapag nag-back/nag-abandon sila bago matapos.
@@ -206,17 +207,19 @@ class QuizController extends Controller
             'success' => true,
             'attempt_count' => $attempt->attempt_count,
         ]);
-    }    public function submitAnswer(Request $request, Module $module)
+    }
+
+    public function submitAnswer(Request $request, Module $module)
     {
         $user = Auth::user();
         $validated = $request->validate([
             'question_id' => 'required|exists:quiz_questions,id',
-            'selected_option' => 'required'
+            'selected_option' => 'required',
         ]);
 
         $question = QuizQuestion::findOrFail($validated['question_id']);
-        
-// Dapat meron nang attempt row mula sa startAttempt() — pero panatilihin
+
+        // Dapat meron nang attempt row mula sa startAttempt() — pero panatilihin
         // ang fallback na ito bilang safety net kung sakaling hindi na-tawag ang start.
         $attempt = QuizAttempt::firstOrCreate(
             ['user_id' => $user->id, 'module_id' => $module->id],
@@ -243,7 +246,7 @@ class QuizController extends Controller
         return response()->json(['success' => true, 'isCorrect' => $isCorrect]);
     }
 
-  public function submitQuiz(Request $request, Module $module)
+    public function submitQuiz(Request $request, Module $module)
     {
         $user = Auth::user();
 
@@ -264,7 +267,7 @@ class QuizController extends Controller
             $answers = QuizAnswer::where('attempt_id', $attempt->id)->get();
             $correctCount = $answers->where('is_correct', true)->count();
             $totalQuestions = $answers->count() ?: (int) $request->input('total', 0);
-            
+
             if ($totalQuestions === 0) {
                 $totalQuestions = QuizQuestion::where('module_id', $module->id)->count();
             }
@@ -278,7 +281,7 @@ class QuizController extends Controller
                 'passed' => $percentage >= ($module->passing_grade ?? 50),
                 'status' => 'completed',
                 'completed_at' => now(),
-                'ai_strong' => null, 
+                'ai_strong' => null,
             ]);
 
             // SYNC TO MOCK BOARD ATTEMPTS (Para lumabas sa Teacher/Admin Analytics)
@@ -308,7 +311,8 @@ class QuizController extends Controller
             return response()->json(['success' => true, 'score' => $correctCount, 'percentage' => $percentage]);
         });
     }
-/**
+
+    /**
      * Teacher: itakda ang base na bilang ng attempts na pinapayagan sa
      * lahat ng estudyante para sa module/assessment na ito.
      */
@@ -340,7 +344,7 @@ class QuizController extends Controller
      * Teacher: magbigay ng karagdagang attempts sa isang partikular na
      * estudyante, bukod sa base max_attempts ng module.
      */
-    public function grantExtraAttempt(Request $request, Module $module, \App\Models\User $student)
+    public function grantExtraAttempt(Request $request, Module $module, User $student)
     {
         $class = $module->class;
         $isOwnerOrAdmin = $class
@@ -356,7 +360,7 @@ class QuizController extends Controller
             'reason' => 'nullable|string|max:255',
         ]);
 
-        $grant = \App\Models\AssessmentAttemptGrant::updateOrCreate(
+        $grant = AssessmentAttemptGrant::updateOrCreate(
             ['module_id' => $module->id, 'user_id' => $student->id],
             [
                 'extra_attempts' => $validated['extra_attempts'],
@@ -371,7 +375,8 @@ class QuizController extends Controller
             'total_allowed' => ($module->max_attempts ?? 1) + $grant->extra_attempts,
         ]);
     }
-public function resetMyAttempt(Module $module)
+
+    public function resetMyAttempt(Module $module)
     {
         // Ang self-service reset ay libre lang para sa practice modules.
         // Sa formal assessments (Pre-Test, Post-Test, Mock Board), kailangang
@@ -389,6 +394,7 @@ public function resetMyAttempt(Module $module)
             QuizAnswer::where('attempt_id', $attempt->id)->delete();
             $attempt->update(['score' => 0, 'percentage' => 0, 'ai_strong' => null]);
         }
+
         return response()->json(['success' => true]);
     }
 
@@ -404,7 +410,7 @@ public function resetMyAttempt(Module $module)
     public function createQuizDraft(Request $request, ClassModel $class)
     {
         $rawTime = $request->input('time_limit', null);
-        $minutes = is_numeric($rawTime) ? (int)$rawTime : 0;
+        $minutes = is_numeric($rawTime) ? (int) $rawTime : 0;
 
         $module = Module::create([
             'class_id' => $class->id,
@@ -412,7 +418,8 @@ public function resetMyAttempt(Module $module)
             'description' => $request->description,
             'time_limit' => $minutes,
             'is_quiz' => true,
-            'is_formal_assessment' => (bool)$request->is_formal_assessment,
+            'is_formal_assessment' => (bool) $request->is_formal_assessment,
+            'assessment_purpose' => $request->input('assessment_purpose'),
             'visibility' => $request->input('visibility', 'all'),
         ]);
 

@@ -1,8 +1,8 @@
 <?php
 
 namespace App\Http\Controllers;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Storage;
+
+use App\Models\AssessmentAttemptGrant;
 use App\Models\ClassModel;
 use App\Models\Module;
 use App\Models\ModuleProgress;
@@ -18,10 +18,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Smalot\PdfParser\Parser;
+
 class ClassManagerController extends Controller
 {
     public function __construct()
@@ -326,7 +329,7 @@ class ClassManagerController extends Controller
 
     // Keep the rest of your controller methods unchanged.
 
-public function store(Request $request)
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100',
@@ -352,7 +355,7 @@ public function store(Request $request)
     public function destroy(ClassModel $class)
     {
         // Verify the teacher owns this class
-        if ($class->created_by !== Auth::id() && !Auth::user()->isAdmin()) {
+        if ($class->created_by !== Auth::id() && ! Auth::user()->isAdmin()) {
             return redirect()->route('manageclass')
                 ->with('error', 'You do not have permission to delete this class.');
         }
@@ -869,7 +872,7 @@ public function store(Request $request)
         if ($formalModules->isNotEmpty()) {
             $formalModuleIds = $formalModules->pluck('id');
 
-            $grants = \App\Models\AssessmentAttemptGrant::where('user_id', $user->id)
+            $grants = AssessmentAttemptGrant::where('user_id', $user->id)
                 ->whereIn('module_id', $formalModuleIds)
                 ->get()
                 ->keyBy('module_id');
@@ -1193,7 +1196,7 @@ POWERSHELL;
     /**
      * Return JSON list of modules for a class (for modal)
      */
-public function listModulesJson(ClassModel $class)
+    public function listModulesJson(ClassModel $class)
     {
         if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
             abort(403);
@@ -1262,11 +1265,12 @@ public function listModulesJson(ClassModel $class)
 
         return response()->json(['success' => true]);
     }
-public function createQuiz(Module $module)
+
+    public function createQuiz(Module $module)
     {
         $class = $module->class;
 
-        // Ligtas na pagsusuri: Kung may class, i-check ang created_by nito. 
+        // Ligtas na pagsusuri: Kung may class, i-check ang created_by nito.
         // Kung wala (program-based/mock board), ang titingnan naman ay ang created_by ng mismong module.
         if ($class) {
             if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
@@ -1302,7 +1306,7 @@ public function createQuiz(Module $module)
             });
 
         $settingsResolver = app(AiSettingsResolver::class);
-        
+
         // Protektahan din ito: Kung null ang $class, iwasang pasahen ng null para hindi mag-error ang resolver
         $classQuizDefaults = $class ? $settingsResolver->getClassQuizDefaults($class) : [];
 
@@ -1317,11 +1321,11 @@ public function createQuiz(Module $module)
             $isAiQuizGenerationEnabled = false;
         }
 
-return view('pages.teacher.quiz-create', compact(
-            'module', 
-            'class', 
-            'existingQuestions', 
-            'classQuizDefaults', 
+        return view('pages.teacher.quiz-create', compact(
+            'module',
+            'class',
+            'existingQuestions',
+            'classQuizDefaults',
             'isAiQuizGenerationEnabled',
             'isMockBoard',
             'backUrl'
@@ -1334,36 +1338,31 @@ return view('pages.teacher.quiz-create', compact(
     /**
      * Generate quiz questions using AI, with precise target counts per uploaded document
      */
-
 public function generateQuizAi(Request $request, Module $module)
 {
- $class = $module->class;
+    $class = $module->class;
 
-if ($class) {
-    // Para sa Normal Quiz: I-check kung ang teacher ang gumawa ng class o admin siya
-    if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
-        abort(403);
+    if ($class) {
+        if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
+            abort(403);
+        }
+    } else {
+        if (Auth::user()->role !== 'admin' && (int) $module->created_by !== (int) Auth::id()) {
+            abort(403, 'You do not have permission to generate questions for this Mock Board.');
+        }
     }
-} else {
-    // Para sa Mock Board Exam ($class is null)
-    // Dapat ang gumawa mismo ng module (teacher_id/created_by) ang makaka-access,
-    // hindi basta sinumang teacher.
-    if (Auth::user()->role !== 'admin' && (int) $module->created_by !== (int) Auth::id()) {
-        abort(403, 'You do not have permission to generate questions for this Mock Board.');
-    }
-}
 
     if (! $module->is_quiz) {
         abort(404, 'This module is not a quiz.');
     }
 
-    // Total questions cap using Validator::make with an after hook closure
- $validator = Validator::make($request->all(), [
-        'difficulty' => 'required|in:Average,Normal,Hard',
+    $validator = Validator::make($request->all(), [
         'context_files' => 'required|array|min:1',
         'context_files.*' => 'file|mimes:pdf,doc,docx,txt|max:20480',
         'file_question_counts' => 'required|array|min:1',
         'file_question_counts.*' => 'integer|min:0|max:20',
+        'file_difficulties' => 'nullable|array',
+        'file_difficulties.*' => 'nullable|in:Average,Normal,Hard',
         'extra_instructions' => 'nullable|string|max:500',
         'choice_count' => 'nullable|integer|min:2|max:10',
     ]);
@@ -1383,195 +1382,312 @@ if ($class) {
 
     $validated = $validator->validate();
 
-    // Calculate execution time based on active files BEFORE loop starts
     $counts = $validated['file_question_counts'] ?? [];
     $activeFileCount = count(array_filter($counts, fn ($c) => (int) $c > 0));
-    set_time_limit(max(60, $activeFileCount * 45));
+    // More AI calls (per type) — allow more time
+    set_time_limit(max(90, $activeFileCount * 90));
 
-$allGeneratedQuestions = [];
+    $allGeneratedQuestions = [];
     $ai = app(CloudflareAI::class);
 
-   // Bilang ng choices bawat tanong — 4 default, pero pwedeng bawasan o dagdagan ng teacher
     $choiceCount = (int) ($validated['choice_count'] ?? 4);
     $choiceLetters = array_slice(range('A', 'J'), 0, $choiceCount);
     $allowedDifficulties = ['Average', 'Normal', 'Hard'];
 
-    // ── Loop and target each file individually ──
-    foreach ($request->file('context_files') as $index => $file) {
-        $requestedCount = (int) $validated['file_question_counts'][$index];
+    $typePatterns = [
+        // what, why, how  (base = 5)
+        'Average' => [3, 1, 1],
+        'Normal' => [1, 2, 2],
+        'Hard' => [0, 2, 3],
+    ];
 
-        // Skip files explicitly set to 0 questions or invalid files
+    foreach ($request->file('context_files') as $index => $file) {
+        $requestedCount = (int) ($validated['file_question_counts'][$index] ?? 0);
+
         if ($requestedCount === 0 || ! $file->isValid()) {
             continue;
         }
 
-        // Disk-agnostic path resolution using default/local disk
-        $storedPath = $file->storeAs('temp_context', uniqid('ctx_').'.'.$file->getClientOriginalExtension(), 'local');
+        $storedPath = $file->storeAs(
+            'temp_context',
+            uniqid('ctx_').'.'.$file->getClientOriginalExtension(),
+            'local'
+        );
         $fullPath = Storage::disk('local')->path($storedPath);
 
         try {
-            $parser = new \Smalot\PdfParser\Parser();
+            $parser = new Parser;
             $pdf = $parser->parseFile($fullPath);
             $text = trim(preg_replace('/\s+/', ' ', $pdf->getText()));
-
-            // Truncate cleanly at sentence boundary before 8000 limit
             $text = $this->truncateAtSentenceBoundary($text, 8000);
         } catch (\Exception $e) {
-            Log::warning("PDF parse failed for file {$file->getClientOriginalName()} - ".$e->getMessage());
+            Log::warning('PDF parse failed for file '.$file->getClientOriginalName().' - '.$e->getMessage());
             @unlink($fullPath);
-            continue; // Skip processing this corrupt file
+            continue;
         }
         @unlink($fullPath);
 
-       // Optional na dagdag na tagubilin mula sa teacher (hal. "Focus on higher order thinking skills")
+        if ($text === '') {
+            Log::warning('Empty text after parse: '.$file->getClientOriginalName());
+            continue;
+        }
+
         $extraInstructions = trim($validated['extra_instructions'] ?? '');
         $extraInstructionsBlock = $extraInstructions !== ''
             ? "Additional Teacher Instructions: {$extraInstructions}\n\n"
             : '';
 
-// Dynamic na options structure sa JSON example, tumutugma sa $choiceLetters
         $optionsExample = '{'.implode(',', array_map(fn ($l) => "\"{$l}\":\"...\"", $choiceLetters)).'}';
         $letterList = implode('|', $choiceLetters);
 
-        // Konkretong quota para sa what/why/how na klase ng tanong bawat file —
-        // mga numero, hindi lang "mix these types", dahil mas sinusunod ng AI
-        // ang malinaw na bilang kaysa sa malabong suhestiyon.
-        $maxWhatAllowed = max(1, (int) floor($requestedCount / 2));
-        $minWhyHowRequired = max(1, $requestedCount - $maxWhatAllowed);
+        $fileDifficulties = $validated['file_difficulties'] ?? [];
+        $targetDifficulty = $fileDifficulties[$index] ?? 'Normal';
 
-        // Targeted prompt context built specifically for this single file element
-        $prompt = "Generate EXACTLY {$requestedCount} multiple-choice questions based ONLY on the text below. NOT more. NOT less. EXACTLY {$requestedCount}.\n"
+        $pattern = $typePatterns[$targetDifficulty] ?? $typePatterns['Normal'];
+        $base = array_sum($pattern);
+
+        $targetWhat = (int) round($requestedCount * ($pattern[0] / $base));
+        $targetWhy = (int) round($requestedCount * ($pattern[1] / $base));
+        $targetHow = (int) round($requestedCount * ($pattern[2] / $base));
+
+        $sum = $targetWhat + $targetWhy + $targetHow;
+        if ($sum < $requestedCount) {
+            if ($targetDifficulty === 'Average') {
+                $targetWhat += ($requestedCount - $sum);
+            } else {
+                $targetHow += ($requestedCount - $sum);
+            }
+        } elseif ($sum > $requestedCount) {
+            $overflow = $sum - $requestedCount;
+            if ($targetWhat >= $overflow) {
+                $targetWhat -= $overflow;
+            } else {
+                $overflow -= $targetWhat;
+                $targetWhat = 0;
+                if ($targetWhy >= $overflow) {
+                    $targetWhy -= $overflow;
+                } else {
+                    $overflow -= $targetWhy;
+                    $targetWhy = 0;
+                    $targetHow = max(0, $targetHow - $overflow);
+                }
+            }
+        }
+
+        Log::info('AI quiz per-type plan', [
+            'file' => $file->getClientOriginalName(),
+            'targetDifficulty' => $targetDifficulty,
+            'targetWhat' => $targetWhat,
+            'targetWhy' => $targetWhy,
+            'targetHow' => $targetHow,
+        ]);
+
+        $typeJobs = [
+            'what' => $targetWhat,
+            'why' => $targetWhy,
+            'how' => $targetHow,
+        ];
+
+        $fileQuestions = [];
+
+        foreach ($typeJobs as $questionType => $typeCount) {
+            if ($typeCount <= 0) {
+                continue;
+            }
+
+            $typeInstructions = match ($questionType) {
+                'why' => "ALL {$typeCount} questions MUST be WHY questions.\n"
+                    ."- Stem MUST start with \"Why...\" or \"What is the rationale...\" or \"What best explains...\".\n"
+                    ."- Ask for reasoning behind a rule, principle, choice, or outcome.\n"
+                    ."- Set question_type to \"why\" on every object.\n"
+                    ."- Do NOT use \"Which of the following\".\n",
+                'how' => "ALL {$typeCount} questions MUST be HOW questions.\n"
+                    ."- Stem MUST start with \"How should...\" or \"How is ... computed/applied...\" or \"What is the correct procedure to...\".\n"
+                    ."- Ask for procedure, process, or application steps.\n"
+                    ."- Set question_type to \"how\" on every object.\n"
+                    ."- Do NOT use \"Which of the following\".\n",
+                default => "ALL {$typeCount} questions MUST be WHAT questions.\n"
+                    ."- Identify something FROM a scenario, case, computation, or data — never bare definition.\n"
+                    ."- Set question_type to \"what\" on every object.\n"
+                    ."- Do NOT start every item with \"Given...\".\n",
+            };
+
+            $prompt = "Generate EXACTLY {$typeCount} multiple-choice questions based ONLY on the text below.\n"
                 ."Each question must have EXACTLY {$choiceCount} answer choices ({$letterList}).\n"
-                ."Target difficulty for this batch: {$validated['difficulty']}. Aim for this level overall, but rate each question honestly on its own merits — not every question needs to match the target exactly.\n"
-                ."Source File Focus: {$file->getClientOriginalName()}\n\n"
-                ."QUESTION STYLE — this is a board exam review tool (used across Psychology, Education, and Accountancy). Real board exams use a MIX of question types, not one formula:\n"
-                ."- WHAT questions: fine, but must require identifying something FROM a scenario, case, computation, or given data — never a bare definition with no context (e.g. NOT 'What is the definition of X?', but OK: 'Given the scenario/case/data below, what is the correct answer/diagnosis/entry/decision?').\n"
-                ."- WHY questions: ask for the reasoning behind a rule, principle, choice, or outcome (e.g. 'Why is this the correct classification/approach/interpretation?').\n"
-                ."- HOW questions: ask for the correct procedure, process, or application steps (e.g. 'How should this situation be handled/computed/addressed according to the source material?').\n"
-                ."- The one thing to avoid: a question that only tests memorized terminology with zero scenario, case, data, or context behind it. Base every scenario on the actual source content provided below, whatever subject it covers.\n"
-                ."- QUOTA (mandatory, not optional): of the {$requestedCount} questions in this batch, AT MOST {$maxWhatAllowed} may be type \"what\". AT LEAST {$minWhyHowRequired} must be type \"why\" or \"how\" (combined). Distribute types across the batch — do not cluster all of one type together.\n\n"
-                ."PER-QUESTION DIFFICULTY — rate each question's own difficulty as Average, Normal, or Hard:\n"
-                ."- Average: a single concept applied to a simple, direct scenario.\n"
-                ."- Normal: requires connecting two related concepts or a slightly more involved scenario.\n"
-                ."- Hard: requires multi-step reasoning, weighing competing considerations, or a nuanced/ambiguous scenario.\n\n"
+                ."Batch difficulty target: {$targetDifficulty}.\n"
+                ."Source file: {$file->getClientOriginalName()}\n\n"
+                ."════════════════════════════════════════\n"
+                .$typeInstructions
+                ."════════════════════════════════════════\n\n"
+                ."Difficulty guide (most items should feel {$targetDifficulty}):\n"
+                ."- Average: one concept, simple scenario.\n"
+                ."- Normal: two related concepts or richer scenario.\n"
+                ."- Hard: multi-step reasoning or nuanced case.\n\n"
                 .$extraInstructionsBlock
                 ."Content:\n{$text}\n\n"
                 ."Rules:\n"
-                ."- Return ONLY a valid JSON array.\n"
-                ."- The array must have EXACTLY {$requestedCount} objects.\n"
-                ."- Each object format must match this structure exactly: {\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"Average|Normal|Hard\",\"question_type\":\"what|why|how\"}\n"
-                ."- No markdown, no backticks, no explanations, and no extra text.";
-        try {
-            $payload = [
-                'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => "You are a board-exam review quiz generator. Write scenario/case-based questions grounded in the source content — never bare definition recall. Use a genuine MIX of what/why/how question types per the quota given in the prompt; do not default to only 'what' questions. Output ONLY a raw JSON array of exactly {$requestedCount} question objects, each including its own honest difficulty rating and question_type. No formatting markdown wrappers or descriptions.",
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt,
-                    ],
-                ],
-                'max_tokens' => min(300 * $requestedCount, 4096),
-                'temperature' => 0.1,
-'response_format' => [
-                    'type' => 'json_schema',
-                    'json_schema' => [
-                        'type' => 'array',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'question' => ['type' => 'string'],
-                                'options' => [
-                                    'type' => 'object',
-                                    'properties' => array_fill_keys($choiceLetters, ['type' => 'string']),
-                                    'required' => $choiceLetters,
-                                ],
-                                'correct' => [
-                                    'type' => 'string',
-                                    'enum' => $choiceLetters,
-                                ],
-                                'difficulty' => [
-                                    'type' => 'string',
-                                    'enum' => $allowedDifficulties,
-                                ],
-                                'question_type' => [
-                                    'type' => 'string',
-                                    'enum' => ['what', 'why', 'how'],
-                                ],
-                            ],
-                            'required' => ['question', 'options', 'correct', 'difficulty', 'question_type'],
+                ."- Return ONLY a valid JSON array with EXACTLY {$typeCount} objects.\n"
+                ."- Format: {\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"Average|Normal|Hard\",\"question_type\":\"{$questionType}\"}\n"
+                ."- Every question_type MUST be \"{$questionType}\".\n"
+                .'- No markdown, no backticks, no extra text.';
+
+            try {
+                $payload = [
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => "You generate board-exam MCQs. Output ONLY a JSON array of exactly {$typeCount} objects. Every object must have question_type \"{$questionType}\". No markdown.",
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $prompt,
                         ],
                     ],
-                ],
-            ];
+                    'max_tokens' => min(320 * $typeCount, 4096),
+                    'temperature' => 0.2,
+                    'response_format' => [
+                        'type' => 'json_schema',
+                        'json_schema' => [
+                            'type' => 'array',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'question' => ['type' => 'string'],
+                                    'options' => [
+                                        'type' => 'object',
+                                        'properties' => array_fill_keys($choiceLetters, ['type' => 'string']),
+                                        'required' => $choiceLetters,
+                                    ],
+                                    'correct' => [
+                                        'type' => 'string',
+                                        'enum' => $choiceLetters,
+                                    ],
+                                    'difficulty' => [
+                                        'type' => 'string',
+                                        'enum' => $allowedDifficulties,
+                                    ],
+                                    'question_type' => [
+                                        'type' => 'string',
+                                        'enum' => ['what', 'why', 'how'],
+                                    ],
+                                ],
+                                'required' => ['question', 'options', 'correct', 'difficulty', 'question_type'],
+                            ],
+                        ],
+                    ],
+                ];
 
-            $result = $ai->run('@cf/meta/llama-3.2-3b-instruct', $payload);
-            $aiResponse = $result['response'] ?? '';
+                $result = $ai->run('@cf/meta/llama-3.2-3b-instruct', $payload);
+                $aiResponse = $result['response'] ?? '';
 
-            if (is_array($aiResponse)) {
-                // json_schema mode returned pre-parsed structured data directly
-                $fileQuestions = $aiResponse;
-            } else {
-                $raw = trim((string) $aiResponse);
-
-                // ── Aggressive cleanup filters (fallback for string responses) ──
-                $raw = preg_replace('/^[\s\r\n]*```json\s*/i', '', $raw);
-                $raw = preg_replace('/\s*```[\s\r\n]*$/i', '', $raw);
-                $raw = preg_replace('/^[\s\r\n]*```[\s\r\n]*/i', '', $raw);
-                $raw = preg_replace('/[\s\r\n]*`[\s\r\n]*$/i', '', $raw);
-                $raw = preg_replace('/,\s*([}\]])/u', '$1', $raw);
-                $raw = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw);
-                $raw = trim($raw);
-
-                // Extract JSON array block
-                preg_match('/\[.*\]/s', $raw, $matches);
-                $jsonBlock = $matches[0] ?? $raw;
-
-                if (! str_starts_with($jsonBlock, '[')) {
-                    $jsonBlock = '['.$jsonBlock;
+                if (is_array($aiResponse)) {
+                    $batch = $aiResponse;
+                } else {
+                    $raw = trim((string) $aiResponse);
+                    $raw = preg_replace('/^[\s\r\n]*```json\s*/i', '', $raw);
+                    $raw = preg_replace('/\s*```[\s\r\n]*$/i', '', $raw);
+                    $raw = preg_replace('/^[\s\r\n]*```[\s\r\n]*/i', '', $raw);
+                    $raw = preg_replace('/,\s*([}\]])/u', '$1', $raw);
+                    $raw = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw);
+                    $raw = trim($raw);
+                    preg_match('/\[.*\]/s', $raw, $matches);
+                    $jsonBlock = $matches[0] ?? $raw;
+                    if (! str_starts_with($jsonBlock, '[')) {
+                        $jsonBlock = '['.$jsonBlock;
+                    }
+                    if (! str_ends_with($jsonBlock, ']')) {
+                        $jsonBlock .= ']';
+                    }
+                    $batch = json_decode($jsonBlock, true);
+                    if (! is_array($batch)) {
+                        $batch = [];
+                    }
                 }
-                if (! str_ends_with($jsonBlock, ']')) {
-                    $jsonBlock .= ']';
-                }
 
-                $fileQuestions = json_decode($jsonBlock, true);
-
-                // Fallback: If JSON is broken, try to salvage complete objects manually
-                if (json_last_error() !== JSON_ERROR_NONE || ! is_array($fileQuestions)) {
-$fileQuestions = array_values(array_filter($fileQuestions, function ($q) use ($choiceLetters) {
+                $batch = array_values(array_filter($batch, function ($q) use ($choiceLetters) {
                     return isset($q['question'], $q['options'], $q['correct'])
                         && is_string($q['question'])
                         && is_string($q['correct'])
                         && is_array($q['options'])
                         && count($q['options']) === count($choiceLetters)
-                        && in_array(strtoupper($q['correct']), $choiceLetters);
-                }));
-                }
-            }
-
-            // Validate each question structure and map to master list
-            if (is_array($fileQuestions)) {
-                $fileQuestions = array_values(array_filter($fileQuestions, function ($q) use ($choiceLetters) {
-                    return isset($q['question'], $q['options'], $q['correct'])
-                        && is_string($q['question'])
-                        && is_string($q['correct'])
-                        && is_array($q['options'])
-                        && count($q['options']) === count($choiceLetters)
-                        && in_array(strtoupper($q['correct']), $choiceLetters);
+                        && in_array(strtoupper($q['correct']), $choiceLetters, true);
                 }));
 
-                // Hard cap to make sure the model didn't overshoot the target for this file
-                $fileQuestions = array_slice($fileQuestions, 0, $requestedCount);
+                $batch = array_slice($batch, 0, $typeCount);
 
-                foreach ($fileQuestions as $q) {
-                    $allGeneratedQuestions[] = $q;
+                // Force correct question_type label for this job
+                foreach ($batch as &$q) {
+                    $q['question_type'] = $questionType;
+                    if (empty($q['difficulty'])) {
+                        $q['difficulty'] = $targetDifficulty;
+                    }
                 }
-            }
+                unset($q);
 
-        } catch (\Exception $aiEx) {
-            Log::error("Failed sub-generation for file {$file->getClientOriginalName()}: ".$aiEx->getMessage());
+                // If short, one focused retry for this type only
+                if (count($batch) < $typeCount) {
+                    Log::warning('AI per-type short — retry once', [
+                        'file' => $file->getClientOriginalName(),
+                        'type' => $questionType,
+                        'got' => count($batch),
+                        'need' => $typeCount,
+                    ]);
+
+                    $need = $typeCount - count($batch);
+                    $retryPrompt = $prompt."\n\nRETRY: Return EXACTLY {$need} more \"{$questionType}\" questions only.";
+
+                    try {
+                        $retryPayload = $payload;
+                        $retryPayload['messages'][1]['content'] = $retryPrompt;
+                        $retryPayload['max_tokens'] = min(320 * $need, 4096);
+
+                        $retryResult = $ai->run('@cf/meta/llama-3.2-3b-instruct', $retryPayload);
+                        $retryResponse = $retryResult['response'] ?? '';
+                        $retryBatch = is_array($retryResponse) ? $retryResponse : null;
+
+                        if (! is_array($retryBatch)) {
+                            $rawRetry = trim((string) $retryResponse);
+                            preg_match('/\[.*\]/s', $rawRetry, $m);
+                            $retryBatch = json_decode($m[0] ?? $rawRetry, true);
+                        }
+
+                        if (is_array($retryBatch)) {
+                            $retryBatch = array_values(array_filter($retryBatch, function ($q) use ($choiceLetters) {
+                                return isset($q['question'], $q['options'], $q['correct'])
+                                    && is_string($q['question'])
+                                    && is_string($q['correct'])
+                                    && is_array($q['options'])
+                                    && count($q['options']) === count($choiceLetters)
+                                    && in_array(strtoupper($q['correct']), $choiceLetters, true);
+                            }));
+                            $retryBatch = array_slice($retryBatch, 0, $need);
+                            foreach ($retryBatch as &$rq) {
+                                $rq['question_type'] = $questionType;
+                                if (empty($rq['difficulty'])) {
+                                    $rq['difficulty'] = $targetDifficulty;
+                                }
+                            }
+                            unset($rq);
+                            $batch = array_merge($batch, $retryBatch);
+                        }
+                    } catch (\Exception $retryEx) {
+                        Log::warning('AI per-type retry failed: '.$retryEx->getMessage());
+                    }
+                }
+
+                foreach (array_slice($batch, 0, $typeCount) as $q) {
+                    $fileQuestions[] = $q;
+                }
+            } catch (\Exception $typeEx) {
+                Log::error("AI per-type generation failed [{$questionType}] {$file->getClientOriginalName()}: ".$typeEx->getMessage());
+            }
+        }
+
+        // Optional light shuffle so why/how/what are not clumped by type order
+        shuffle($fileQuestions);
+
+        foreach ($fileQuestions as $q) {
+            $allGeneratedQuestions[] = $q;
         }
     }
 
@@ -1582,16 +1698,13 @@ $fileQuestions = array_values(array_filter($fileQuestions, function ($q) use ($c
         ], 422);
     }
 
-    // ── Save compiled questions into database transaction ──
-    DB::transaction(function () use ($module, $allGeneratedQuestions, $validated, $allowedDifficulties) {
+    DB::transaction(function () use ($module, $allGeneratedQuestions, $allowedDifficulties) {
         QuizQuestion::query()->where('module_id', $module->id)->delete();
 
         foreach ($allGeneratedQuestions as $index => $q) {
-            // Gamitin ang sariling difficulty rating ng AI bawat tanong; kung wala
-            // o hindi valid ang ibinigay, bumalik sa target difficulty ng buong batch.
             $questionDifficulty = ucfirst(strtolower((string) ($q['difficulty'] ?? '')));
             if (! in_array($questionDifficulty, $allowedDifficulties, true)) {
-                $questionDifficulty = $validated['difficulty'];
+                $questionDifficulty = 'Normal';
             }
 
             QuizQuestion::create([
@@ -1612,113 +1725,116 @@ $fileQuestions = array_values(array_filter($fileQuestions, function ($q) use ($c
         'questions' => $allGeneratedQuestions,
     ]);
 }
+    /**
+     * Helper to truncate text cleanly at sentence boundaries
+     */
+    private function truncateAtSentenceBoundary(string $text, int $limit = 8000): string
+    {
+        if (mb_strlen($text) <= $limit) {
+            return $text;
+        }
 
-/**
- * Helper to truncate text cleanly at sentence boundaries
- */
-private function truncateAtSentenceBoundary(string $text, int $limit = 8000): string
-{
-    if (mb_strlen($text) <= $limit) {
-        return $text;
+        $substring = mb_substr($text, 0, $limit);
+
+        // Search for last sentence end (. ! ?)
+        if (preg_match('/.*[.!?](?=\s|$)/s', $substring, $matches)) {
+            return trim($matches[0]);
+        }
+
+        // Fallback: Clip at last space boundary
+        $lastSpace = mb_strrpos($substring, ' ');
+
+        return $lastSpace !== false ? mb_substr($substring, 0, $lastSpace) : $substring;
     }
 
-    $substring = mb_substr($text, 0, $limit);
-
-    // Search for last sentence end (. ! ?)
-    if (preg_match('/.*[.!?](?=\s|$)/s', $substring, $matches)) {
-        return trim($matches[0]);
-    }
-
-    // Fallback: Clip at last space boundary
-    $lastSpace = mb_strrpos($substring, ' ');
-    return $lastSpace !== false ? mb_substr($substring, 0, $lastSpace) : $substring;
-}
     /**
      * Save manually created quiz questions
      */
-public function storeQuizManual(Request $request, Module $module)
-{
-    $class = $module->class;
+    public function storeQuizManual(Request $request, Module $module)
+    {
+        $class = $module->class;
 
-    if ($class) {
-        if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
-            abort(403);
-        }
-} else {
-        if (Auth::user()->role !== 'admin' && (int) $module->created_by !== (int) Auth::id()) {
-            abort(403, 'You do not have permission to modify this Mock Board.');
-        }
-    }
-
-    if (! $module->is_quiz) {
-        abort(404);
-    }
-
-    $validator = Validator::make($request->all(), [
-        'questions' => 'required|array|min:1',
-        'questions.*.text' => 'required|string',
-        'questions.*.options' => 'required|array|min:2|max:10',
-        'questions.*.options.*' => 'required|string',
-        'questions.*.correct' => 'required|string',
-        'questions.*.points' => 'required|integer|min:1',
-        'questions.*.domain' => 'nullable|string|max:150',
-        'questions.*.explanation' => 'nullable|string',
-        'shuffle_questions' => 'nullable|boolean',
-    ]);
-
-    // Tiyakin na ang 'correct' letter ay talagang isa sa mga key na binigay sa 'options'
-    $validator->after(function ($v) use ($request) {
-        $questions = $request->input('questions', []);
-
-        foreach ($questions as $index => $q) {
-            $options = $q['options'] ?? [];
-            $correct = $q['correct'] ?? null;
-
-            if ($correct === null || ! array_key_exists($correct, $options)) {
-                $v->errors()->add(
-                    "questions.{$index}.correct",
-                    'Ang tinukoy na tamang sagot ay wala sa listahan ng options.'
-                );
+        if ($class) {
+            if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
+                abort(403);
+            }
+        } else {
+            if (Auth::user()->role !== 'admin' && (int) $module->created_by !== (int) Auth::id()) {
+                abort(403, 'You do not have permission to modify this Mock Board.');
             }
         }
-    });
 
-    $validated = $validator->validate();
+        if (! $module->is_quiz) {
+            abort(404);
+        }
 
-    $questions = $validated['questions'];
+        $validator = Validator::make($request->all(), [
+            'questions' => 'required|array|min:1',
+            'questions.*.text' => 'required|string',
+            'questions.*.options' => 'required|array|min:2|max:10',
+            'questions.*.options.*' => 'required|string',
+            'questions.*.correct' => 'required|string',
+            'questions.*.points' => 'required|integer|min:1',
+            'questions.*.difficulty' => 'nullable|in:Average,Normal,Hard',
+            'questions.*.domain' => 'nullable|string|max:150',
+            'questions.*.explanation' => 'nullable|string',
+            'shuffle_questions' => 'nullable|boolean',
+        ]);
 
-    if (! empty($validated['shuffle_questions'])) {
-        shuffle($questions);
+        // Tiyakin na ang 'correct' letter ay talagang isa sa mga key na binigay sa 'options'
+        $validator->after(function ($v) use ($request) {
+            $questions = $request->input('questions', []);
+
+            foreach ($questions as $index => $q) {
+                $options = $q['options'] ?? [];
+                $correct = $q['correct'] ?? null;
+
+                if ($correct === null || ! array_key_exists($correct, $options)) {
+                    $v->errors()->add(
+                        "questions.{$index}.correct",
+                        'Ang tinukoy na tamang sagot ay wala sa listahan ng options.'
+                    );
+                }
+            }
+        });
+
+        $validated = $validator->validate();
+
+        $questions = $validated['questions'];
+
+        if (! empty($validated['shuffle_questions'])) {
+            shuffle($questions);
+        }
+
+        DB::transaction(function () use ($questions, $module) {
+            QuizQuestion::query()->where('module_id', $module->id)->delete();
+
+            foreach (array_values($questions) as $index => $q) {
+                QuizQuestion::create([
+                    'module_id' => $module->id,
+                    'question_text' => $q['text'],
+                    'options' => $q['options'], // dynamic na array, hindi na fixed A-D
+                    'correct_option' => $q['correct'],
+                    'points' => $q['points'],
+                    'order' => $index + 1,
+                    'difficulty' => $q['difficulty'] ?? 'Normal',
+                    'domain' => $q['domain'] ?? null,
+                    'explanation' => $q['explanation'] ?? null,
+                ]);
+            }
+        });
+
+        return redirect()->route('quiz.create', $module)
+            ->with('success', count($validated['questions']).' quiz questions saved successfully!');
     }
 
-    DB::transaction(function () use ($questions, $module) {
-        QuizQuestion::query()->where('module_id', $module->id)->delete();
-
-        foreach (array_values($questions) as $index => $q) {
-            QuizQuestion::create([
-                'module_id' => $module->id,
-                'question_text' => $q['text'],
-                'options' => $q['options'], // dynamic na array, hindi na fixed A-D
-                'correct_option' => $q['correct'],
-                'points' => $q['points'],
-                'order' => $index + 1,
-                'difficulty' => 'Normal',
-                'domain' => $q['domain'] ?? null,
-                'explanation' => $q['explanation'] ?? null,
-            ]);
-        }
-    });
-
-    return redirect()->route('quiz.create', $module)
-        ->with('success', count($validated['questions']).' quiz questions saved successfully!');
-}
     public function createQuizDraft(Request $request, ClassModel $class)
     {
         if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
             abort(403);
         }
         \Log::info('createQuizDraft - Received data:', $request->all());
-$validated = $request->validate([
+        $validated = $request->validate([
             'title' => 'required|string|max:150',
             'description' => 'nullable|string',
             // allow null, but ensure numeric when present
@@ -1749,7 +1865,7 @@ $validated = $request->validate([
             }
         }
 
-$module = Module::create([
+        $module = Module::create([
             'class_id' => $class->id,
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,

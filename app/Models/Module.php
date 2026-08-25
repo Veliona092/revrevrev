@@ -12,16 +12,18 @@ class Module extends Model
 {
     use HasFactory;
 
-protected $fillable = [
-    'class_id', 'title', 'description', 'file_path', 'file_type', 'order',
-    'is_quiz', 'is_assignment', 'is_formal_assessment', 'time_limit', 'passing_grade', 'visibility',
-    'created_by', 'is_mock_board', 'due_date',
-];
+    protected $fillable = [
+        'class_id', 'title', 'description', 'file_path', 'file_type', 'order',
+        'is_quiz', 'is_assignment', 'is_formal_assessment', 'time_limit', 'passing_grade', 'visibility',
+        'created_by', 'is_mock_board', 'due_date', 'max_attempts',
+    ];
+
     protected $casts = [
         'is_quiz' => 'boolean',
         'is_assignment' => 'boolean',
         'is_formal_assessment' => 'boolean',
         'passing_grade' => 'integer',
+        'max_attempts' => 'integer',
         'due_date' => 'datetime',
     ];
 
@@ -56,5 +58,19 @@ protected $fillable = [
     public function attempts(): HasMany
     {
         return $this->hasMany(QuizAttempt::class);
+    }
+
+    public function attemptGrants(): HasMany
+    {
+        return $this->hasMany(AssessmentAttemptGrant::class);
+    }
+
+    public function allowedAttemptsFor(int $userId): int
+    {
+        $grants = $this->relationLoaded('attemptGrants')
+            ? $this->attemptGrants->where('user_id', $userId)->sum('extra_attempts')
+            : $this->attemptGrants()->where('user_id', $userId)->sum('extra_attempts');
+
+        return ($this->max_attempts ?? 1) + $grants;
     }
 }

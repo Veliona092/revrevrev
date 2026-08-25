@@ -91,6 +91,11 @@ class User extends Authenticatable
         return $this->hasMany(QuizAttempt::class);
     }
 
+    public function testBankQuestions(): HasMany
+    {
+        return $this->hasMany(TestBankQuestion::class, 'created_by');
+    }
+
     public function chats(): BelongsToMany
     {
         return $this->belongsToMany(Chat::class, 'chat_user', 'user_id', 'chat_id')

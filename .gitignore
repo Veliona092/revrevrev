@@ -1,2 +1,6 @@
 .DS_Store
 cacert.pem
+.env
+node_modules/
+vendor/
+*.log
