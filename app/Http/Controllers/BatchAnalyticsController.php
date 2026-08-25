@@ -199,10 +199,17 @@ foreach ($mockBoards as $board) {
     $hierarchical_stats = $this->statisticsService->computeHierarchicalStats($mockBoard, $program);
     $student_results = $this->statisticsService->getDetailedStudentResults($mockBoard, $program);
     $anova = $this->statisticsService->calculateBatchANOVA($mockBoard, $program);
+    $forecast = $this->statisticsService->computeForecastedPassRate($mockBoard, $program);
+
+    // Gamitin ang computeHierarchicalBatchStats para dito — ito ang mayroon
+    // ng tunay na batch-level totals (batch_passing_rate / total_batch_students).
+    // Ang computeHierarchicalStats() sa itaas ay 'classes' array lang ang laman,
+    // kaya hiwalay na tinatawag dito para sa summary card.
+    $batchTotals = $this->statisticsService->computeHierarchicalBatchStats($program, $mockBoard->id);
 
     $summary = [
-        'total_students' => $hierarchical_stats['total_batch_students'] ?? 0,
-        'pre_boards_passing_rate' => $hierarchical_stats['batch_passing_rate'] ?? 0
+        'total_students' => $batchTotals['total_batch_students'] ?? 0,
+        'pre_boards_passing_rate' => $batchTotals['batch_passing_rate'] ?? 0
     ];
 
     // BAGO: Bilangin ang bumagsak na estudyante, naka-group by kanilang unang klase.
@@ -256,6 +263,7 @@ foreach ($mockBoards as $board) {
         'teacherNavClassId' => $teacherNavClassId,
         'failedByClass' => $failedByClass,
         'item_analysis' => $item_analysis, // ADDED HERE
+        'forecast' => $forecast,
     ]);
 }
     public function computeANOVA(Request $request, string $program, MockBoard $mockBoard)

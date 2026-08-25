@@ -107,7 +107,10 @@ class MockBoardStatisticsService
         $n1 = count($group1);
         $n2 = count($group2);
 
-        if ($n1 === 0 || $n2 === 0) {
+        // Kailangan ng sapat na total samples (n1 + n2 > 2) para may
+        // positive degrees of freedom within groups (dfWithin > 0),
+        // kundi mag-di-divide-by-zero sa msw calculation sa baba.
+        if ($n1 === 0 || $n2 === 0 || ($n1 + $n2 - 2) <= 0) {
             return [
                 'f_statistic' => null,
                 'p_value' => null,
@@ -439,10 +442,14 @@ public function computeHierarchicalBatchStats(string $program, int $mockBoardId)
     $mockBoard = MockBoard::findOrFail($mockBoardId);
     $passingScore = $mockBoard->passing_percentage ?? 75;
 
-    // Fetch all attempts for this board within the program track
+    $programVariants = $this->resolveProgramVariants($program);
+
+    // Ang forecast ay dapat batay sa Pre-Boards phase lang (mas malapit
+    // ito sa totoong board exam kaysa sa Pre-Test), kaya i-filter dito.
     $allAttempts = MockBoardAttempt::where('mock_board_id', $mockBoardId)
-        ->whereHas('user', function ($q) use ($program) {
-            $q->where('program', $program);
+        ->where('phase_type', 'pre_boards')
+        ->whereHas('user', function ($q) use ($programVariants) {
+            $q->whereIn('program', $programVariants);
         })
         ->with('user.classes') // Ensure we can see which class they belong to
         ->get();
@@ -474,7 +481,7 @@ public function computeHierarchicalBatchStats(string $program, int $mockBoardId)
         : 0;
 
     return [
-        'batch_average' => round($allAttempts->avg('percentage'), 2),
+        'batch_average' => $allAttempts->isNotEmpty() ? round($allAttempts->avg('percentage'), 2) : 0,
         'batch_passing_rate' => $batchPassingRate,
         'total_batch_students' => $allAttempts->unique('user_id')->count(),
         'classes' => $classStats
@@ -649,6 +656,44 @@ private function calculateBasicSignificance($preTest, $preBoard)
 /**
  * Renamed to match the Controller's call
  */
+
+/**
+ * Phase A forecast: a labeled projection (NOT a calibrated prediction)
+ * based on the batch's own Pre-Boards passing rate. Wraps the existing
+ * hierarchical batch stats and adds forecast-specific metadata.
+ */
+public function computeForecastedPassRate(\App\Models\MockBoard $mockBoard, string $program): array
+{
+    $batchStats = $this->computeHierarchicalBatchStats($program, $mockBoard->id);
+
+    return [
+        'projected_batch_pass_rate' => $batchStats['batch_passing_rate'] ?? 0,
+        'sample_size' => $batchStats['total_batch_students'] ?? 0,
+        'confidence_note' => 'Based on internal Pre-Board mock exam results, not an official prediction.',
+        'batch_average' => $batchStats['batch_average'] ?? 0,
+        'classes' => $batchStats['classes'] ?? [],
+    ];
+}
+
+/**
+ * Ang mga program value sa `users.program` ay hindi consistent
+ * (accountancy, psych, education — halong short at long form).
+ * Ito ang tumutugma sa lahat ng alternatibong spelling para hindi
+ * mag-0 ang results kapag naipasa ang "psychology" o "educ" mula
+ * sa ibang caller (hal. dashboard() na gumagamit ng long form).
+ */
+private function resolveProgramVariants(string $program): array
+{
+    $map = [
+        'psych' => ['psych', 'psychology'],
+        'psychology' => ['psych', 'psychology'],
+        'educ' => ['educ', 'education'],
+        'education' => ['educ', 'education'],
+        'accountancy' => ['accountancy'],
+    ];
+
+    return $map[strtolower($program)] ?? [$program];
+}
 
 public function getHierarchicalStats(\App\Models\MockBoard $mockBoard)
 {

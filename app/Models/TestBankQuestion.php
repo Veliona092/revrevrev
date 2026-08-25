@@ -21,6 +21,7 @@ class TestBankQuestion extends Model
         'correct_option',
         'points',
         'difficulty',
+        'topic',
         'status',
         'is_archived',
     ];

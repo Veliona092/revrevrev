@@ -505,6 +505,40 @@
             </div>
         </article>
     </section>
+
+    <section class="ad-card">
+        <header class="ad-card-head">
+            <h3 class="ad-card-title">Projected Licensure Exam Pass Rate</h3>
+        </header>
+        <div class="ad-card-body">
+            @if(empty($forecastByProgram))
+                <p style="font-size:16px;color:#a09583;">No forecast data available yet.</p>
+            @else
+                @foreach($forecastByProgram as $programKey => $group)
+                    <div style="margin-bottom: 18px;">
+                        <p class="ad-breakdown-role" style="margin-bottom: 8px;">{{ $group['exam_label'] }}</p>
+                        <div class="ad-breakdown">
+                            @foreach($group['boards'] as $board)
+                                <div class="ad-breakdown-row">
+                                    <p class="ad-breakdown-role" style="font-size:16px;font-weight:400;">
+                                        {{ $board['title'] }}
+                                    </p>
+                                    <p class="ad-breakdown-meta">
+                                        Projected: <strong>{{ $board['projected_pass_rate'] }}%</strong>
+                                        · Sample: {{ $board['sample_size'] }} students
+                                        · Avg Score: {{ $board['batch_average'] }}%
+                                    </p>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endforeach
+                <p style="margin-top:4px;font-size:13px;color:#a09583;font-style:italic;">
+                    Based on internal Pre-Board mock exam results, not an official prediction.
+                </p>
+            @endif
+        </div>
+    </section>
 </div>
 
 @endsection

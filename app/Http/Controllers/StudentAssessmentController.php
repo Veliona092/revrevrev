@@ -38,6 +38,7 @@ class StudentAssessmentController extends Controller
         $assessments = Module::query()
             ->whereIn('class_id', $classIds)
             ->where('is_formal_assessment', true)
+            ->whereHas('quizQuestions')
             ->where(function ($query) use ($user) {
                 $query->where('visibility', 'all')
                     ->orWhere(function ($sub) use ($user) {
@@ -98,6 +99,12 @@ class StudentAssessmentController extends Controller
         $is_resuming = $attempt?->status === 'in_progress';
         $can_start_attempt = $is_resuming || $attempts_used < $attempts_allowed;
 
+        // Kung nire-resume, ipasa ang deadline (huling activity + 1 minuto, in ms)
+        // para makapag-countdown ang frontend at ma-warn agad ang estudyante.
+        $resume_deadline_ms = ($is_resuming && $attempt)
+            ? $attempt->updated_at->timestamp * 1000 + 60000
+            : null;
+
         return view('pages.student.assessment-take', compact(
             'module',
             'questions',
@@ -105,6 +112,43 @@ class StudentAssessmentController extends Controller
             'attempts_allowed',
             'is_resuming',
             'can_start_attempt',
+            'resume_deadline_ms',
         ));
+    }
+
+    public function results(Module $module)
+    {
+        $user = Auth::user();
+
+        if (! $module->is_formal_assessment) {
+            abort(404);
+        }
+
+        if (! $module->class->users()->where('user_id', $user->id)->exists()) {
+            abort(403, 'You are not enrolled in this class.');
+        }
+
+        $attempt = QuizAttempt::where('user_id', $user->id)
+            ->where('module_id', $module->id)
+            ->where('status', 'completed')
+            ->first();
+
+        if (! $attempt) {
+            return redirect()->route('assessment.take', $module)
+                ->with('info', 'No completed attempt found yet for this assessment.');
+        }
+
+        return view('pages.student.assessment-take', [
+            'module' => $module,
+            'questions' => collect(),
+            'attempts_used' => $attempt->attempt_count ?? 0,
+            'attempts_allowed' => $module->allowedAttemptsFor($user->id),
+            'is_resuming' => false,
+            'can_start_attempt' => false,
+            'viewResultsOnly' => true,
+            'resultScore' => $attempt->score,
+            'resultTotal' => $attempt->total,
+            'resultPercentage' => $attempt->percentage,
+        ]);
     }
 }
