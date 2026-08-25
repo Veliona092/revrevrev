@@ -322,25 +322,7 @@
         <div class="db-right">
 
             {{-- Messages --}}
-            <div class="db-card">
-                <div class="db-card-head">
-                    <p class="db-card-title">Messages</p>
-                    <a href="{{ route('chat.index') }}" class="db-card-link">Go to inbox </a>
-                </div>
-                <div class="db-card-body">
-                    @forelse($messages as $message)
-                        <div class="db-msg-item">
-                            <div class="db-msg-avatar">{{ $message['initials'] ?: 'NA' }}</div>
-                            <div>
-                                <p class="db-msg-name">{{ $message['name'] }}</p>
-                                <p class="db-msg-body">"{{ $message['preview'] ?: 'No messages yet.' }}"</p>
-                            </div>
-                        </div>
-                    @empty
-                        <p class="db-empty">No conversations yet.</p>
-                    @endforelse
-                </div>
-            </div>
+
 
             {{-- Announcements --}}
             <div class="db-card">

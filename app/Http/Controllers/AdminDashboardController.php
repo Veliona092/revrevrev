@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClassModel;
+use App\Models\MockBoard;
 use App\Models\QuizAttempt;
 use App\Models\User;
+use App\Services\MockBoardStatisticsService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +14,11 @@ use Illuminate\View\View;
 
 class AdminDashboardController extends Controller
 {
+    public function __construct(
+        private MockBoardStatisticsService $statisticsService
+    ) {
+    }
+
     public function index(): View
     {
         $actor = Auth::user();
@@ -223,6 +230,51 @@ $failedStudentsByProgram = User::query()
     ->sortByDesc('failed_count')
     ->values();
 
+// Forecast: projected pass rate per mock board, grouped by program.
+// Lahat ng mock boards na may attempts na ang isasama (iba-ibang teacher).
+$examLabels = [
+    'accountancy' => 'Accountancy (CPALE)',
+    'education'   => 'Education (LEPT)',
+    'psychology'  => 'Psychology (RPsy Board Exam)',
+];
+
+$forecastByProgram = [];
+
+foreach ($examLabels as $programKey => $label) {
+    $variants = match ($programKey) {
+        'education'  => ['education', 'educ'],
+        'psychology' => ['psychology', 'psych'],
+        default      => [$programKey],
+    };
+
+    $boardsForProgram = MockBoard::whereIn('program', $variants)
+        ->orderByDesc('created_at')
+        ->get();
+
+    $boardEntries = [];
+    foreach ($boardsForProgram as $board) {
+        $forecast = $this->statisticsService->computeForecastedPassRate($board, $programKey);
+
+        if (($forecast['sample_size'] ?? 0) === 0) {
+            continue;
+        }
+
+        $boardEntries[] = [
+            'title' => $board->title,
+            'projected_pass_rate' => $forecast['projected_batch_pass_rate'] ?? 0,
+            'sample_size' => $forecast['sample_size'] ?? 0,
+            'batch_average' => $forecast['batch_average'] ?? 0,
+        ];
+    }
+
+    if (!empty($boardEntries)) {
+        $forecastByProgram[$programKey] = [
+            'exam_label' => $label,
+            'boards' => $boardEntries,
+        ];
+    }
+}
+
 // 2. Isama sa compact() sa dulo ng controller:
 return view('pages.admin.admin', compact(
     'totalUsers',
@@ -239,7 +291,8 @@ return view('pages.admin.admin', compact(
     'classesBreakdown',
     'programEnrollment',
     'failedStudentsByClassSection',
-    'failedStudentsByProgram' // <--- Isama ito dito
+    'failedStudentsByProgram', // <--- Isama ito dito
+    'forecastByProgram'
 ));
     }
 }

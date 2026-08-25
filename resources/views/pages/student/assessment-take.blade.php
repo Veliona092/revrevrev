@@ -342,7 +342,64 @@
 
     .qz-result-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
+    /* Attempt history */
 
+    .qz-history-card {
+        background: #fff; border: 1px solid #ebebeb; border-radius: 11px;
+        padding: 16px 20px; text-align: left; margin-bottom: 20px;
+    }
+
+    .qz-history-title {
+        font-size: 17px; font-weight: 500; color: #111; margin: 0 0 12px;
+        display: flex; align-items: center; gap: 6px;
+    }
+
+    .qz-history-item {
+        border: 1px solid #ebebeb; border-radius: 8px; margin-bottom: 8px; overflow: hidden;
+    }
+
+    .qz-history-item:last-child { margin-bottom: 0; }
+
+    .qz-history-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px; cursor: pointer; background: #fafafa; transition: background 0.15s;
+    }
+
+    .qz-history-row:hover { background: #f3f3f3; }
+
+    .qz-history-left { display: flex; align-items: center; gap: 10px; }
+
+    .qz-history-num { font-size: 15px; font-weight: 500; color: #555; }
+
+    .qz-history-score {
+        font-size: 14px; font-weight: 500; padding: 2px 8px; border-radius: 99px;
+        background: #f3f3f3; color: #555;
+    }
+
+    .qz-history-score.pass { background: #e1f5ee; color: #0f6e56; }
+    .qz-history-score.fail { background: #fcebeb; color: #a32d2d; }
+
+    .qz-history-date { font-size: 13px; color: #aaa; }
+
+    .qz-history-chevron { transition: transform 0.15s; color: #aaa; }
+    .qz-history-item.open .qz-history-chevron { transform: rotate(180deg); }
+
+    .qz-history-detail { display: none; padding: 14px; border-top: 1px solid #ebebeb; }
+    .qz-history-item.open .qz-history-detail { display: block; }
+
+    .qz-history-q {
+        padding: 10px 12px; border-radius: 8px; margin-bottom: 8px;
+        font-size: 14px; border: 1px solid #e4e4e4;
+    }
+
+    .qz-history-q:last-child { margin-bottom: 0; }
+    .qz-history-q.correct   { background: #f0fdf7; border-color: #bfe8d6; }
+    .qz-history-q.incorrect { background: #fff8f8; border-color: #f4c9c8; }
+
+    .qz-history-q-text { font-weight: 500; color: #111; margin: 0 0 6px; }
+    .qz-history-q-ans  { font-size: 13px; color: #555; margin: 2px 0; }
+
+    .qz-history-empty { font-size: 14px; color: #aaa; text-align: center; padding: 12px 0; }
 
     /* Start screen */
 
@@ -390,6 +447,34 @@
 
     }
 
+    /* Resume warning modal */
+
+    .qz-resume-modal {
+        position: fixed; inset: 0; background: rgba(17,24,39,0.55);
+        display: flex; align-items: center; justify-content: center; z-index: 14000;
+    }
+
+    .qz-resume-modal-box {
+        background: #fff; border-radius: 14px; padding: 32px 28px; max-width: 360px; width: 90%;
+        text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+    }
+
+    .qz-resume-icon {
+        width: 56px; height: 56px; border-radius: 50%;
+        background: #fff4e5; color: #b45309;
+        display: flex; align-items: center; justify-content: center; font-size: 22px;
+        margin-bottom: 4px;
+    }
+
+    .qz-resume-title { font-family: 'DM Sans', sans-serif; font-size: 20px; color: #111; margin: 0; }
+    .qz-resume-sub   { font-size: 15px; color: #888; margin: 0 0 6px; }
+
+    .qz-resume-countdown {
+        font-family: monospace; font-size: 32px; font-weight: 600; color: #e24b4a;
+        margin-bottom: 8px;
+    }
+
 </style>
 
 @endsection
@@ -413,6 +498,19 @@
                 </p>
             </div>
         @endif
+
+        {{-- Resume warning modal — shown kapag bumalik ang estudyante habang may in_progress attempt --}}
+        <div class="qz-resume-modal" id="resumeModal" style="display:none;">
+            <div class="qz-resume-modal-box">
+                <div class="qz-resume-icon"><i class="fas fa-hourglass-half"></i></div>
+                <h3 class="qz-resume-title">You left this assessment</h3>
+                <p class="qz-resume-sub">Resume now or it will be automatically marked as failed.</p>
+                <div class="qz-resume-countdown" id="resumeCountdown">01:00</div>
+                <button class="qz-btn qz-btn-dark" onclick="resumeFromModal()">
+                    <i class="fas fa-play"></i> Resume Now
+                </button>
+            </div>
+        </div>
 
         {{-- Start screen --}}
 
@@ -519,6 +617,14 @@
 
     var assessmentReturnUrl  = '{{ route("assessment") }}';
 
+    var isResuming              = @json($is_resuming ?? false);
+
+    var resumeDeadlineMs        = @json($resume_deadline_ms ?? null);
+
+    var currentAttemptId        = null;
+
+    var resumeCountdownInterval = null;
+
 
 
     var currentQuizQuestions = @json($questions->toArray());
@@ -595,6 +701,54 @@
 
     }
 
+    function showResumeModal() {
+        var modal = document.getElementById('resumeModal');
+        if (!modal) { return; }
+        modal.style.display = 'flex';
+        tickResumeCountdown();
+        clearInterval(resumeCountdownInterval);
+        resumeCountdownInterval = setInterval(tickResumeCountdown, 1000);
+    }
+
+    function hideResumeModal() {
+        var modal = document.getElementById('resumeModal');
+        if (modal) { modal.style.display = 'none'; }
+        clearInterval(resumeCountdownInterval);
+    }
+
+    function tickResumeCountdown() {
+        var el = document.getElementById('resumeCountdown');
+        if (!el || !resumeDeadlineMs) { return; }
+
+        var msLeft = resumeDeadlineMs - Date.now();
+
+        if (msLeft <= 0) {
+            el.textContent = '00:00';
+            clearInterval(resumeCountdownInterval);
+            hideResumeModal();
+            // Panahon na — tatawagin ang /quiz/start; ang backend na ang
+            // magmamarka ng dating attempt bilang 0/failed dahil sa timeout.
+            launchAssessment();
+            return;
+        }
+
+        var totalSec = Math.ceil(msLeft / 1000);
+        var min = Math.floor(totalSec / 60);
+        var sec = totalSec % 60;
+        el.textContent = (min < 10 ? '0' : '') + min + ':' + (sec < 10 ? '0' : '') + sec;
+    }
+
+    function resumeFromModal() {
+        hideResumeModal();
+        launchAssessment();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (isResuming && resumeDeadlineMs) {
+            showResumeModal();
+        }
+    });
+
 
 
 function launchAssessment() {
@@ -617,6 +771,7 @@ function launchAssessment() {
             showBlockedState(result.data);
             return;
         }
+        currentAttemptId = result.data.attempt_id || null;
         beginQuizUi();
     })
     .catch(function () {
@@ -630,10 +785,16 @@ function showBlockedState(data) {
     var msg = (data && data.message) || 'You cannot start this assessment right now.';
     var used = data && data.attempts_used;
     var allowed = data && data.attempts_allowed;
+    var timedOut = !!(data && data.timed_out);
+
+    var iconBg = timedOut ? '#fff4e5' : '#fde8e8';
+    var iconColor = timedOut ? '#b45309' : '#e24b4a';
+    var iconClass = timedOut ? 'fa-clock' : 'fa-lock';
+    var title = timedOut ? 'Assessment Timed Out' : 'Assessment Locked';
 
     document.getElementById('startScreen').innerHTML =
-        '<div class="at-start-icon" style="background:#fde8e8;color:#e24b4a;"><i class="fas fa-lock"></i></div>' +
-        '<h2 class="at-start-title">Assessment Locked</h2>' +
+        '<div class="at-start-icon" style="background:' + iconBg + ';color:' + iconColor + ';"><i class="fas ' + iconClass + '"></i></div>' +
+        '<h2 class="at-start-title">' + title + '</h2>' +
         '<p class="at-start-sub">' + escHtml(msg) + '</p>' +
         (used != null && allowed != null
             ? '<p class="at-start-notice">Attempts used: ' + used + ' / ' + allowed + '</p>'
@@ -856,7 +1017,12 @@ function beginQuizUi() {
 
         var q = currentQuizQuestions[currentQIndex];
 
-        if (selectedAnswers[q.id]) { answeredQuestions.add(currentQIndex); }
+        if (!selectedAnswers[q.id]) {
+            showAssessmentWarningToast('Please select an answer before continuing.', 'warn');
+            return;
+        }
+
+        answeredQuestions.add(currentQIndex);
 
         if (currentQIndex < currentQuizQuestions.length - 1) {
 
@@ -933,14 +1099,10 @@ function beginQuizUi() {
         // First save all answers, then submit score (so server can calculate from database)
 
         saveAnswers(forcedFail)
-
             .then(function () {
-
                 return saveScore(frontendTotal);
-
             })
-.then(function (res) {
-
+            .then(function (res) {
                 // Use server-calculated values
 
                 var finalScore = res && res.success ? (res.score ?? frontendScore) : frontendScore;
@@ -955,18 +1117,20 @@ function beginQuizUi() {
                 showResult(finalPct, finalScore, finalTotal);
 
                 getAI();
-
             })
-
-.catch(function () {
-
+            .catch(function (err) {
                 isQuizInProgress = false;
                 window.removeEventListener('beforeunload', handleBeforeUnload);
+
+                showAssessmentWarningToast(
+                    'Some of your answers may not have saved correctly. Please screenshot this and contact your teacher before leaving this page.',
+                    'fail'
+                );
+                console.error(err);
 
                 showResult(frontendPct, frontendScore, frontendTotal);
 
                 getAI();
-
             });
 
     }
@@ -1023,6 +1187,14 @@ function beginQuizUi() {
 
             '</div>' +
 
+            '<div class="qz-history-card" id="historyBox">' +
+
+            '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>' +
+
+            '<p class="qz-history-empty">Loading history...</p>' +
+
+            '</div>' +
+
             '<div class="qz-result-btns">' +
 
             '<a href="' + assessmentReturnUrl + '" class="qz-btn qz-btn-outline">' +
@@ -1030,6 +1202,8 @@ function beginQuizUi() {
             '<i class="fas fa-arrow-left"></i> Back to Assessments</a>' +
 
             '</div></div>';
+
+        loadAttemptHistory();
 
     }
 
@@ -1043,7 +1217,7 @@ function beginQuizUi() {
 
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
 
-            body: JSON.stringify({}),
+            body: JSON.stringify({ attempt_id: currentAttemptId }),
 
         })
 
@@ -1101,6 +1275,200 @@ function beginQuizUi() {
 
 
 
+    function loadAttemptHistory() {
+
+        fetch('/modules/' + moduleId + '/quiz/history', {
+
+            headers: { 'X-CSRF-TOKEN': csrfToken },
+
+        })
+
+        .then(function (r) { return r.json(); })
+
+        .then(function (res) {
+
+            var box = document.getElementById('historyBox');
+
+            if (!box) { return; }
+
+            if (res.success && res.attempts && res.attempts.length) {
+
+                renderAttemptHistory(res.attempts);
+
+            } else {
+
+                box.innerHTML = '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>' +
+
+                    '<p class="qz-history-empty">No previous attempts yet.</p>';
+
+            }
+
+        })
+
+        .catch(function () {
+
+            var box = document.getElementById('historyBox');
+
+            if (box) {
+
+                box.innerHTML = '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>' +
+
+                    '<p class="qz-history-empty">Failed to load history.</p>';
+
+            }
+
+        });
+
+    }
+
+
+
+    function renderAttemptHistory(attempts) {
+
+        var box = document.getElementById('historyBox');
+
+        if (!box) { return; }
+
+        var rows = attempts.map(function (a) {
+
+            var pct = Math.round(a.percentage);
+
+            var scoreClass = a.passed ? 'pass' : 'fail';
+
+            var dateStr = a.completed_at
+
+                ? new Date(a.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+                : '';
+
+            return '<div class="qz-history-item" id="historyItem_' + a.id + '">' +
+
+                '<div class="qz-history-row" onclick="toggleAttemptHistory(' + a.id + ')">' +
+
+                '<div class="qz-history-left">' +
+
+                '<span class="qz-history-num">Attempt ' + a.attempt_number + '</span>' +
+
+                '<span class="qz-history-score ' + scoreClass + '">' + pct + '% &bull; ' + a.score + '/' + a.total + '</span>' +
+
+                '</div>' +
+
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+
+                '<span class="qz-history-date">' + dateStr + '</span>' +
+
+                '<i class="fas fa-chevron-down qz-history-chevron"></i>' +
+
+                '</div>' +
+
+                '</div>' +
+
+                '<div class="qz-history-detail" id="historyDetail_' + a.id + '">' +
+
+                '<p class="qz-history-empty">Loading...</p>' +
+
+                '</div>' +
+
+                '</div>';
+
+        }).join('');
+
+        box.innerHTML = '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>' + rows;
+
+    }
+
+
+
+    var loadedHistoryDetails = {};
+
+
+
+    function toggleAttemptHistory(snapshotId) {
+
+        var item = document.getElementById('historyItem_' + snapshotId);
+
+        if (!item) { return; }
+
+        var wasOpen = item.classList.contains('open');
+
+        item.classList.toggle('open');
+
+        if (wasOpen || loadedHistoryDetails[snapshotId]) { return; }
+
+        loadedHistoryDetails[snapshotId] = true;
+
+        fetch('/quiz/attempts/' + snapshotId + '/detail', {
+
+            headers: { 'X-CSRF-TOKEN': csrfToken },
+
+        })
+
+        .then(function (r) { return r.json(); })
+
+        .then(function (res) {
+
+            var detailEl = document.getElementById('historyDetail_' + snapshotId);
+
+            if (!detailEl) { return; }
+
+            if (res.success && res.questions && res.questions.length) {
+
+                detailEl.innerHTML = res.questions.map(function (q, i) {
+
+                    var cls = q.is_correct ? 'correct' : 'incorrect';
+
+                    var yourAns = q.selected_option
+
+                        ? q.selected_option + (q.options && q.options[q.selected_option] ? ' - ' + q.options[q.selected_option] : '')
+
+                        : 'No answer';
+
+                    var correctAns = q.correct_option
+
+                        ? q.correct_option + (q.options && q.options[q.correct_option] ? ' - ' + q.options[q.correct_option] : '')
+
+                        : '-';
+
+                    return '<div class="qz-history-q ' + cls + '">' +
+
+                        '<p class="qz-history-q-text">' + (i + 1) + '. ' + escHtml(q.question_text || '') + '</p>' +
+
+                        '<p class="qz-history-q-ans"><i class="fas fa-' + (q.is_correct ? 'check' : 'times') + '"></i> Your answer: ' + escHtml(yourAns) + '</p>' +
+
+                        (!q.is_correct
+
+                            ? '<p class="qz-history-q-ans"><i class="fas fa-check"></i> Correct answer: ' + escHtml(correctAns) + '</p>'
+
+                            : '') +
+
+                        '</div>';
+
+                }).join('');
+
+            } else {
+
+                detailEl.innerHTML = '<p class="qz-history-empty">No details available for this attempt.</p>';
+
+            }
+
+        })
+
+        .catch(function () {
+
+            var detailEl = document.getElementById('historyDetail_' + snapshotId);
+
+            if (detailEl) {
+
+                detailEl.innerHTML = '<p class="qz-history-empty">Failed to load details.</p>';
+
+            }
+
+        });
+
+    }
+
+
+
     function saveScore(total) {
 
         return fetch('/modules/' + moduleId + '/quiz/submit', {
@@ -1109,7 +1477,7 @@ function beginQuizUi() {
 
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
 
-            body: JSON.stringify({ total: total }),
+            body: JSON.stringify({ total: total, attempt_id: currentAttemptId }),
 
         }).then(function (r) {
 
@@ -1126,32 +1494,26 @@ function beginQuizUi() {
     }
 
 
-
-    function saveAnswers(forcedFail) {
-
-        if (forcedFail) { return Promise.resolve(); }
-
-        var requests = currentQuizQuestions
-
-            .filter(function (q) { return selectedAnswers[q.id]; })
-
-            .map(function (q) {
-
-                return fetch('/quiz/' + moduleId + '/answer', {
-
-                    method: 'POST',
-
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-
-                    body: JSON.stringify({ question_id: q.id, selected_option: selectedAnswers[q.id] }),
-
-                });
-
+function saveAnswers(forcedFail) {
+    if (forcedFail) { return Promise.resolve(); }
+    var requests = currentQuizQuestions
+        .filter(function (q) { return selectedAnswers[q.id]; })
+        .map(function (q) {
+            return fetch('/quiz/' + moduleId + '/answer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                body: JSON.stringify({ question_id: q.id, selected_option: selectedAnswers[q.id], attempt_id: currentAttemptId }),
+            }).then(function (r) {
+                if (!r.ok) {
+                    return r.json().catch(function () { return {}; }).then(function (body) {
+                        throw new Error('Failed to save answer for question ' + q.id + ': ' + (body.message || r.status));
+                    });
+                }
+                return r.json();
             });
-
-        return requests.length ? Promise.all(requests) : Promise.resolve();
-
-    }
+        });
+    return requests.length ? Promise.all(requests) : Promise.resolve();
+}
 
 
 
@@ -1270,6 +1632,15 @@ function handleTab() {
         return d.innerHTML;
 
     }
+
+    @if($viewResultsOnly ?? false)
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('startScreen').style.display = 'none';
+        document.getElementById('quizScreen').style.display = '';
+        showResult({{ (float) $resultPercentage }}, {{ (int) $resultScore }}, {{ (int) $resultTotal }});
+        getAI();
+    });
+    @endif
 
 </script>
 

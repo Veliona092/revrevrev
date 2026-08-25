@@ -4,8 +4,9 @@ namespace App\Http\Controllers\Student;
 
 use App\Http\Controllers\Controller;
 use App\Models\MockBoard;
-use Illuminate\Http\Request;
 use App\Models\MockBoardAttempt;
+use App\Models\QuizAttempt;
+use Illuminate\Http\Request;
 use App\Services\MockBoardStatisticsService;
 
 class StudentMockBoardController extends Controller
@@ -92,34 +93,54 @@ class StudentMockBoardController extends Controller
         ]);
     }
     public function results(MockBoard $mockBoard)
-{
-    $user = auth()->user();
+    {
+        $user = auth()->user();
 
-    if (!$this->programsMatch($mockBoard, $user)) {
-        abort(403, 'This Mock Board is not assigned to your program.');
-    }
-
-    $rawAttempts = $mockBoard->attempts()
-        ->where('user_id', $user->id)
-        ->get()
-        ->keyBy('phase_type');
-
-    $attempts = [];
-    foreach (['pre_test', 'pre_boards'] as $phase) {
-        if ($rawAttempts->has($phase)) {
-            $a = $rawAttempts->get($phase);
-            $attempts[$phase] = (object) [
-                'percentage' => round($a->percentage),
-                'score' => $a->score,
-                'total_questions' => $a->total,
-                'passed' => $a->passed,
-            ];
+        // Simple program check — walang programsMatch() na method sa class na ito.
+        if (strtolower(trim($mockBoard->program ?? '')) !== strtolower(trim($user->program ?? ''))) {
+            abort(403, 'This Mock Board is not assigned to your program.');
         }
-    }
 
-    return view('pages.student.mock-boards.results', [
-        'mockBoard' => $mockBoard,
-        'attempts' => $attempts,
-    ]);
-}
-}
+        $mockBoard->load('phases.module');
+
+        $rawAttempts = MockBoardAttempt::where('user_id', $user->id)
+            ->where('mock_board_id', $mockBoard->id)
+            ->get()
+            ->keyBy('phase_type');
+
+        $attempts = $rawAttempts->map(function ($attempt) {
+            return (object) [
+                'score' => $attempt->score,
+                // Ang column na ginagamit ng store() dito ay 'total_questions', hindi 'total'.
+                'total_questions' => $attempt->total_questions,
+                'percentage' => $attempt->percentage,
+                'passed' => $attempt->passed,
+                'ai_strong' => $attempt->ai_strong,
+                'ai_weak' => $attempt->ai_weak,
+                'ai_recommendation' => $attempt->ai_recommendation,
+            ];
+        });
+
+        $history = [];
+
+        foreach (['pre_test', 'pre_boards'] as $phaseType) {
+            $phaseModel = $mockBoard->phases
+                ? $mockBoard->phases->firstWhere('phase_type', $phaseType)
+                : null;
+
+            if (!$phaseModel || !$phaseModel->module_id) {
+                $history[$phaseType] = [];
+                continue;
+            }
+
+            $quizAttempts = QuizAttempt::where('user_id', $user->id)
+                ->where('module_id', $phaseModel->module_id)
+                ->where('mock_board_id', $mockBoard->id)
+                ->whereNotNull('completed_at')
+                ->with('answers.question')
+                ->orderBy('completed_at', 'asc')
+                ->get();
+
+            $history[$phaseType] = $quizAttempts->values()->map(function ($qa, $idx) {
+                return [
+                    'attempt_number' => $idx + 1,

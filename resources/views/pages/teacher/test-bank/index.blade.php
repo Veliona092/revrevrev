@@ -28,6 +28,29 @@
     .tb-btn.danger { background: #b74343; }
     .tb-alert { margin-bottom: 16px; padding: 12px; border-radius: 8px; background: #e8f5ee; color: #17603c; }
     .tb-errors { margin: 0 0 16px; padding: 12px 28px; border-radius: 8px; background: #fdecec; color: #982b2b; }
+
+    .pagination { display: flex; list-style: none; gap: 6px; padding: 0; margin: 0; flex-wrap: wrap; }
+    .pagination .page-item .page-link {
+        display: inline-block;
+        padding: 7px 12px;
+        border: 1px solid #ddd;
+        border-radius: 7px;
+        color: #3a4180;
+        text-decoration: none;
+        font-size: 14px;
+        background: #fff;
+    }
+    .pagination .page-item .page-link:hover { background: #f0f0f5; }
+    .pagination .page-item.active .page-link {
+        background: #3a4180;
+        border-color: #3a4180;
+        color: #fff;
+    }
+    .pagination .page-item.disabled .page-link {
+        color: #bbb;
+        pointer-events: none;
+        background: #fafafa;
+    }
     @media (max-width: 900px) { .tb-grid { grid-template-columns: 1fr; } .tb-filter { grid-template-columns: 1fr 1fr; } }
 </style>
 
@@ -78,6 +101,11 @@
                     </select>
                 </div>
 
+                <div class="tb-field">
+                    <label>Topic</label>
+                    <input type="text" name="topic" value="{{ old('topic', $editQuestion?->topic) }}" placeholder="e.g. Chapter 3 — Cash Flow">
+                </div>
+
                 <input type="hidden" name="points" value="1">
                 <input type="hidden" name="status" value="approved">
 
@@ -92,6 +120,7 @@
             <h2>Find and Reuse Questions</h2>
             <form method="GET" class="tb-filter">
                 <input name="search" value="{{ request('search') }}" placeholder="Search questions...">
+                <input name="topic" value="{{ request('topic') }}" placeholder="Filter by topic...">
                 <select name="difficulty">
                     <option value="">All difficulties</option>
                     @foreach(['Average', 'Normal', 'Hard'] as $difficulty)
@@ -116,11 +145,17 @@
                     <button class="tb-btn" type="submit">Add selected questions</button>
                 </div>
 
+                <div id="moduleQuestionsPreview" style="display:none;margin-bottom:14px;padding:12px;background:#fafafa;border:1px solid #eee;border-radius:8px;">
+                    <div style="font-weight:600;font-size:13px;color:#666;margin-bottom:8px;" id="moduleQuestionsTitle"></div>
+                    <div id="moduleQuestionsList" style="font-size:13px;"></div>
+                </div>
+
                 <table class="tb-table">
                     <thead>
                         <tr>
                             <th></th>
                             <th>Question</th>
+                            <th>Topic</th>
                             <th>Classification</th>
                             <th>Choices</th>
                             <th></th>
@@ -131,6 +166,7 @@
                             <tr>
                                 <td><input type="checkbox" name="test_bank_question_ids[]" value="{{ $question->id }}"></td>
                                 <td><strong>{{ Str::limit($question->question_text, 120) }}</strong></td>
+                                <td>{{ $question->topic ?? '—' }}</td>
                                 <td><span class="tb-tag">{{ $question->difficulty }}</span></td>
                                 <td>{{ is_array($question->options) ? implode(', ', array_keys($question->options)) : '' }}</td>
                                 <td>
@@ -152,7 +188,7 @@
                 </form>
             @endforeach
 
-            <div style="margin-top:16px;">{{ $questions->links() }}</div>
+            <div style="margin-top:16px;">{{ $questions->links('pagination::bootstrap-5') }}</div>
         </section>
     </div>
 </div>
@@ -271,6 +307,54 @@
     // Keep the existing module-select logic
     document.getElementById('addToModuleForm').addEventListener('submit', function () {
         this.action = this.action.replace('__MODULE__', document.getElementById('moduleSelect').value);
+    });
+
+    // ── Ipakita ang mga tanong ng napiling assessment ──
+    const moduleSelectEl = document.getElementById('moduleSelect');
+    const previewBox = document.getElementById('moduleQuestionsPreview');
+    const previewTitle = document.getElementById('moduleQuestionsTitle');
+    const previewList = document.getElementById('moduleQuestionsList');
+
+    moduleSelectEl.addEventListener('change', function () {
+        const moduleId = this.value;
+
+        if (!moduleId) {
+            previewBox.style.display = 'none';
+            return;
+        }
+
+        previewBox.style.display = 'block';
+        previewTitle.textContent = 'Loading...';
+        previewList.innerHTML = '';
+
+        fetch(`/test-bank/modules/${moduleId}/questions`, {
+            headers: { 'Accept': 'application/json' },
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    previewTitle.textContent = 'Failed to load questions.';
+                    return;
+                }
+
+                const n = data.questions.length;
+                previewTitle.textContent = `${data.module_title} — ${n} question(s) currently in this assessment`;
+
+                if (n === 0) {
+                    previewList.innerHTML = '<div style="color:#aaa;">Wala pang tanong sa assessment na ito.</div>';
+                    return;
+                }
+
+                previewList.innerHTML = data.questions.map((q, i) => `
+                    <div style="padding:6px 0;border-bottom:1px solid #eee;">
+                        ${i + 1}. ${q.question_text}
+                        ${q.test_bank_question_id ? '<span class="tb-badge" style="margin-left:6px;">From Test Bank</span>' : ''}
+                    </div>
+                `).join('');
+            })
+            .catch(() => {
+                previewTitle.textContent = 'Failed to load questions.';
+            });
     });
 })();
 </script>
