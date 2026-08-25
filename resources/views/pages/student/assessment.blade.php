@@ -64,89 +64,89 @@
         color: var(--good); font-weight: 500; white-space: nowrap;
     }
 
-    /* Grid */
-    .as-grid {
+    /* Status breakdown chips */
+    .as-status-chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-family: var(--font); font-size: 11.5px; font-weight: 600;
+        padding: 3px 10px; border-radius: 99px; white-space: nowrap;
+        vertical-align: middle;
+        margin-left: 4px;
+    }
+
+    .as-status-chip.not-started { background: var(--paper); color: var(--mute); }
+    .as-status-chip.in-progress { background: var(--accent-tint); color: var(--accent); }
+    .as-status-chip.merit       { background: var(--good); color: #fff; }
+    .as-status-chip.passed      { background: var(--good-tint); color: var(--good); }
+    .as-status-chip.failed      { background: var(--bad-tint); color: var(--bad); }
+
+    /* Table-style list */
+    .as-table {
+        display: flex; flex-direction: column; gap: 10px;
+    }
+
+    .as-table-head {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-        gap: 16px;
+        grid-template-columns: 2fr 1.3fr 1.3fr 1.3fr 1fr 1.3fr;
+        gap: 12px; padding: 0 20px 8px;
+        font-family: var(--font); font-size: 12px; font-weight: 700;
+        color: var(--ink); text-transform: uppercase; letter-spacing: 0.04em;
     }
 
-    /* Card — styled like an exam ticket stub */
-    .as-card {
-        background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-        display: flex; flex-direction: column; overflow: hidden;
-        transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
+    .as-row {
+        display: grid;
+        grid-template-columns: 2fr 1.3fr 1.3fr 1.3fr 1fr 1.3fr;
+        gap: 12px; align-items: center;
+        padding: 16px 20px; border-radius: 12px;
+        background: var(--surface); border: 1px solid var(--line);
+        transition: box-shadow 0.15s, border-color 0.15s;
     }
 
-    .as-card:hover { box-shadow: 0 8px 24px rgba(27,29,42,0.08); border-color: #d3d3e6; transform: translateY(-2px); }
+    .as-row:nth-child(even) { background: var(--paper); }
+    .as-row:hover { box-shadow: 0 4px 14px rgba(27,29,42,0.06); border-color: #d3d3e6; }
 
-    .as-card-head {
-        display: flex; align-items: center; justify-content: space-between; gap: 8px;
-        padding: 14px 18px 12px;
+    .as-row-title {
+        font-family: var(--font); font-weight: 600; font-size: 16px;
+        color: var(--ink); margin: 0;
     }
 
-    .as-eyebrow {
-        font-family: var(--font); font-size: 11px; font-weight: 500;
-        letter-spacing: 0.06em; text-transform: uppercase; color: var(--mute);
+    .as-row-info { font-size: 13.5px; color: var(--mute); font-family: var(--font); }
+    .as-row-info.overdue  { color: var(--bad);  font-weight: 600; }
+    .as-row-info.due-soon { color: var(--warn); font-weight: 600; }
+
+    .as-row-score {
+        font-family: var(--font); font-weight: 700; font-size: 14.5px; color: var(--ink);
     }
+    .as-row-score .max { color: var(--mute); font-weight: 500; }
 
-    /* Status pills */
-    .sp-score-pill {
-        display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 11px;
-        border-radius: 99px; letter-spacing: 0.01em;
+    .as-row-action { display: flex; justify-content: flex-end; gap: 6px; }
+
+    .as-btn-pill {
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        height: 38px; padding: 0 20px; border-radius: 99px;
+        background: #86EFAC; color: #14532D; font-weight: 700; font-size: 13.5px;
+        border: none; text-decoration: none; cursor: pointer;
+        font-family: var(--font); transition: background 0.15s;
     }
-    .sp-score-pill.high     { background: var(--good-tint); color: var(--good); }
-    .sp-score-pill.mid      { background: var(--warn-tint); color: var(--warn); }
-    .sp-score-pill.low      { background: var(--bad-tint);  color: var(--bad); }
-    .sp-score-pill.neutral  { background: var(--accent-tint); color: var(--accent); }
+    .as-btn-pill:hover { background: #6EE7A0; color: #14532D; }
 
-    /* Perforated ticket divider */
-    .as-perf {
-        border-top: 1.5px dashed var(--line); margin: 0 18px;
+    .as-btn-pill.outline {
+        background: var(--surface); color: var(--accent); border: 1px solid var(--accent-tint);
     }
+    .as-btn-pill.outline:hover { background: var(--accent-tint); }
 
-    .as-card-body { padding: 16px 18px 4px; flex: 1; }
-
-    .as-title {
-        font-family: var(--font); font-weight: 600; font-size: 18px;
-        color: var(--ink); margin: 0 0 4px; line-height: 1.3;
-    }
-
-    .as-desc { font-size: 13.5px; color: var(--mute); margin: 0; line-height: 1.5; }
-
-    /* Stats row */
-    .as-stats {
-        display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
-        padding: 14px 18px 4px; font-family: var(--font);
-    }
-    .as-stat  { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--mute); white-space: nowrap; }
-    .as-stat.due-soon { color: var(--warn); }
-    .as-stat.overdue  { color: var(--bad); }
-    .as-stat i { font-size: 12px; }
-
-    .as-score-chip {
-        display: inline-flex; align-items: center; gap: 5px;
-        font-family: var(--font);
-        font-size: 12.5px; font-weight: 600; padding: 3px 10px;
-        border-radius: 99px; background: var(--accent-tint); color: var(--accent);
-    }
-
-    /* Footer — button always docked to the bottom */
-    .as-card-footer { padding: 16px 18px 18px; margin-top: auto; }
-
-    .as-btn {
-        width: 100%; height: 42px; border-radius: 9px; font-size: 14.5px; font-weight: 600;
-        background: var(--ink); color: #fff; border: none; cursor: pointer;
-        display: inline-flex; align-items: center; justify-content: center;
-        gap: 6px; text-decoration: none; transition: background 0.15s;
-        font-family: var(--font);
-    }
-
-    .as-btn:hover { background: var(--accent); color: #fff; }
-
-    .as-btn.disabled {
+    .as-btn-pill.disabled {
         background: var(--paper); color: #b9b9c8; cursor: not-allowed;
         pointer-events: none; border: 1px solid var(--line);
+    }
+
+    @media (max-width: 768px) {
+        .as-table-head { display: none; }
+        .as-row {
+            grid-template-columns: 1fr; gap: 6px;
+            padding: 16px;
+        }
+        .as-row-action { justify-content: stretch; }
+        .as-btn-pill { width: 100%; }
     }
 
     /* Empty states */
@@ -208,6 +208,23 @@
 
                         return sprintf('%d-%s', $priority, $assessment->title);
                     });
+
+                    // Bilangin ang status ng bawat assessment sa section na ito
+                    $statusCounts = ['not_started' => 0, 'in_progress' => 0, 'merit' => 0, 'passed' => 0, 'failed' => 0];
+                    foreach ($group as $item) {
+                        $itemAttempt = $item->student_attempt;
+                        if ($itemAttempt === null) {
+                            $statusCounts['not_started']++;
+                        } elseif ($itemAttempt->status === 'in_progress') {
+                            $statusCounts['in_progress']++;
+                        } elseif ($itemAttempt->percentage >= 75) {
+                            $statusCounts['merit']++;
+                        } elseif ($itemAttempt->percentage >= 50) {
+                            $statusCounts['passed']++;
+                        } else {
+                            $statusCounts['failed']++;
+                        }
+                    }
                 @endphp
                 <div class="as-section" data-class="{{ $classId }}">
                     <div class="as-section-head">
@@ -215,6 +232,21 @@
                             <i class="fas fa-graduation-cap" style="font-size:15px;color:var(--accent);"></i>
                             {{ $className }}
                             <span class="as-section-count">{{ $group->count() }} {{ Str::plural('assessment', $group->count()) }}</span>
+                            @if($statusCounts['not_started'] > 0)
+                                <span class="as-status-chip not-started">Not Started: {{ $statusCounts['not_started'] }}</span>
+                            @endif
+                            @if($statusCounts['in_progress'] > 0)
+                                <span class="as-status-chip in-progress">In Progress: {{ $statusCounts['in_progress'] }}</span>
+                            @endif
+                            @if($statusCounts['merit'] > 0)
+                                <span class="as-status-chip merit">Passed with Merit: {{ $statusCounts['merit'] }}</span>
+                            @endif
+                            @if($statusCounts['passed'] > 0)
+                                <span class="as-status-chip passed">Passed: {{ $statusCounts['passed'] }}</span>
+                            @endif
+                            @if($statusCounts['failed'] > 0)
+                                <span class="as-status-chip failed">Failed: {{ $statusCounts['failed'] }}</span>
+                            @endif
                         </p>
                         @if($avgScore !== null)
                             <span class="as-section-avg"><i class="fas fa-chart-line"></i> Class avg {{ $avgScore }}%</span>
@@ -223,13 +255,20 @@
                         @endif
                     </div>
 
-                    <div class="as-grid">
+                    <div class="as-table">
+                        <div class="as-table-head">
+                            <span>Title</span>
+                            <span>Status</span>
+                            <span>Time / Items</span>
+                            <span>Due / Attempts</span>
+                            <span>Best Score</span>
+                            <span></span>
+                        </div>
+
                         @foreach($orderedGroup as $assessment)
                             @php
                                 $attempt   = $assessment->student_attempt;
                                 $pct       = $attempt?->percentage;
-                                $pillClass = $attempt === null || $attempt->status === 'in_progress' ? 'neutral'
-                                    : ($pct >= 75 ? 'high' : ($pct >= 50 ? 'mid' : 'low'));
                                 $pillLabel = match (true) {
                                     $attempt === null => 'Not Started',
                                     $attempt->status === 'in_progress' => 'In Progress',
@@ -245,58 +284,44 @@
                                 $isDueSoon = !$isOverdue && $assessment->due_date && $assessment->due_date->isFuture()
                                     && $assessment->due_date->diffInHours(now()) <= 48;
                             @endphp
-                            <div class="as-card">
-                                <div class="as-card-head">
-                                    <span class="as-eyebrow">{{ $className }} · Assessment</span>
-                                    <span class="sp-score-pill {{ $pillClass }}">{{ $pillLabel }}</span>
-                                </div>
+                            <div class="as-row">
+                                <p class="as-row-title">{{ $assessment->title }}</p>
 
-                                <div class="as-perf"></div>
+                                <span class="as-row-info">{{ $pillLabel }}</span>
 
-                                <div class="as-card-body">
-                                    <p class="as-title">{{ $assessment->title }}</p>
-                                    @if($assessment->description)
-                                        <p class="as-desc">{{ Str::limit($assessment->description, 60) }}</p>
-                                    @endif
-                                </div>
+                                <span class="as-row-info">{{ $timeLabel }} · {{ $qCount }} items</span>
 
-                                <div class="as-stats">
-                                    <span class="as-stat"><i class="fas fa-clock"></i> {{ $timeLabel }}</span>
-                                    <span class="as-stat"><i class="fas fa-list-ol"></i> {{ $qCount }} items</span>
-                                    <span class="as-stat">
-                                        <i class="fas fa-repeat"></i> Attempts: {{ $assessment->attempts_used }} / {{ $assessment->attempts_allowed }}
-                                    </span>
+                                <span class="as-row-info {{ $isOverdue ? 'overdue' : ($isDueSoon ? 'due-soon' : '') }}">
                                     @if($assessment->due_date)
-                                        <span class="as-stat {{ $isOverdue ? 'overdue' : ($isDueSoon ? 'due-soon' : '') }}">
-                                            <i class="fas fa-calendar-alt"></i> Due {{ $assessment->due_date->format('M d, g:i A') }}
-                                        </span>
-                                    @endif
-                                    @if($attempt !== null)
-                                        <span class="as-score-chip"><i class="fas fa-star"></i> {{ $pct }}%</span>
-                                    @endif
-                                </div>
-
-                                <div class="as-card-footer">
-                                    @if($isOverdue)
-                                        <span class="as-btn disabled">
-                                            <i class="fas fa-lock"></i> Past Due
-                                        </span>
-                                    @elseif($attempt?->status === 'in_progress')
-                                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn">
-                                            <i class="fas fa-play"></i> Resume Assessment
-                                        </a>
-                                    @elseif($attempt === null)
-                                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn">
-                                            <i class="fas fa-play"></i> Take Assessment
-                                        </a>
-                                    @elseif($assessment->attempts_used < $assessment->attempts_allowed)
-                                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn">
-                                            <i class="fas fa-redo"></i> Retake ({{ $assessment->attempts_used + 1 }} of {{ $assessment->attempts_allowed }})
-                                        </a>
+                                        Due {{ $assessment->due_date->format('M d, g:i A') }}
                                     @else
-                                        <span class="as-btn disabled">
-                                            <i class="fas fa-ban"></i> Attempts Used Up
-                                        </span>
+                                        Attempts: {{ $assessment->attempts_used }}/{{ $assessment->attempts_allowed }}
+                                    @endif
+                                </span>
+
+                                <span class="as-row-score">
+                                    @if($attempt !== null)
+                                        {{ $pct }}<span class="max">%</span>
+                                    @else
+                                        <span class="max">—</span>
+                                    @endif
+                                </span>
+
+                                <div class="as-row-action">
+                                    @if($attempt !== null && $attempt->status !== 'in_progress')
+                                        <a href="{{ route('assessment.results', $assessment) }}" class="as-btn-pill outline">View</a>
+                                    @endif
+
+                                    @if($isOverdue)
+                                        <span class="as-btn-pill disabled"><i class="fas fa-lock"></i> Past Due</span>
+                                    @elseif($attempt?->status === 'in_progress')
+                                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn-pill">Resume</a>
+                                    @elseif($attempt === null)
+                                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn-pill">Take Assessment</a>
+                                    @elseif($assessment->attempts_used < $assessment->attempts_allowed)
+                                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn-pill">Retake</a>
+                                    @else
+                                        <span class="as-btn-pill disabled">Used Up</span>
                                     @endif
                                 </div>
                             </div>

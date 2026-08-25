@@ -29,6 +29,7 @@ class StoreTestBankQuestionRequest extends FormRequest
             'correct_option' => ['required', 'string', 'max:10'],
             'points' => ['required', 'integer', 'min:1', 'max:100'],
             'difficulty' => ['required', Rule::in(['Average', 'Normal', 'Hard'])],
+            'topic' => ['nullable', 'string', 'max:150'],
             'status' => ['required', Rule::in(['draft', 'approved'])],
         ];
     }

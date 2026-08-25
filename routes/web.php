@@ -514,6 +514,7 @@ $resolveRoleView = function (string $page) {
 
 Route::get('/assessment', [StudentAssessmentController::class, 'index'])->name('assessment');
 Route::get('/assessment/{module}', [StudentAssessmentController::class, 'take'])->name('assessment.take');
+Route::get('/assessment/{module}/results', [StudentAssessmentController::class, 'results'])->name('assessment.results');
 Route::get('/progress', [StudentProgressController::class, 'index'])->name('progress');
 Route::get('/tables', fn () => $resolveRoleView('tables'))->name('tables');
 Route::get('/register', fn () => $resolveRoleView('register'))->name('register');
@@ -622,6 +623,7 @@ Route::middleware('auth')->prefix('test-bank')->name('test-bank.')->group(functi
     Route::put('{testBankQuestion}', [TestBankController::class, 'update'])->name('update');
     Route::patch('{testBankQuestion}/archive', [TestBankController::class, 'archive'])->name('archive');
     Route::post('modules/{module}/questions', [TestBankController::class, 'addToModule'])->name('modules.questions.store');
+    Route::get('modules/{module}/questions', [TestBankController::class, 'moduleQuestions'])->name('modules.questions.view');
     Route::post('modules/{module}/import', [TestBankController::class, 'importModuleQuestions'])->name('modules.import');
     Route::get('questions.json', [TestBankController::class, 'questionsJson'])->name('questions.json');
 });
@@ -653,6 +655,8 @@ Route::post('/modules/{module}/quiz/store', [ClassManagerController::class, 'sto
 Route::get('/modules/{module}/quiz/questions', [QuizController::class, 'getQuestions'])->name('quiz.get.questions');
 Route::post('/modules/{module}/quiz/submit', [QuizController::class, 'submitQuiz'])->name('quiz.submit');
 Route::post('/modules/{module}/quiz/insights', [QuizController::class, 'generateInsights'])->name('quiz.insights');
+Route::get('/modules/{module}/quiz/history', [QuizController::class, 'attemptHistory'])->name('quiz.history');
+Route::get('/quiz/attempts/{snapshot}/detail', [QuizController::class, 'attemptSnapshotDetail'])->name('quiz.attempt.detail');
 Route::post('/quiz/{module}/answer', [QuizController::class, 'submitAnswer'])->name('quiz.answer');
 Route::post('/quiz/create-draft/{class}', [QuizController::class, 'createQuizDraft'])->name('quiz.create.draft');
 Route::delete('/modules/{module}/quiz/attempts', [QuizController::class, 'resetAttempts'])->name('quiz.attempts.reset');

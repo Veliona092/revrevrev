@@ -30,8 +30,9 @@ class TestBankController extends Controller
                 });
             })
             ->when($request->filled('difficulty'), fn ($query) => $query->where('difficulty', $request->string('difficulty')))
+            ->when($request->filled('topic'), fn ($query) => $query->where('topic', 'like', '%'.$request->string('topic').'%'))
             ->latest()
-            ->paginate(20)
+            ->paginate(30)
             ->withQueryString();
 
         return view('pages.teacher.test-bank.index', [
@@ -69,6 +70,22 @@ class TestBankController extends Controller
         $testBankQuestion->update(['is_archived' => true]);
 
         return redirect()->route('test-bank.index')->with('success', 'Question archived from the Test Bank.');
+    }
+
+    public function moduleQuestions(Request $request, Module $module)
+    {
+        $this->authorizeModule($request->user(), $module);
+
+        $questions = QuizQuestion::query()
+            ->where('module_id', $module->id)
+            ->orderBy('order')
+            ->get(['id', 'question_text', 'options', 'difficulty', 'test_bank_question_id']);
+
+        return response()->json([
+            'success' => true,
+            'module_title' => $module->title,
+            'questions' => $questions,
+        ]);
     }
 
     public function addToModule(AddTestBankQuestionsToModuleRequest $request, Module $module)
@@ -121,7 +138,12 @@ class TestBankController extends Controller
         abort_unless(in_array($request->user()?->role, ['teacher', 'admin', 'superadmin'], true), 403);
         $this->authorizeModule($request->user(), $module);
 
-        $createdCount = DB::transaction(function () use ($module, $request): int {
+        $validated = $request->validate([
+            'topic' => ['nullable', 'string', 'max:150'],
+        ]);
+        $topic = $validated['topic'] ?? null;
+
+        $createdCount = DB::transaction(function () use ($module, $request, $topic): int {
             $questions = $module->quizQuestions()
                 ->whereNull('test_bank_question_id')
                 ->get();
@@ -135,6 +157,7 @@ class TestBankController extends Controller
                     'correct_option' => $question->correct_option,
                     'points' => $question->points,
                     'difficulty' => $question->difficulty,
+                    'topic' => $topic,
                     'status' => 'approved',
                 ]);
 
@@ -144,8 +167,10 @@ class TestBankController extends Controller
             return $questions->count();
         });
 
+        $topicNote = $topic ? " Tagged as \"{$topic}\"." : '';
+
         return redirect()->route('test-bank.index')
-            ->with('success', "{$createdCount} existing question(s) added to the Test Bank.");
+            ->with('success', "{$createdCount} existing question(s) added to the Test Bank.{$topicNote}");
     }
     public function questionsJson(Request $request)
 {
@@ -158,6 +183,7 @@ class TestBankController extends Controller
             $query->where('question_text', 'like', "%{$term}%");
         })
         ->when($request->filled('difficulty'), fn ($query) => $query->where('difficulty', $request->string('difficulty')))
+        ->when($request->filled('topic'), fn ($query) => $query->where('topic', 'like', '%'.$request->string('topic').'%'))
         ->latest()
         ->limit(100)
         ->get([
@@ -167,6 +193,7 @@ class TestBankController extends Controller
             'correct_option',
             'points',
             'difficulty',
+            'topic',
         ]);
 
     return response()->json([

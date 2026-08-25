@@ -7,6 +7,7 @@ use App\Models\MockBoardAttempt;
 use App\Models\MockBoardPhase;
 use App\Models\Module;
 use App\Models\QuizAttempt;
+use App\Models\QuizAttemptSnapshot;
 use App\Services\MockBoardStatisticsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -381,40 +382,59 @@ class StudentMockBoardController extends Controller
     /**
      * Take a specific mock board phase exam.
      */
-    public function take(MockBoard $mockBoard, string $phase)
-    {
-        $user = auth()->user();
+   public function take(MockBoard $mockBoard, string $phase)
+{
+    $user = auth()->user();
 
-        if (!$this->programsMatch($mockBoard, $user)) {
-            abort(403, 'This Mock Board is not assigned to your program.');
-        }
-
-        if (!$mockBoard->isApproved()) {
-            abort(403, 'This Mock Board is not yet available.');
-        }
-
-        if (!in_array($phase, ['pre_test', 'pre_boards']) || !$this->canTakePhase($mockBoard, $phase, $user)) {
-            abort(403, 'Phase not available.');
-        }
-
-        $mockBoardPhase = $mockBoard->phases()
-            ->where('phase_type', $phase)
-            ->with(['module.quizQuestions'])
-            ->firstOrFail();
-
-        $module = $mockBoardPhase->module;
-        $questions = $module->quizQuestions;
-
-        return view('pages.student.assessment-take', [
-            'module' => $module,
-            'questions' => $questions,
-            'isMockBoard' => true,
-            'mockBoard' => $mockBoard,
-            'mockBoardPhase' => $mockBoardPhase,
-            'phase' => $phase,
-        ]);
+    if (!$this->programsMatch($mockBoard, $user)) {
+        abort(403, 'This Mock Board is not assigned to your program.');
     }
 
+    if (!$mockBoard->isApproved()) {
+        abort(403, 'This Mock Board is not yet available.');
+    }
+
+    if (!in_array($phase, ['pre_test', 'pre_boards']) || !$this->canTakePhase($mockBoard, $phase, $user)) {
+        abort(403, 'Phase not available.');
+    }
+
+    $mockBoardPhase = $mockBoard->phases()
+        ->where('phase_type', $phase)
+        ->with(['module.quizQuestions'])
+        ->firstOrFail();
+
+    $module = $mockBoardPhase->module;
+    $questions = $module->quizQuestions;
+
+    $attemptsUsed = QuizAttempt::where('user_id', $user->id)
+        ->where('module_id', $module->id)
+        ->where('mock_board_id', $mockBoard->id)
+        ->whereNotNull('completed_at')
+        ->count();
+
+    $attemptsAllowed = $module->max_attempts;
+    $canStartAttempt = is_null($attemptsAllowed) || $attemptsUsed < $attemptsAllowed;
+    $isResuming = false; // mock board attempts are only recorded on submit, so there's nothing to resume
+
+    if (! $canStartAttempt) {
+        return redirect()
+            ->route('student.mock-boards.index')
+            ->with('error', 'You have no attempts remaining for this exam.');
+    }
+
+    return view('pages.student.assessment-take', [
+        'module' => $module,
+        'questions' => $questions,
+        'isMockBoard' => true,
+        'mockBoard' => $mockBoard,
+        'mockBoardPhase' => $mockBoardPhase,
+        'phase' => $phase,
+        'can_start_attempt' => $canStartAttempt,
+        'is_resuming' => $isResuming,
+        'attempts_used' => $attemptsUsed,
+        'attempts_allowed' => $attemptsAllowed,
+    ]);
+}
     /**
      * Submit mock board answers.
      */
@@ -496,6 +516,12 @@ class StudentMockBoardController extends Controller
                         'percentage' => $percentage,
                         'passed' => $percentage >= $mockBoard->passing_percentage,
                         'attempt_count' => $existing ? ($existing->attempt_count + 1) : 1,
+                        // Reset cached AI insights so the frontend re-fetches fresh
+                        // ones for this attempt instead of showing stale/wrong text
+                        // from a previous submission.
+                        'ai_strong' => null,
+                        'ai_weak' => null,
+                        'ai_recommendation' => null,
                     ]
                 );
 
@@ -557,7 +583,9 @@ class StudentMockBoardController extends Controller
             }
         }
 
-        if (empty($weakAreas)) {
+        if (empty($subjectPerformance)) {
+            $recommendation = "No answers were recorded for this attempt, so we can't generate insights. Make sure to select an answer for each question before submitting.";
+        } elseif (empty($weakAreas)) {
             $recommendation = "Excellent performance across all tested categories! Keep up the great work to maintain your edge for the board exams.";
         } else {
             $recommendation = "Action Required: Prioritize reviewing your low-scoring concepts, specifically targeting " . implode(', ', array_map(fn($val) => explode(' (', $val)[0], $weakAreas)) . ".";
@@ -595,36 +623,88 @@ class StudentMockBoardController extends Controller
         return is_array($correctAnswer) ? in_array($answer, $correctAnswer) : $answer == $correctAnswer;
     }
     /**
- * Ipakita ang buod ng performance (Pre-Test vs Pre-Boards) ng estudyante
- * para sa isang partikular na mock board.
- */
-public function results(MockBoard $mockBoard)
-{
-    $user = auth()->user();
+     * Ipakita ang buod ng performance (Pre-Test vs Pre-Boards) ng estudyante
+     * para sa isang partikular na mock board, kasama na ang AI Insights
+     * (cached mula sa MockBoardAttempt) at Attempt History (mula sa
+     * QuizAttempt records), kagaya ng result screen sa assessment.take.blade.
+     */
+    public function results(MockBoard $mockBoard)
+    {
+        $user = auth()->user();
 
-    if (!$this->programsMatch($mockBoard, $user)) {
-        abort(403, 'This Mock Board is not assigned to your program.');
+        if (!$this->programsMatch($mockBoard, $user)) {
+            abort(403, 'This Mock Board is not assigned to your program.');
+        }
+
+        $mockBoard->load('phases.module');
+
+        $rawAttempts = MockBoardAttempt::where('user_id', $user->id)
+            ->where('mock_board_id', $mockBoard->id)
+            ->get()
+            ->keyBy('phase_type');
+
+        // I-map papunta sa istruktura na inaasahan ng Blade view
+        // (total_questions sa halip na total, para tugma sa results.blade.php).
+        // Kasama na rin ang cached AI insights (kung meron na).
+        $attempts = $rawAttempts->map(function ($attempt) {
+            return (object) [
+                'score' => $attempt->score,
+                'total_questions' => $attempt->total,
+                'percentage' => $attempt->percentage,
+                'passed' => $attempt->passed,
+                'ai_strong' => $attempt->ai_strong,
+                'ai_weak' => $attempt->ai_weak,
+                'ai_recommendation' => $attempt->ai_recommendation,
+            ];
+        });
+
+        // Buuin ang Attempt History (per phase) mula sa QuizAttempt records,
+        // kasama ang per-question breakdown para sa expandable view.
+        $history = [];
+
+        foreach (['pre_test', 'pre_boards'] as $phaseType) {
+            $phaseModel = $mockBoard->phases->firstWhere('phase_type', $phaseType);
+
+            if (!$phaseModel || !$phaseModel->module_id) {
+                $history[$phaseType] = [];
+                continue;
+            }
+
+            // QuizAttemptSnapshot is the dedicated append-only history table —
+            // one row per completed attempt, unlike QuizAttempt which is a
+            // single overwritten row per (user, module, mock_board_id) and
+            // can never hold more than one entry's worth of history.
+            $history[$phaseType] = QuizAttemptSnapshot::where('user_id', $user->id)
+                ->where('module_id', $phaseModel->module_id)
+                ->where('mock_board_id', $mockBoard->id)
+                ->orderBy('attempt_number', 'asc')
+                ->get()
+                ->map(function ($snap) {
+                    return [
+                        'attempt_number' => $snap->attempt_number,
+                        'score' => $snap->score,
+                        'total' => $snap->total,
+                        'percentage' => $snap->percentage,
+                        'passed' => $snap->passed,
+                        'completed_at' => optional($snap->completed_at)->toIso8601String(),
+                        'questions' => collect($snap->questions_snapshot ?? [])->map(function ($q) {
+                            return [
+                                'question_text' => $q['question_text'] ?? '',
+                                'options' => $q['options'] ?? [],
+                                'selected_option' => $q['selected_option'] ?? null,
+                                'correct_option' => $q['correct_option'] ?? null,
+                                'is_correct' => (bool) ($q['is_correct'] ?? false),
+                            ];
+                        })->values(),
+                    ];
+                })
+                ->values();
+        }
+
+        return view('pages.student.mock-boards.results', [
+            'mockBoard' => $mockBoard,
+            'attempts' => $attempts,
+            'history' => $history,
+        ]);
     }
-
-    $rawAttempts = MockBoardAttempt::where('user_id', $user->id)
-        ->where('mock_board_id', $mockBoard->id)
-        ->get()
-        ->keyBy('phase_type');
-
-    // I-map papunta sa istruktura na inaasahan ng Blade view
-    // (total_questions sa halip na total, para tugma sa results.blade.php)
-    $attempts = $rawAttempts->map(function ($attempt) {
-        return (object) [
-            'score' => $attempt->score,
-            'total_questions' => $attempt->total,
-            'percentage' => $attempt->percentage,
-            'passed' => $attempt->passed,
-        ];
-    });
-
-    return view('pages.student.mock-boards.results', [
-        'mockBoard' => $mockBoard,
-        'attempts' => $attempts,
-    ]);
-}
 }

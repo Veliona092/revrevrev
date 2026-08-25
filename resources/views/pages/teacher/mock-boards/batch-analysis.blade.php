@@ -82,6 +82,17 @@
 </form>
 @endif
 
+@php
+    $examLabelMap = [
+        'accountancy' => 'CPALE',
+        'education' => 'LEPT',
+        'educ' => 'LEPT',
+        'psychology' => 'RPsy Board Exam',
+        'psych' => 'RPsy Board Exam',
+    ];
+    $examLabel = $examLabelMap[strtolower($program)] ?? strtoupper($program);
+@endphp
+
 {{-- Top Level Batch Stats --}}
 <div class="stats-grid">
     <div class="stat-card batch-hero">
@@ -100,6 +111,11 @@
             {{ ($anova['significant'] ?? false) ? 'Significant' : 'No Change' }}
         </div>
         <div class="stat-meta">P-Value: {{ $anova['p_value'] ?? 'N/A' }}</div>
+    </div>
+    <div class="stat-card" style="border-left: 4px solid #ED773C;">
+        <div class="stat-label">Projected {{ $examLabel }} Pass Rate</div>
+        <div class="stat-value">{{ $forecast['projected_batch_pass_rate'] ?? 0 }}%</div>
+        <div class="stat-meta">Sample: {{ $forecast['sample_size'] ?? 0 }} student(s) &bull; {{ $forecast['confidence_note'] ?? '' }}</div>
     </div>
 </div>
 
