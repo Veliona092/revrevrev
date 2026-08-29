@@ -7,7 +7,7 @@
     <title>@yield('title', 'Reviso Admin')</title>
 
     <link href="{{ asset('assets/img/brand/favicon.png') }}" rel="icon" type="image/png">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
     <link href="{{ asset('assets/js/plugins/@fortawesome/fontawesome-free/css/all.min.css') }}" rel="stylesheet" />
 
     <style>
@@ -286,9 +286,13 @@
         </a>
        
 {{-- MOCK BOARD SECTION --}}
-       <a class="rv-nav-item {{ request()->routeIs('admin.mock-boards.approvals') ? 'active' : '' }}" href="{{ route('admin.mock-boards.approvals') }}">
-    <span class="rv-nav-icon"><i class="fas fa-graduation-cap"></i></span> Mock Board Approvals
-</a>
+        <a class="rv-nav-item {{ request()->routeIs('admin.mock-boards.approvals') ? 'active' : '' }}" href="{{ route('admin.mock-boards.approvals') }}">
+            <span class="rv-nav-icon"><i class="fas fa-graduation-cap"></i></span> Mock Board Approvals
+        </a>
+
+        <a class="rv-nav-item {{ request()->routeIs('historical-board-exams.*') ? 'active' : '' }}" href="{{ route('historical-board-exams.index') }}">
+            <span class="rv-nav-icon"><i class="fas fa-balance-scale"></i></span> Historical Board Exams
+        </a>
 
 
         

@@ -1,4 +1,8 @@
-@extends('layouts.appTeach')
+@php
+    $isAdmin = in_array(auth()->user()->role ?? '', ['admin', 'superadmin'], true) || ($isAdmin ?? false);
+    $layout = $isAdmin ? 'layouts.appAdmin' : 'layouts.appTeach';
+@endphp
+@extends($layout)
 
 @section('title', 'Mock Boards Dashboard')
 
@@ -7,9 +11,15 @@
 @endsection
 
 @section('header-actions')
-    <button class="rv-btn rv-btn-primary" onclick="openCreateModal()">
-        <i class="fas fa-plus"></i> Create Mock Board
-    </button>
+    @if($isAdmin)
+        <a href="{{ route('adminDashboard') }}" class="rv-btn rv-btn-secondary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">
+            <i class="fas fa-arrow-left"></i> Back to Admin Dashboard
+        </a>
+    @else
+        <button class="rv-btn rv-btn-primary" onclick="openCreateModal()">
+            <i class="fas fa-plus"></i> Create Mock Board
+        </button>
+    @endif
 @endsection
 
 @section('content')
@@ -19,6 +29,29 @@
     @if(session('success'))
         <div class="alert alert-success">
             <i class="fas fa-check-circle"></i> {{ session('success') }}
+        </div>
+    @endif
+
+    {{-- PROGRAM TABS (FOR ADMIN / MULTI-PROGRAM VIEW) --}}
+    @if(isset($programs) && count($programs) > 1)
+        <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; flex-wrap: wrap;">
+            @foreach($programs as $prog)
+                @php
+                    $isActive = ($selectedProgram ?? '') === $prog;
+                    $progLabels = [
+                        'accountancy' => 'Accountancy (BSA)',
+                        'education' => 'Education (BSED/BEED)',
+                        'educ' => 'Education (BSED/BEED)',
+                        'psychology' => 'Psychology (BS Psych)',
+                        'psych' => 'Psychology (BS Psych)',
+                    ];
+                    $pLabel = $progLabels[strtolower($prog)] ?? ucfirst($prog);
+                @endphp
+                <a href="{{ route('mock-boards.batch.dashboard', ['program' => $prog]) }}"
+                   style="padding: 8px 16px; border-radius: 8px; font-weight: 500; font-size: 14px; text-decoration: none; transition: all 0.2s; {{ $isActive ? 'background: #245E55; color: white;' : 'background: #f1f5f9; color: #475569;' }}">
+                    {{ $pLabel }}
+                </a>
+            @endforeach
         </div>
     @endif
 
@@ -54,10 +87,12 @@
         <div class="empty-state">
             <i class="fas fa-clipboard-list" style="font-size: 56px; color: #8a8580; margin-bottom: 16px;"></i>
             <h3>No Mock Boards Yet</h3>
-            <p>You haven't created any mock boards for {{ ucfirst($selectedProgram ?? 'your program') }} yet.</p>
-            <button class="rv-btn rv-btn-primary" style="margin-top: 16px;" onclick="openCreateModal()">
-                <i class="fas fa-plus"></i> Create Your First Mock Board
-            </button>
+            <p>{{ $isAdmin ? 'No mock boards created for ' . ucfirst($selectedProgram ?? 'this program') . ' yet.' : "You haven't created any mock boards for " . ucfirst($selectedProgram ?? 'your program') . ' yet.' }}</p>
+            @if(!$isAdmin)
+                <button class="rv-btn rv-btn-primary" style="margin-top: 16px;" onclick="openCreateModal()">
+                    <i class="fas fa-plus"></i> Create Your First Mock Board
+                </button>
+            @endif
         </div>
     @else
         <div class="mock-boards-list">
@@ -71,7 +106,7 @@
                     $preBoardPct = min(100, round(($preBoardTakers / $totalEnrolled) * 100));
 
                     $preTestPhase = $board->phases->firstWhere('phase_type', 'pre_test');
-                    $preBoardsPhase = $board->phases->firstWhere('phase_type', 'pre_boards');
+                    $postTestPhases = $board->phases->where('phase_type', 'pre_boards')->sortBy('sequence_number')->values();
                 @endphp
 
                 <div class="mock-board-card">
@@ -146,20 +181,27 @@
                             </form>
                         @endif
 
-                        @if($preBoardsPhase && $preBoardsPhase->module)
-                            <a href="{{ route('quiz.create', $preBoardsPhase->module) }}" class="rv-btn rv-btn-primary-outline">
-                                <i class="fas fa-pen-fancy"></i>
-                                {{ $preBoardsPhase->module->quizQuestions->isNotEmpty() ? 'Edit Pre-Boards' : 'Build Pre-Boards' }}
-                            </a>
-                        @else
-                            <form action="{{ route('student.mock-boards.phases.add', $board) }}" method="POST" style="display:inline;">
-                                @csrf
-                                <input type="hidden" name="phase_type" value="pre_boards">
-                                <button type="submit" class="rv-btn rv-btn-primary-outline">
-                                    <i class="fas fa-plus"></i> Add Pre-Boards
-                                </button>
-                            </form>
-                        @endif
+                        {{-- Each existing post-test phase gets its own Edit/Build
+                             link, distinctly labeled — a board can now have
+                             more than one (e.g. Post-Test 1, Post-Test 2, ...). --}}
+                        @foreach($postTestPhases as $postTestPhase)
+                            @if($postTestPhase->module)
+                                <a href="{{ route('quiz.create', $postTestPhase->module) }}" class="rv-btn rv-btn-primary-outline">
+                                    <i class="fas fa-pen-fancy"></i>
+                                    {{ $postTestPhase->module->quizQuestions->isNotEmpty() ? 'Edit' : 'Build' }} {{ $postTestPhase->phase_label }}
+                                </a>
+                            @endif
+                        @endforeach
+
+                        {{-- Always available — lets the teacher add another
+                             post-test phase on top of any existing ones. --}}
+                        <form action="{{ route('student.mock-boards.phases.add', $board) }}" method="POST" style="display:inline;">
+                            @csrf
+                            <input type="hidden" name="phase_type" value="pre_boards">
+                            <button type="submit" class="rv-btn rv-btn-primary-outline">
+                                <i class="fas fa-plus"></i> Add Post-Test
+                            </button>
+                        </form>
 
                         <button class="rv-btn rv-btn-secondary" onclick="editBoard(this)"
                             data-id="{{ $board->id }}"
@@ -287,13 +329,13 @@
 
 @section('head')
 <style>
-    .mock-boards-container { max-width: 1100px; padding: 20px; margin: 0 auto; }
+    .mock-boards-container { max-width: 1100px; padding: 20px; margin: 0 auto; font-family: var(--font, 'DM Sans', sans-serif); color: #2D2D2B; }
 
     .analytics-overview-grid {
         display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;
     }
     .analytics-card {
-        background: #fff; border: 1px solid #DDD8CF; border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 16px;
+        background: #fff; border: 1px solid #DDD8CF; border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 16px; font-family: var(--font, 'DM Sans', sans-serif);
     }
     .analytics-icon {
         width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px;
@@ -301,48 +343,51 @@
     .analytics-icon.green { background: #e6f4ea; color: #137333; }
     .analytics-icon.blue { background: #e8f0fe; color: #1a73e8; }
     .analytics-icon.orange { background: #feefe3; color: #b06000; }
-    .analytics-label { font-size: 11px; color: #706e6b; display: block; text-transform: uppercase; font-weight: 600; }
-    .analytics-value { font-size: 22px; font-weight: 700; color: #2D2D2B; margin: 2px 0 0 0; }
+    .analytics-label { font-size: 12px; color: #706e6b; display: block; text-transform: uppercase; font-weight: 500; letter-spacing: 0.04em; font-family: var(--font, 'DM Sans', sans-serif); }
+    .analytics-value { font-size: 26px; font-weight: 500; color: #2D2D2B; margin: 2px 0 0 0; font-family: var(--font, 'DM Sans', sans-serif); }
 
-    .empty-state { text-align: center; padding: 60px 20px; color: #5a5550; background: #fff; border-radius: 12px; border: 2px dashed #e2e8f0; }
+    .empty-state { text-align: center; padding: 60px 20px; color: #5a5550; background: #fff; border-radius: 12px; border: 2px dashed #e2e8f0; font-family: var(--font, 'DM Sans', sans-serif); }
+    .empty-state h3 { font-size: 20px; font-weight: 500; color: #2D2D2B; margin: 12px 0 6px; font-family: var(--font, 'DM Sans', sans-serif); }
+    .empty-state p { font-size: 15px; font-weight: 400; color: #718096; margin: 0; font-family: var(--font, 'DM Sans', sans-serif); }
 
-    .mock-boards-list { display: flex; flex-direction: column; gap: 20px; }
+    .mock-boards-list { display: flex; flex-direction: column; gap: 20px; font-family: var(--font, 'DM Sans', sans-serif); }
     .mock-board-card {
         background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: box-shadow 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: box-shadow 0.3s ease; font-family: var(--font, 'DM Sans', sans-serif);
     }
     .mock-board-card:hover { box-shadow: 0 8px 15px -3px rgba(0,0,0,0.08); }
     .board-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-    .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .board-header h3 { font-size: 20px; font-weight: 500; color: #2D2D2B; margin: 0; font-family: var(--font, 'DM Sans', sans-serif); }
+    .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; text-transform: uppercase; font-family: var(--font, 'DM Sans', sans-serif); letter-spacing: 0.04em; }
     .status-badge.approved { background: #dcfce7; color: #15803d; }
     .status-badge.pending { background: #fef3c7; color: #92400e; }
     .status-badge.rejected { background: #fee2e2; color: #b91c1c; }
-    .board-description { color: #4a5568; margin-bottom: 16px; line-height: 1.5; font-size: 14px; }
+    .board-description { color: #5a5550; margin-bottom: 16px; line-height: 1.5; font-size: 14px; font-weight: 400; font-family: var(--font, 'DM Sans', sans-serif); }
 
-    .analytics-section { margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #f1f5f9; }
-    .metric-header { display: flex; justify-content: space-between; font-size: 12px; color: #475569; margin-bottom: 4px; }
+    .analytics-section { margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #f1f5f9; font-family: var(--font, 'DM Sans', sans-serif); }
+    .metric-header { display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 4px; font-family: var(--font, 'DM Sans', sans-serif); }
     .progress-bar-bg { width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
     .progress-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
     .progress-bar-fill.green { background: #245E55; }
     .progress-bar-fill.blue { background: #1a73e8; }
 
-    .board-meta { display: flex; gap: 25px; font-size: 13px; color: #718096; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; }
+    .board-meta { display: flex; gap: 25px; font-size: 13px; color: #718096; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; font-family: var(--font, 'DM Sans', sans-serif); font-weight: 400; }
     .board-meta i { color: #245E55; margin-right: 6px; }
     .board-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
-    .rv-btn-primary { background: #245E55; color: white; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; border: none; cursor: pointer; }
-    .rv-btn-primary-outline { background: transparent; border: 1.5px solid #245E55; color: #245E55; font-weight: 600; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 14px; }
+    .rv-btn-primary { background: #245E55; color: white; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px; border: none; cursor: pointer; font-family: var(--font, 'DM Sans', sans-serif); }
+    .rv-btn-primary-outline { background: transparent; border: 1.5px solid #245E55; color: #245E55; font-weight: 500; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 14px; font-family: var(--font, 'DM Sans', sans-serif); }
     .rv-btn-primary-outline:hover { background: #245E55; color: white; }
-    .rv-btn-secondary { background: #f8fafc; border: 1px solid #cbd5e1; color: #475569; font-weight: 600; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 14px; cursor: pointer; }
-    .rv-btn-danger { background: #fff5f5; border: 1px solid #feb2b2; color: #c53030; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+    .rv-btn-secondary { background: #f8fafc; border: 1px solid #cbd5e1; color: #475569; font-weight: 500; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 14px; cursor: pointer; font-family: var(--font, 'DM Sans', sans-serif); }
+    .rv-btn-danger { background: #fff5f5; border: 1px solid #feb2b2; color: #c53030; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-family: var(--font, 'DM Sans', sans-serif); font-weight: 500; }
     .rv-btn-danger:hover { background: #c53030; color: white; }
-    .alert-success { background: #dcfce7; color: #15803d; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; }
+    .alert-success { background: #dcfce7; color: #15803d; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; font-family: var(--font, 'DM Sans', sans-serif); font-weight: 500; }
 
-    .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
-    .modal-content { background: #fff; border-radius: 15px; padding: 30px; max-width: 600px; width: 95%; max-height: 90vh; overflow-y: auto; }
+    .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); font-family: var(--font, 'DM Sans', sans-serif); }
+    .modal-content { background: #fff; border-radius: 15px; padding: 30px; max-width: 600px; width: 95%; max-height: 90vh; overflow-y: auto; font-family: var(--font, 'DM Sans', sans-serif); }
     .modal-form-group { margin-bottom: 14px; }
-    .modal-label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; color: #475569; margin-bottom: 5px; letter-spacing: 0.5px; }
-    .modal-input { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+    .modal-label { display: block; font-size: 12px; font-weight: 500; text-transform: uppercase; color: #475569; margin-bottom: 5px; letter-spacing: 0.5px; font-family: var(--font, 'DM Sans', sans-serif); }
+    .modal-input { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: var(--font, 'DM Sans', sans-serif); font-weight: 400; box-sizing: border-box; }
 </style>
 @endsection
 

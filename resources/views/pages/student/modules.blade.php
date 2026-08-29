@@ -1,4 +1,4 @@
-﻿@extends('layouts.domain')
+@extends('layouts.domain')
 
 @section('content')
 <style>
@@ -79,17 +79,51 @@
 
     .mod-item.active .mod-item-title { color: #fff; }
 
+    .mod-item.lecture-item { padding-bottom: 6px; }
+    .mod-item.lecture-item .mod-item-row { margin-bottom: 4px; }
+    .mod-tree-toggle {
+        width: 18px; height: 18px; border: 0; padding: 0; flex-shrink: 0;
+        background: transparent; color: rgba(255,255,255,0.45); cursor: pointer;
+    }
+    .mod-tree-toggle i { transition: transform 0.15s ease; }
+    .mod-item.lecture-item.expanded .mod-tree-toggle i { transform: rotate(90deg); }
+    .mod-tree-list { display: none; margin: 0 -18px 0 -3px; padding: 2px 0 0 22px; }
+    .mod-item.lecture-item.expanded .mod-tree-list { display: block; }
+    .mod-tree-content {
+        padding: 7px 12px; color: rgba(255,255,255,0.46); font-size: 13px;
+        border-left: 1px solid rgba(255,255,255,0.12);
+    }
+    .mod-tree-content-label { margin-bottom: 4px; color: rgba(255,255,255,0.3); text-transform: uppercase; font-size: 11px; letter-spacing: 0.08em; }
+    .mod-tree-node {
+        width: 100%; padding: 7px 8px; border: 0; border-left: 1px solid rgba(255,255,255,0.12);
+        background: transparent; color: rgba(255,255,255,0.62); text-align: left; cursor: pointer;
+        font: 13px 'DM Sans', sans-serif; display: flex; align-items: center; gap: 6px;
+    }
+    .mod-tree-node:hover, .mod-tree-node.active { background: rgba(59,130,246,0.12); color: #fff; }
+    .mod-tree-node i { color: #6ee7b7; font-size: 10px; }
+    .mod-tree-node-text { flex: 1; min-width: 0; }
+    .mod-tree-progress { width: 34px; flex-shrink: 0; text-align: right; color: rgba(255,255,255,0.42); font-size: 11px; }
+    .mod-tree-progress-track { height: 3px; margin: 2px 8px 5px 28px; background: rgba(255,255,255,0.1); border-radius: 99px; overflow: hidden; }
+    .mod-tree-progress-fill { height: 100%; width: 0; background: #1d9e75; border-radius: 99px; transition: width 0.3s ease; }
+    .mod-tree-lessons { display: none; padding-left: 14px; }
+    .mod-tree-node.domain.expanded + .mod-tree-lessons { display: block; }
+
     .mod-badge {
         font-size: 14px; font-weight: 500;
         padding: 2px 8px; border-radius: 99px; white-space: nowrap; flex-shrink: 0;
     }
 
-    .mod-badge.quiz { background: rgba(59,130,246,0.2); color: #93c5fd; }
-    .mod-badge.doc  { background: rgba(29,158,117,0.2); color: #6ee7b7; }
+    .mod-badge.quiz            { background: rgba(59,130,246,0.2); color: #93c5fd; }
+    .mod-badge.pre-test-badge  { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .mod-badge.post-test-badge { background: rgba(139, 92, 246, 0.18); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.3); }
+    .mod-badge.formal-badge    { background: rgba(59, 130, 246, 0.18); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .mod-badge.doc             { background: rgba(29,158,117,0.2); color: #6ee7b7; }
 
     .mod-bar-track { height: 4px; background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden; }
     .mod-bar-fill  { height: 100%; border-radius: 99px; background: #1d9e75; transition: width 0.4s ease; }
-    .mod-bar-fill.quiz { background: #3b82f6; }
+    .mod-bar-fill.quiz      { background: #3b82f6; }
+    .mod-bar-fill.pre-test  { background: #f59e0b; }
+    .mod-bar-fill.post-test { background: #8b5cf6; }
 
     /* Main */
     .mod-main {
@@ -427,6 +461,64 @@
     .reset-modal-btn-primary:hover {
         background: #374151;
     }
+
+    /* ── Lecture stage tabs (pre-test / content / post-test) ── */
+    .lec-header { margin-bottom: 4px; }
+
+    .lec-tabs {
+        display: flex; gap: 8px; margin-bottom: 24px;
+        border-bottom: 1px solid #ebebeb; padding-bottom: 16px;
+    }
+
+    .lec-tab {
+        height: 36px; padding: 0 16px; border-radius: 8px;
+        border: 1px solid #e4e4e4; background: #fff;
+        font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+        color: #666; cursor: pointer; transition: all 0.15s;
+        display: inline-flex; align-items: center; gap: 6px;
+    }
+
+    .lec-tab:hover  { border-color: #3b82f6; color: #3b82f6; }
+    .lec-tab.active { background: #111827; border-color: #111827; color: #fff; }
+    .lec-tab .lec-tab-check { font-size: 11px; color: #1d9e75; }
+    .lec-tab.active .lec-tab-check { color: #6ee7b7; }
+
+    /* ── Sub-parts (content stage) ── */
+    .sp-layout { display: flex; gap: 20px; align-items: flex-start; }
+
+    .sp-list {
+        width: 260px; flex-shrink: 0; background: #fff;
+        border: 1px solid #ebebeb; border-radius: 11px; overflow: hidden;
+    }
+
+    .sp-item {
+        padding: 12px 14px; cursor: pointer;
+        border-bottom: 1px solid #f5f5f5; transition: background 0.15s;
+    }
+
+    .sp-item:last-child { border-bottom: none; }
+    .sp-item:hover { background: #f8f7f5; }
+    .sp-item.active { background: #eff6ff; }
+
+    .sp-item-title {
+        font-size: 14px; font-weight: 500; color: #333;
+        margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+    }
+
+    .sp-item.active .sp-item-title { color: #1e40af; }
+    .sp-item.completed .sp-item-title i { color: #1d9e75; }
+
+    .sp-item-bar-track { height: 3px; background: #f0f0f0; border-radius: 99px; overflow: hidden; }
+    .sp-item-bar-fill  { height: 100%; background: #1d9e75; border-radius: 99px; transition: width 0.3s; }
+
+    .sp-viewer { flex: 1; min-width: 0; }
+
+    .sp-body { line-height: 1.7; color: #333; margin-bottom: 20px; }
+
+    .sp-empty {
+        text-align: center; color: #bbb; padding: 60px 20px;
+        display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
 </style>
 
 {{-- Sidebar --}}
@@ -437,17 +529,34 @@
     </div>
     <div class="mod-list" id="modList">
         @forelse($modules as $module)
-            @php $isLocked = $locked[$module->id] ?? false; @endphp
-              <div class="mod-item {{ $isLocked ? 'locked' : '' }}"
+            @php
+                $isLocked = $locked[$module->id] ?? false;
+                $isPreTest = ($module->quiz_stage === 'pre_test')
+                    || in_array($module->assessment_purpose, ['pre_test', 'pre_assessment'])
+                    || preg_match('/pre[- ]?(test|assessment)/i', (string) $module->title);
+                $isPostTest = ($module->quiz_stage === 'post_test')
+                    || in_array($module->assessment_purpose, ['post_test', 'post_assessment'])
+                    || preg_match('/post[- ]?(test|assessment)|final assessment/i', (string) $module->title);
+            @endphp
+              <div class="mod-item {{ $isLocked ? 'locked' : '' }} {{ $module->is_lecture ? 'lecture-item' : '' }}"
                  data-module-id="{{ $module->id }}"
                  data-is-quiz="{{ $module->is_quiz ? '1' : '0' }}"
                  data-locked="{{ $isLocked ? '1' : '0' }}">
                 <div class="mod-item-row">
+                    @if($module->is_lecture && $module->subparts->isNotEmpty())
+                        <button type="button" class="mod-tree-toggle" onclick="toggleModuleOutline(event, {{ $module->id }})" aria-label="Toggle Lecture content">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    @endif
                     <span class="mod-item-title">{{ $loop->iteration }}. {{ $module->title }}</span>
                     @if($isLocked)
                         <span class="mod-badge locked-badge"><i class="fas fa-lock" style="font-size:9px;"></i></span>
-                    @elseif($module->is_quiz)
-                        <span class="mod-badge quiz">Quiz</span>
+                    @elseif($isPostTest)
+                        <span class="mod-badge post-test-badge">Post-Test</span>
+                    @elseif($module->is_formal_assessment)
+                        <span class="mod-badge formal-badge">Formal Assessment</span>
+                    @elseif($isPreTest || $module->is_quiz)
+                        <span class="mod-badge pre-test-badge">Pre-Test</span>
                     @else
                         <span class="mod-badge doc module-progress-badge" data-module-id="{{ $module->id }}">
                             {{ $progress[$module->id] ?? 0 }}%
@@ -455,11 +564,37 @@
                     @endif
                 </div>
                 <div class="mod-bar-track">
-                    <div class="mod-bar-fill {{ $module->is_quiz ? 'quiz' : '' }} module-progress-bar"
+                    <div class="mod-bar-fill {{ $isPostTest ? 'post-test' : ($module->is_formal_assessment ? 'quiz' : (($isPreTest || $module->is_quiz) ? 'pre-test' : '')) }} module-progress-bar"
                          data-module-id="{{ $module->id }}"
                          style="width:{{ $progress[$module->id] ?? 0 }}%">
                     </div>
                 </div>
+                @if($module->is_lecture && $module->subparts->isNotEmpty())
+                    <div class="mod-tree-list" data-outline-module="{{ $module->id }}">
+                        <div class="mod-tree-content">
+                            @foreach($module->subparts as $subpart)
+                                <button type="button" class="mod-tree-node domain" data-module-id="{{ $module->id }}" data-subpart-id="{{ $subpart->id }}" data-subpart-index="{{ $loop->index }}" onclick="selectOutlineSubpart(event, {{ $module->id }}, {{ $loop->index }}, this)">
+                                    <i class="fas fa-folder"></i>
+                                    <span class="mod-tree-node-text">{{ $subpart->title }}</span>
+                                    <span class="mod-tree-progress" data-subpart-progress-label="{{ $subpart->id }}">{{ (int) $subpart->student_progress }}%</span>
+                                </button>
+                                <div class="mod-tree-progress-track"><div class="mod-tree-progress-fill" data-subpart-progress-bar="{{ $subpart->id }}" style="width:{{ $subpart->student_progress }}%"></div></div>
+                                @if($subpart->lessons->isNotEmpty())
+                                    <div class="mod-tree-lessons">
+                                        @foreach($subpart->lessons as $lesson)
+                                            <button type="button" class="mod-tree-node lesson" data-lesson-id="{{ $lesson->id }}" onclick="selectOutlineLesson(event, {{ $module->id }}, {{ $subpart->id }}, {{ $loop->index }}, this)">
+                                                <i class="fas fa-file-alt"></i>
+                                                <span class="mod-tree-node-text">{{ $lesson->title }}</span>
+                                                <span class="mod-tree-progress" data-lesson-progress-label="{{ $lesson->id }}">{{ (int) $lesson->student_progress }}%</span>
+                                            </button>
+                                            <div class="mod-tree-progress-track lesson-progress-track"><div class="mod-tree-progress-fill" data-lesson-progress-bar="{{ $lesson->id }}" style="width:{{ $lesson->student_progress }}%"></div></div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </div>
         @empty
             <div style="padding:2rem;text-align:center;color:rgba(255,255,255,0.2);font-size: 15px;font-family:'DM Sans',sans-serif;">
@@ -495,6 +630,11 @@
 <script>
     let modules              = @json($modules->toArray() ?? []);
     let lockedModules        = @json($locked ?? []);
+    // Keyed "{moduleId}" for standalone quizzes / mock board phases (unchanged
+    // shape, exactly as before quiz_stage existed), and "{moduleId}:pre_test"
+    // / "{moduleId}:post_test" for lecture module stages. See
+    // quizAttemptKey() below. The controller must supply both key shapes —
+    // see STUDENTMODULES_CONTROLLER_NOTE at the bottom of this file's PR.
     let quizAttempts         = @json($quizAttempts ?? []);
     let currentModuleId      = null;
     let quizTimerInterval    = null;
@@ -511,6 +651,73 @@
     let moduleProgressMap    = @json($progress ?? []);
     let quizToastTimer       = null;
     let attemptLimits        = @json($attemptLimits ?? []);
+
+    // ── Generic quiz-taking state — shared by standalone quizzes AND
+    // lecture pre-test/post-test stages, so there is exactly one
+    // implementation of the quiz-taking UI instead of two diverging copies.
+    let quizRenderTarget = '#modContent'; // which container the quiz UI renders into
+    let currentQuizStage = null;          // null = standalone quiz, else 'pre_test' | 'post_test'
+    let quizBackHandler  = null;          // function called when "Back" is pressed mid-result
+
+    // ── Lecture (pre-test / content / post-test) state ──
+    let currentLectureStage  = 'content'; // 'pre_test' | 'content' | 'post_test'
+    let currentSubpartIndex  = 0;
+    let currentLessonIndex   = 0;
+    let subpartProgressSaveTimer = null;
+
+    function quizAttemptKey(moduleId, stage) {
+        return stage ? `${moduleId}:${stage}` : `${moduleId}`;
+    }
+
+    function getAttemptRuleText(moduleId) {
+        const limit = attemptLimits && attemptLimits[moduleId];
+        if (!limit) {
+            return 'Multiple attempts allowed for practice.';
+        }
+        const allowed = limit.attempts_allowed || limit.base_max_attempts || 1;
+        const used = limit.attempts_used || 0;
+        const remaining = Math.max(0, allowed - used);
+        if (allowed === 1) {
+            return 'You only have 1 attempt for this assessment.';
+        }
+        return `You have ${remaining} of ${allowed} attempt(s) remaining.`;
+    }
+
+    function toggleModuleOutline(event, moduleId) {
+        event.stopPropagation();
+        const moduleItem = document.querySelector(`.mod-item[data-module-id="${moduleId}"]`);
+        moduleItem?.classList.toggle('expanded');
+    }
+
+    function selectOutlineSubpart(event, moduleId, index, node) {
+        event.stopPropagation();
+        const mod = modules.find(module => module.id == moduleId);
+        if (!mod) return;
+
+        document.querySelectorAll('.mod-tree-node.domain').forEach(item => item.classList.remove('active'));
+        node.classList.add('active');
+        node.classList.toggle('expanded');
+        loadModule(moduleId, false);
+        currentLectureStage = 'content';
+        renderLectureShell(mod);
+        loadSubpart(moduleId, index);
+    }
+
+    function selectOutlineLesson(event, moduleId, subpartId, index, node) {
+        event.stopPropagation();
+        const mod = modules.find(module => module.id == moduleId);
+        const subpart = (mod?.subparts || []).find(item => item.id == subpartId);
+        const lesson = (subpart?.lessons || [])[index];
+        if (!mod || !subpart || !lesson) return;
+
+        document.querySelectorAll('.mod-tree-node.lesson').forEach(item => item.classList.remove('active'));
+        node.classList.add('active');
+        loadModule(moduleId, false);
+        currentLectureStage = 'content';
+        renderLectureShell(mod);
+        renderLectureContentStage(mod);
+        renderLessonViewer(mod, subpart, lesson);
+    }
 
     function showQuizWarningToast(message, type) {
         type = type || 'warn';
@@ -600,15 +807,47 @@
         if (next >= 0 && next < items.length) $(items[next]).trigger('click');
     }
 
+    /**
+     * A module is "lecture-style" when it isn't a standalone quiz AND it has
+     * sub-parts and/or a pre-test/post-test configured. Plain document
+     * modules (old-style, just a file_path, no subparts/pre/post-test) and
+     * standalone quiz modules (is_quiz = true) keep their original,
+     * untouched code paths below — only lecture-style modules get the new
+     * pre-test → content → post-test tab flow.
+     */
+    function isLectureModule(mod, isQuiz) {
+        return !isQuiz && Boolean(mod.is_lecture);
+    }
+
     function loadModule(moduleId, isQuiz) {
         stopProgressTracking();
+        stopSubpartProgressTracking();
 
         currentModuleId = moduleId;
         const mod = modules.find(m => m.id == moduleId);
         if (!mod) return;
 
+        if (isLectureModule(mod, isQuiz)) {
+            loadLectureModule(mod);
+            return;
+        }
+
         if (isQuiz) {
-            const existingAttempt = quizAttempts[moduleId];
+            quizRenderTarget = '#modContent';
+            currentQuizStage = mod.quiz_stage || null;
+            quizBackHandler = backToModuleList;
+
+            const isPre = (mod.quiz_stage === 'pre_test')
+                || (mod.assessment_purpose === 'pre_test' || mod.assessment_purpose === 'pre_assessment')
+                || /pre[- ]?(test|assessment)/i.test(mod.title || '');
+            const isPost = (mod.quiz_stage === 'post_test')
+                || (mod.assessment_purpose === 'post_test' || mod.assessment_purpose === 'post_assessment')
+                || /post[- ]?(test|assessment)|final assessment/i.test(mod.title || '');
+
+            const existingAttempt = quizAttempts[quizAttemptKey(moduleId, currentQuizStage)]
+                || quizAttempts[moduleId]
+                || quizAttempts[quizAttemptKey(moduleId, 'pre_test')]
+                || quizAttempts[quizAttemptKey(moduleId, 'post_test')];
 
             if (existingAttempt) {
                 // Already completed - show locked result directly, no retake.
@@ -621,13 +860,23 @@
                     null
                 );
                 // Always re-check AI availability per class to avoid stale cached insights when feature is disabled.
-                getAI(moduleId);
+                getAI(moduleId, existingAttempt.attempt_id);
             } else {
+                let subText = 'Complete this pre-test to evaluate your knowledge and understanding.';
+                let btnText = 'Start Pre-Test';
+                if (isPost) {
+                    subText = 'Complete this post-test to evaluate your comprehensive mastery of the course material.';
+                    btnText = 'Start Post-Test';
+                } else if (mod.is_formal_assessment) {
+                    subText = 'Complete this formal assessment to record your grade.';
+                    btnText = 'Start Formal Assessment';
+                }
+
                 $('#modContent').html(`
                     <div class="qi-wrap">
                         <div class="qi-icon"><i class="fas fa-clipboard-list"></i></div>
                         <h2 class="qi-title">${mod.title}</h2>
-                        <p class="qi-sub">Complete this quiz to test your understanding.</p>
+                        <p class="qi-sub">${subText}</p>
                         <div class="qi-rules">
                             <p class="qi-rules-title">Instructions</p>
                             <div class="qi-rule"><div class="qi-rule-dot"></div><span>A score of 70% or higher is required to pass.</span></div>
@@ -636,7 +885,7 @@
                             <div class="qi-rule"><div class="qi-rule-dot"></div><span>Answer all questions before submitting.</span></div>
                         </div>
                         <button class="qi-start-btn" onclick="startQuiz(${moduleId})">
-                            <i class="fas fa-play"></i> Start Quiz
+                            <i class="fas fa-play"></i> ${btnText}
                         </button>
                             <button class="qz-btn qz-btn-outline" style="margin-left:8px;" onclick="backToModuleList()">
                                 <i class="fas fa-arrow-left"></i> Back
@@ -666,6 +915,483 @@
             startProgressTracking(moduleId);
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Lecture flow: pre-test → content (sub-parts) → post-test
+    // ═══════════════════════════════════════════════════════════════
+
+    function loadLectureModule(mod) {
+        // Default landing tab only — navigation between tabs afterward is
+        // completely free, no gating. Land on the pre-test if it exists and
+        // hasn't been attempted yet, otherwise land on content, otherwise
+        // the post-test.
+        const preAttempt = quizAttempts[quizAttemptKey(mod.id, 'pre_test')];
+
+        if (mod.has_pre_test && !preAttempt) {
+            currentLectureStage = 'pre_test';
+        } else if (mod.subparts && mod.subparts.length > 0) {
+            currentLectureStage = 'content';
+        } else if (mod.has_post_test) {
+            currentLectureStage = 'post_test';
+        } else {
+            currentLectureStage = 'content';
+        }
+
+        currentSubpartIndex = 0;
+        renderLectureShell(mod);
+    }
+
+    function renderLectureShell(mod) {
+        const tabs = [];
+        if (mod.has_pre_test) tabs.push({ key: 'pre_test', label: 'Pre-Test' });
+        if (mod.has_post_test) tabs.push({ key: 'post_test', label: 'Post-Test' });
+
+        const tabsHtml = tabs.map(t => {
+            const attempt = t.key !== 'content' ? quizAttempts[quizAttemptKey(mod.id, t.key)] : null;
+            const check = attempt ? '<i class="fas fa-check-circle lec-tab-check"></i>' : '';
+            return `
+                <button class="lec-tab ${currentLectureStage === t.key ? 'active' : ''}" onclick="switchLectureStage(${mod.id}, '${t.key}')">
+                    ${t.label} ${check}
+                </button>
+            `;
+        }).join('');
+
+        $('#modContent').html(`
+            <div class="lec-header">
+                <h2 class="mod-doc-heading" style="margin-bottom:14px;">${mod.title}</h2>
+                <div class="lec-tabs">${tabsHtml}</div>
+            </div>
+            <div id="lecStageArea"></div>
+        `);
+
+        renderLectureStage(mod);
+    }
+
+    function switchLectureStage(moduleId, stage) {
+        const mod = modules.find(m => m.id == moduleId);
+        if (!mod) return;
+
+        stopProgressTracking();
+        stopSubpartProgressTracking();
+        currentLectureStage = stage;
+        renderLectureShell(mod);
+    }
+
+    function renderLectureStage(mod) {
+        if (currentLectureStage === 'pre_test' || currentLectureStage === 'post_test') {
+            renderLectureQuizStage(mod, currentLectureStage);
+        } else {
+            renderLectureContentStage(mod);
+        }
+    }
+
+    function renderLectureQuizStage(mod, stage) {
+        quizRenderTarget = '#lecStageArea';
+        currentQuizStage = stage;
+        quizBackHandler = function () { renderLectureShell(mod); };
+
+        const key = quizAttemptKey(mod.id, stage);
+        const existingAttempt = quizAttempts[key];
+        const label = stage === 'pre_test' ? 'Pre-Test' : 'Post-Test';
+
+        if (existingAttempt) {
+            showResult(
+                existingAttempt.percentage,
+                existingAttempt.score,
+                existingAttempt.total,
+                true,
+                existingAttempt.attempt_count,
+                null
+            );
+            getAI(mod.id, existingAttempt.attempt_id);
+            return;
+        }
+
+        $('#lecStageArea').html(`
+            <div class="qi-wrap">
+                <div class="qi-icon"><i class="fas fa-clipboard-list"></i></div>
+                <h2 class="qi-title">${label}</h2>
+                <p class="qi-sub">Complete this ${label.toLowerCase()} to continue.</p>
+                <div class="qi-rules">
+                    <p class="qi-rules-title">Instructions</p>
+                    <div class="qi-rule"><div class="qi-rule-dot"></div><span>A score of 70% or higher is required to pass.</span></div>
+                    <div class="qi-rule"><div class="qi-rule-dot"></div><span>${getAttemptRuleText(mod.id)}</span></div>
+                    <div class="qi-rule"><div class="qi-rule-dot"></div><span>Do not switch tabs.</span></div>
+                    <div class="qi-rule"><div class="qi-rule-dot"></div><span>Answer all questions before submitting.</span></div>
+                </div>
+                <button class="qi-start-btn" onclick="startLectureQuiz(${mod.id}, '${stage}')">
+                    <i class="fas fa-play"></i> Start ${label}
+                </button>
+            </div>
+        `);
+    }
+
+    function startLectureQuiz(moduleId, stage) {
+        quizRenderTarget = '#lecStageArea';
+        currentQuizStage = stage;
+        const mod = modules.find(m => m.id == moduleId);
+        quizBackHandler = function () { renderLectureShell(mod); };
+        beginQuizFlow(moduleId);
+    }
+
+    function renderLectureContentStage(mod) {
+        const subparts = mod.subparts || [];
+
+        if (subparts.length === 0) {
+            $('#lecStageArea').html(`
+                <div class="sp-empty">
+                    <i class="fas fa-inbox" style="font-size:28px;opacity:.3;"></i>
+                    <p>No content added yet.</p>
+                </div>
+            `);
+            return;
+        }
+
+        const listHtml = subparts.map((sp, idx) => `
+            <div class="sp-item ${idx === currentSubpartIndex ? 'active' : ''} ${sp.student_completed ? 'completed' : ''}"
+                 data-subpart-index="${idx}" onclick="loadSubpart(${mod.id}, ${idx})">
+                <div class="sp-item-title">
+                    ${idx + 1}. ${sp.title}
+                    ${sp.student_completed ? '<i class="fas fa-check-circle" style="font-size:11px;"></i>' : ''}
+                </div>
+                <div class="sp-item-bar-track"><div class="sp-item-bar-fill" style="width:${sp.student_progress || 0}%"></div></div>
+            </div>
+        `).join('');
+
+        $('#lecStageArea').html(`
+            <div class="sp-viewer" id="spViewer"></div>
+        `);
+
+        if (currentSubpartIndex >= subparts.length) {
+            currentSubpartIndex = 0;
+        }
+
+        renderSubpartViewer(mod, currentSubpartIndex);
+    }
+
+    function loadSubpart(moduleId, index) {
+        stopSubpartProgressTracking();
+        currentSubpartIndex = index;
+        currentLessonIndex = 0;
+
+        const mod = modules.find(m => m.id == moduleId);
+        $('.sp-item').removeClass('active');
+        $(`.sp-item[data-subpart-index="${index}"]`).addClass('active');
+
+        renderSubpartViewer(mod, index);
+    }
+
+    function renderSubpartViewer(mod, index) {
+        const sp = (mod.subparts || [])[index];
+        if (!sp) return;
+
+        if (sp.lessons && sp.lessons.length > 0) {
+            renderLessonList(mod, sp);
+            return;
+        }
+
+        const isVideo = sp.file_type === 'mov';
+        const isDocx = sp.file_type === 'docx';
+
+        $('#spViewer').html(`
+            <h3 class="mod-doc-heading" style="font-size:22px;">${sp.title}</h3>
+            ${sp.description ? `<p class="mod-doc-desc">${sp.description}</p>` : ''}
+            ${sp.body ? `<div class="sp-body">${sp.body}</div>` : ''}
+            ${sp.file_path ? `
+                <div class="mod-pdf-wrap">
+                    ${isVideo
+                        ? `<video controls style="width:100%;height:100%;background:#000;">
+                             <source src="/subparts/${sp.id}/view" type="video/quicktime">
+                             Your browser does not support the video tag.
+                           </video>`
+                        : `<iframe src="/subparts/${sp.id}/${isDocx ? 'docxjs' : 'pdfjs'}" width="100%" height="100%" allowfullscreen></iframe>`
+                    }
+                </div>
+            ` : (!sp.body ? '<p style="color:#64748b;">No content attached.</p>' : '')}
+        `);
+
+        startSubpartProgressTracking(sp);
+    }
+
+    function renderLessonList(mod, sp) {
+        const lessons = sp.lessons || [];
+        const listHtml = lessons.map((lesson, index) => `
+            <button class="sp-item lesson-item ${lesson.student_completed ? 'completed' : ''}"
+                    type="button" onclick="loadLesson(${mod.id}, ${sp.id}, ${index})">
+                <div class="sp-item-title">
+                    ${index + 1}. ${lesson.title}
+                    ${lesson.student_completed ? '<i class="fas fa-check-circle" style="font-size:11px;"></i>' : ''}
+                </div>
+                <div class="sp-item-bar-track"><div class="sp-item-bar-fill" style="width:${lesson.student_progress || 0}%"></div></div>
+            </button>
+        `).join('');
+
+        $('#spViewer').html(`
+            <h3 class="mod-doc-heading" style="font-size:22px;">${sp.title}</h3>
+            ${sp.description ? `<p class="mod-doc-desc">${sp.description}</p>` : ''}
+            <div class="sp-list lesson-list">${listHtml}</div>
+        `);
+    }
+
+    function loadLesson(moduleId, subpartId, index) {
+        stopSubpartProgressTracking();
+        const mod = modules.find(m => m.id == moduleId);
+        const sp = (mod?.subparts || []).find(item => item.id == subpartId);
+        const lesson = (sp?.lessons || [])[index];
+        if (!sp || !lesson) return;
+
+        currentLessonIndex = index;
+        renderLessonViewer(mod, sp, lesson);
+    }
+
+    function renderLessonViewer(mod, sp, lesson) {
+        const isVideo = lesson.file_type === 'mov';
+        const isDocx = lesson.file_type === 'docx';
+        $('#spViewer').html(`
+            <button class="mod-nav-btn" type="button" onclick="renderLessonList(modules.find(m => m.id == ${mod.id}), modules.find(m => m.id == ${mod.id}).subparts.find(s => s.id == ${sp.id}))">
+                <i class="fas fa-arrow-left"></i> Back to ${sp.title}
+            </button>
+            <h3 class="mod-doc-heading" style="font-size:22px;margin-top:18px;">${lesson.title}</h3>
+            ${lesson.description ? `<p class="mod-doc-desc">${lesson.description}</p>` : ''}
+            ${lesson.body ? `<div class="sp-body">${lesson.body}</div>` : ''}
+            ${lesson.file_path ? `
+                <div class="mod-pdf-wrap">
+                    ${isVideo
+                        ? `<video controls style="width:100%;height:100%;background:#000;">
+                             <source src="/storage/${lesson.file_path}" type="video/quicktime">
+                             Your browser does not support the video tag.
+                           </video>`
+                        : `<iframe src="${isDocx ? `/lessons/${lesson.id}/docxjs` : `/storage/${lesson.file_path}`}" width="100%" height="100%" allowfullscreen></iframe>`
+                    }
+                </div>
+            ` : (!lesson.body ? '<p style="color:#64748b;">No content attached.</p>' : '')}
+        `);
+
+        startLessonProgressTracking(lesson, sp);
+    }
+
+    function startLessonProgressTracking(lesson, sp) {
+        const $viewer = $('#spViewer');
+        if (!$viewer.length) return;
+
+        const current = Number(lesson.student_progress || 0);
+        if (current < 10) {
+            persistLessonProgress(lesson, sp, 10, false);
+        }
+
+        const videoElement = $viewer.find('video').get(0);
+        if (videoElement) {
+            $(videoElement).on('loadedmetadata.lessonProgress timeupdate.lessonProgress ended.lessonProgress', function (event) {
+                if (event.type === 'ended') {
+                    persistLessonProgress(lesson, sp, 100, true);
+                    return;
+                }
+
+                if (videoElement.duration && Number.isFinite(videoElement.duration)) {
+                    persistLessonProgress(lesson, sp, Math.round((videoElement.currentTime / videoElement.duration) * 100), false);
+                }
+            });
+            return;
+        }
+
+        $viewer.on('scroll.lessonProgress', function () {
+            const maxScrollable = Math.max(1, this.scrollHeight - this.clientHeight);
+            const progress = Math.round(Math.max(0, Math.min(1, this.scrollTop / maxScrollable)) * 100);
+            persistLessonProgress(lesson, sp, progress, progress >= 100);
+        });
+    }
+
+    function persistLessonProgress(lesson, sp, progressValue, completed) {
+        const current = Number(lesson.student_progress || 0);
+        const normalized = Math.max(current, Math.min(100, Math.round(progressValue)));
+        if (normalized <= current && !(completed && !lesson.student_completed)) return;
+
+        lesson.student_progress = normalized;
+        if (completed) lesson.student_completed = true;
+        updateLessonUI(lesson);
+        syncClientSubpartProgress(sp);
+
+        $.post(`/lessons/${lesson.id}/progress`, {
+            _token: '{{ csrf_token() }}',
+            progress: normalized,
+            completed: completed ? 1 : 0
+        }).fail(function () {
+            lesson.student_progress = current;
+            updateLessonUI(lesson);
+            syncClientSubpartProgress(sp);
+            updateSubpartUI(sp);
+        });
+
+        updateSubpartUI(sp);
+    }
+
+    function startSubpartProgressTracking(sp) {
+        const $viewer = $('#spViewer');
+        if (!$viewer.length) return;
+
+        if (Number(sp.student_progress || 0) < 10) {
+            persistSubpartProgress(sp, 10, false);
+        }
+
+        const videoElement = $viewer.find('video').get(0);
+        if (videoElement) {
+            const syncVideoProgress = function () {
+                if (!videoElement.duration || !Number.isFinite(videoElement.duration)) {
+                    return;
+                }
+
+                const computedProgress = Math.round((videoElement.currentTime / videoElement.duration) * 100);
+                queueSubpartProgressSave(sp, computedProgress);
+            };
+
+            $(videoElement)
+                .off('.spVideoProgress')
+                .on('loadedmetadata.spVideoProgress timeupdate.spVideoProgress seeked.spVideoProgress ended.spVideoProgress', function (event) {
+                    if (event.type === 'ended') {
+                        queueSubpartProgressSave(sp, 100);
+                        return;
+                    }
+
+                    syncVideoProgress();
+                });
+
+            syncVideoProgress();
+            return;
+        }
+
+        $viewer.off('scroll.spProgress').on('scroll.spProgress', function () {
+            const el = this;
+            const maxScrollable = Math.max(1, el.scrollHeight - el.clientHeight);
+            const ratio = Math.max(0, Math.min(1, el.scrollTop / maxScrollable));
+            queueSubpartProgressSave(sp, Math.round(ratio * 100));
+        });
+    }
+
+    // Receive scroll-progress messages from a subpart's pdfjs-viewer iframe
+    window.addEventListener('message', function (event) {
+        if (event.origin !== window.location.origin) return;
+        if (!event.data || event.data.type !== 'pdf-scroll-progress') return;
+
+        const mod = modules.find(m => m.id == currentModuleId);
+        const sp = (mod?.subparts || []).find(s => s.id == event.data.moduleId);
+        if (sp) {
+            queueSubpartProgressSave(sp, event.data.progress);
+        }
+    });
+
+    function stopSubpartProgressTracking() {
+        $('#spViewer').off('scroll.spProgress');
+        $('#spViewer').find('video').off('.spVideoProgress');
+
+        if (subpartProgressSaveTimer) {
+            clearTimeout(subpartProgressSaveTimer);
+            subpartProgressSaveTimer = null;
+        }
+    }
+
+    function queueSubpartProgressSave(sp, candidateProgress) {
+        if (subpartProgressSaveTimer) {
+            clearTimeout(subpartProgressSaveTimer);
+        }
+
+        subpartProgressSaveTimer = setTimeout(function () {
+            const current = Number(sp.student_progress || 0);
+            const next = Math.max(current, Math.min(100, candidateProgress));
+
+            if (next > current) {
+                persistSubpartProgress(sp, next, next >= 100);
+            }
+        }, 350);
+    }
+
+    function persistSubpartProgress(sp, progressValue, completed) {
+        const current = Number(sp.student_progress || 0);
+        const normalized = Math.max(current, Math.min(100, Math.round(progressValue)));
+
+        if (normalized <= current) {
+            return;
+        }
+
+        sp.student_progress = normalized;
+        if (completed) {
+            sp.student_completed = true;
+        }
+        updateSubpartUI(sp);
+
+        $.post(`/subparts/${sp.id}/progress`, {
+            _token: '{{ csrf_token() }}',
+            progress: normalized,
+            completed: completed ? 1 : 0
+        }).fail(function () {
+            sp.student_progress = current;
+            updateSubpartUI(sp);
+        });
+    }
+
+    function updateSubpartUI(sp) {
+        const mod = modules.find(m => m.id == currentModuleId);
+        if (!mod || !mod.subparts) return;
+
+        const idx = mod.subparts.findIndex(s => s.id === sp.id);
+        if (idx === -1) return;
+
+        const bar = document.querySelector(`[data-subpart-progress-bar="${sp.id}"]`);
+        if (bar) {
+            bar.style.width = `${sp.student_progress}%`;
+        }
+        const label = document.querySelector(`[data-subpart-progress-label="${sp.id}"]`);
+        if (label) {
+            label.textContent = `${Math.round(Number(sp.student_progress || 0))}%`;
+        }
+        if (sp.student_completed) {
+            $(`.sp-item[data-subpart-index="${idx}"]`).addClass('completed');
+        }
+
+        // Mirror ModuleSubpartController::syncModuleProgress() client-side —
+        // this module's whole-module progress (sidebar bar/badge) is the
+        // average of its subparts' progress, recomputed immediately instead
+        // of waiting for a reload.
+        const avg = Math.round(
+            mod.subparts.reduce((sum, s) => sum + Number(s.student_progress || 0), 0) / mod.subparts.length
+        );
+        moduleProgressMap[currentModuleId] = avg;
+        updateProgressUI(currentModuleId, avg);
+    }
+
+    function updateLessonUI(lesson) {
+        const progress = Math.round(Number(lesson.student_progress || 0));
+        const bar = document.querySelector(`[data-lesson-progress-bar="${lesson.id}"]`);
+        if (bar) {
+            bar.style.width = `${progress}%`;
+        }
+
+        const label = document.querySelector(`[data-lesson-progress-label="${lesson.id}"]`);
+        if (label) {
+            label.textContent = `${progress}%`;
+        }
+
+        if (lesson.student_completed) {
+            $(`.mod-tree-node.lesson[data-lesson-id="${lesson.id}"]`).addClass('completed');
+        }
+    }
+
+    function syncClientSubpartProgress(sp) {
+        const lessons = sp.lessons || [];
+        if (lessons.length === 0) return;
+
+        sp.student_progress = Math.round(
+            lessons.reduce((sum, lesson) => sum + Number(lesson.student_progress || 0), 0) / lessons.length
+        );
+        sp.student_completed = lessons.every(lesson => lesson.student_completed);
+        updateSubpartUI(sp);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Generic quiz-taking core — used by BOTH standalone quiz modules
+    // (currentQuizStage = null) and lecture pre-test/post-test stages
+    // (currentQuizStage = 'pre_test' | 'post_test'). Renders into
+    // quizRenderTarget, "Back" goes through quizBackHandler().
+    // ═══════════════════════════════════════════════════════════════
 
     function startProgressTracking(moduleId) {
         const $content = $('#modContent');
@@ -796,13 +1522,26 @@
     }
 
     function startQuiz(moduleId) {
+        quizRenderTarget = '#modContent';
+        const mod = modules.find(module => module.id == moduleId);
+        currentQuizStage = mod?.quiz_stage || null;
+        quizBackHandler = backToModuleList;
+        beginQuizFlow(moduleId);
+    }
+
+    function beginQuizFlow(moduleId) {
         const mod = modules.find(m => m.id == moduleId);
         isFormalAssessment = mod?.is_formal_assessment ?? false;
+
+        const startPayload = { _token: '{{ csrf_token() }}' };
+        if (currentQuizStage) {
+            startPayload.quiz_stage = currentQuizStage;
+        }
 
         // Kailangan munang i-check/i-record ang pagsisimula ng attempt bago
         // magpakita ng tanong — dito i-e-enforce ang max_attempts + grants
         // para sa formal assessments (Pre-Test, Post-Test, Mock Board).
-        $.post(`/modules/${moduleId}/quiz/start`, { _token: '{{ csrf_token() }}' })
+        $.post(`/modules/${moduleId}/quiz/start`, startPayload)
             .done(function (startRes) {
                 renderQuizShell(moduleId, mod);
 
@@ -810,7 +1549,9 @@
                     startAntiCheat();
                 }
 
-                $.get(`/modules/${moduleId}/quiz/questions`, function (res) {
+                const questionParams = currentQuizStage ? { quiz_stage: currentQuizStage } : {};
+
+                $.get(`/modules/${moduleId}/quiz/questions`, questionParams, function (res) {
                     if (res.success) {
                         currentQuizQuestions = res.questions;
                         currentQIndex        = 0;
@@ -824,11 +1565,11 @@
             })
             .fail(function (xhr) {
                 const message = xhr?.responseJSON?.message || 'Hindi ka makapagsimula ng bagong attempt ngayon.';
-                $('#modContent').html(`
+                $(quizRenderTarget).html(`
                     <div class="mod-placeholder">
                         <i class="fas fa-lock" style="font-size:2rem;color:#e24b4a;"></i>
                         <p style="margin-top:12px;color:#444;max-width:420px;">${message}</p>
-                        <button class="qz-btn qz-btn-outline" style="margin-top:12px;" onclick="backToModuleList()">
+                        <button class="qz-btn qz-btn-outline" style="margin-top:12px;" onclick="quizBackHandler()">
                             <i class="fas fa-arrow-left"></i> Back
                         </button>
                     </div>
@@ -837,7 +1578,7 @@
     }
 
     function renderQuizShell(moduleId, mod) {
-        $('#modContent').html(`
+        $(quizRenderTarget).html(`
             <div class="qz-wrap">
                 <div class="qz-header">
                     <p class="qz-title">${mod?.title ?? 'Quiz'}</p>
@@ -940,6 +1681,7 @@
         }
 
         const pct = forcedFail ? 0 : Math.round((score / total) * 100);
+        const attemptKey = quizAttemptKey(currentModuleId, currentQuizStage);
 
         let savedAttemptCount = 1;
         let savedAttemptId = null;
@@ -955,8 +1697,8 @@
             })
             .then(() => new Promise(resolve => setTimeout(resolve, 300)))
             .then(() => {
-                // Record the completed attempt client-side so re-opening the module shows locked result.
-                quizAttempts[currentModuleId] = {
+                // Record the completed attempt client-side so re-opening the module/stage shows locked result.
+                quizAttempts[attemptKey] = {
                     score: score,
                     total: total,
                     percentage: pct,
@@ -984,7 +1726,7 @@
             : `<p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights</p>
                <p style="font-size: 14px;color:#aaa;margin:0;">Analyzing your performance...</p>`;
 
-        $('#modContent').html(`
+        $(quizRenderTarget).html(`
             <div class="qz-result">
                 <h2>Quiz Complete</h2>
                 <p style="font-size: 14px;color:#999;margin:-8px 0 16px;">Attempt ${attemptCount}</p>
@@ -1006,7 +1748,7 @@
                     ${aiHtml}
                 </div>
                 <div class="qz-result-btns">
-                    <button class="qz-btn qz-btn-outline" onclick="backToModuleList()"><i class="fas fa-arrow-left"></i> Back</button>
+                    <button class="qz-btn qz-btn-outline" onclick="quizBackHandler()"><i class="fas fa-arrow-left"></i> Back</button>
                     ${!isFormalAssessment ? `
                     <button class="qz-btn qz-btn-dark" onclick="resetMyAttempt(${currentModuleId})"><i class="fas fa-undo"></i> Reset</button>
                     ` : ''}
@@ -1018,6 +1760,7 @@
     function backToModuleList() {
         stopAntiCheat();
         stopProgressTracking();
+        stopSubpartProgressTracking();
 
         $('.mod-item').removeClass('active');
         $('#modContent').html(`
@@ -1055,9 +1798,13 @@
             $('#aiBox').html(`<p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights</p><p style="font-size: 14px;color:#aaa;margin:0;">${message}</p>`);
         }
 
+        const attemptKey = quizAttemptKey(moduleId, currentQuizStage);
         const payload = { _token: '{{ csrf_token() }}' };
         if (attemptId) {
             payload.attempt_id = attemptId;
+        }
+        if (currentQuizStage) {
+            payload.quiz_stage = currentQuizStage;
         }
 
         $.post(`/modules/${moduleId}/quiz/insights`, payload)
@@ -1070,42 +1817,54 @@
                         <div class="qz-ai-sec"><p class="qz-ai-label">Recommendation</p><p class="qz-ai-value">${res.recommendation || 'Review the module again'}</p></div>
                     `);
                     // Cache insights client-side so re-navigating to the result doesn't refetch.
-                    if (quizAttempts[moduleId]) {
-                        quizAttempts[moduleId].ai_strong = res.strong;
-                        quizAttempts[moduleId].ai_weak = res.weak;
-                        quizAttempts[moduleId].ai_recommendation = res.recommendation;
+                    if (quizAttempts[attemptKey]) {
+                        quizAttempts[attemptKey].ai_strong = res.strong;
+                        quizAttempts[attemptKey].ai_weak = res.weak;
+                        quizAttempts[attemptKey].ai_recommendation = res.recommendation;
                     }
                 } else {
-                    if (quizAttempts[moduleId]) {
-                        quizAttempts[moduleId].ai_strong = null;
-                        quizAttempts[moduleId].ai_weak = null;
-                        quizAttempts[moduleId].ai_recommendation = null;
+                    if (quizAttempts[attemptKey]) {
+                        quizAttempts[attemptKey].ai_strong = null;
+                        quizAttempts[attemptKey].ai_weak = null;
+                        quizAttempts[attemptKey].ai_recommendation = null;
                     }
                     renderAiMessage(res.message || 'No insights available.');
                 }
             })
             .fail(function (xhr) {
                 const apiMessage = xhr?.responseJSON?.message;
-                if (quizAttempts[moduleId] && (xhr?.status === 403 || apiMessage)) {
-                    quizAttempts[moduleId].ai_strong = null;
-                    quizAttempts[moduleId].ai_weak = null;
-                    quizAttempts[moduleId].ai_recommendation = null;
+                if (quizAttempts[attemptKey] && (xhr?.status === 403 || apiMessage)) {
+                    quizAttempts[attemptKey].ai_strong = null;
+                    quizAttempts[attemptKey].ai_weak = null;
+                    quizAttempts[attemptKey].ai_recommendation = null;
                 }
                 renderAiMessage(apiMessage || 'Failed to load.');
             });
     }
 
     function saveScore(moduleId, score, total, pct) {
-        return $.post(`/modules/${moduleId}/quiz/submit`, { _token: '{{ csrf_token() }}', score, total, percentage: pct });
+        const payload = { _token: '{{ csrf_token() }}', score, total, percentage: pct };
+        if (currentQuizStage) {
+            payload.quiz_stage = currentQuizStage;
+        }
+        return $.post(`/modules/${moduleId}/quiz/submit`, payload);
     }
 
     function saveAnswers(moduleId, forcedFail) {
         if (forcedFail) return $.Deferred().resolve().promise();
         const requests = currentQuizQuestions
             .filter(q => selectedAnswers[q.id])
-            .map(q => $.post(`/quiz/${moduleId}/answer`, {
-                _token: '{{ csrf_token() }}', question_id: q.id, selected_option: selectedAnswers[q.id]
-            }));
+            .map(q => {
+                const payload = {
+                    _token: '{{ csrf_token() }}',
+                    question_id: q.id,
+                    selected_option: selectedAnswers[q.id],
+                };
+                if (currentQuizStage) {
+                    payload.quiz_stage = currentQuizStage;
+                }
+                return $.post(`/quiz/${moduleId}/answer`, payload);
+            });
         return requests.length ? $.when.apply($, requests) : $.Deferred().resolve().promise();
     }
 
@@ -1154,13 +1913,23 @@ function handleTab() {
 }
 
     function performReset(moduleId) {
+        const payload = { _token: '{{ csrf_token() }}' };
+        if (currentQuizStage) {
+            payload.quiz_stage = currentQuizStage;
+        }
+
         $.ajax({
             url: `/modules/${moduleId}/quiz/my-attempt`,
             type: 'DELETE',
-            data: { _token: '{{ csrf_token() }}' },
+            data: payload,
             success: function () {
-                delete quizAttempts[moduleId];
-                loadModule(moduleId, true);
+                delete quizAttempts[quizAttemptKey(moduleId, currentQuizStage)];
+
+                if (currentQuizStage) {
+                    startLectureQuiz(moduleId, currentQuizStage);
+                } else {
+                    loadModule(moduleId, true);
+                }
             },
             error: function (xhr) {
                 const message = xhr?.responseJSON?.message || 'Could not reset your attempt. Please try again.';

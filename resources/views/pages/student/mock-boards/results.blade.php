@@ -4,7 +4,10 @@
         'accountancy' => 'layouts.appAcc',
         'educ' => 'layouts.appEduc',
     ];
-    $layout = $programLayoutMap[auth()->user()->program] ?? 'layouts.appAcc';
+    $layout = $programLayoutMap[auth()->user()->program ?? ''] ?? 'layouts.appAcc';
+
+    $preTestPhaseItem = collect($phasesDetail)->firstWhere('phase_type', 'pre_test');
+    $preTestAttemptItem = $preTestPhaseItem['attempt'] ?? null;
 @endphp
 @extends($layout)
 
@@ -28,134 +31,34 @@
         </div>
     </div>
 
-    <div class="score-cards">
-        {{-- Pre-Test Card --}}
-        <div class="score-card {{ isset($attempts['pre_test']) ? 'done' : 'pending' }}" id="scoreCard_pre_test">
-            <div class="score-card-head" @if(isset($attempts['pre_test'])) onclick="toggleScoreCard('pre_test')" style="cursor:pointer;" @endif>
-                <span class="score-card-label"><i class="fas fa-pencil-alt"></i> Pre-Test</span>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    @if(isset($attempts['pre_test']))
-                        <span class="score-status-badge {{ $attempts['pre_test']->passed ? 'pass' : 'fail' }}">
-                            {{ $attempts['pre_test']->passed ? 'Passed' : 'Failed' }}
-                        </span>
-                        <span class="score-card-pct">{{ (int) round($attempts['pre_test']->percentage) }}%</span>
-                        <i class="fas fa-chevron-down score-card-chevron"></i>
-                    @else
-                        <span class="score-status-badge pending">Not Taken</span>
-                    @endif
+    {{-- OVERALL POST-TEST SUMMARY (when post-tests exist) --}}
+    @if(isset($overallPostTest) && $overallPostTest)
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 24px; margin-bottom: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <span style="font-size: 13px; font-weight: 600; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Overall Post-Test Performance</span>
+                    <h3 style="margin: 4px 0 0 0; font-size: 20px; font-weight: 700; color: #1e293b;">
+                        Best Score: {{ (int) round($overallPostTest['best_percentage']) }}%
+                    </h3>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="score-status-badge {{ $overallPostTest['passed'] ? 'pass' : 'fail' }}" style="font-size: 14px; padding: 6px 14px;">
+                        {{ $overallPostTest['passed'] ? 'Passed Overall' : 'Below Passing' }}
+                    </span>
+                    <span style="font-size: 13px; color: #64748b;">
+                        ({{ $overallPostTest['phases_attempted'] }} of {{ $overallPostTest['phases_total'] }} Post-Tests completed)
+                    </span>
                 </div>
             </div>
-
-            @if(isset($attempts['pre_test']))
-                @php
-                    $ptPct = (int) round($attempts['pre_test']->percentage);
-                    $ptPassed = $attempts['pre_test']->passed;
-                    $ptColor = $ptPassed ? '#1d9e75' : '#e24b4a';
-                    $ptDashArr = 251;
-                    $ptDashOff = $ptDashArr - ($ptPct / 100 * $ptDashArr);
-                @endphp
-
-                <div class="score-card-body" id="cardBody_pre_test">
-                    <div class="score-card-body-inner">
-                        <div class="qz-gauge-wrap">
-                            <svg width="240" height="138" viewBox="0 0 240 138">
-                                <path d="M 35 118 A 85 85 0 0 1 205 118" fill="none" stroke="#f3f3f3" stroke-width="16" stroke-linecap="round"/>
-                                <path d="M 35 118 A 85 85 0 0 1 205 118" fill="none" stroke="{{ $ptColor }}"
-                                    stroke-width="16" stroke-linecap="round"
-                                    stroke-dasharray="{{ $ptDashArr }}" stroke-dashoffset="{{ $ptDashOff }}"
-                                    style="transition:stroke-dashoffset 1s ease;"/>
-                            </svg>
-                            <div class="qz-gauge-score">{{ $ptPct }}%</div>
-                        </div>
-
-                        <p class="qz-verdict {{ $ptPassed ? 'pass' : 'fail' }}">
-                            <i class="fas fa-{{ $ptPassed ? 'check-circle' : 'times-circle' }}"></i>
-                            {{ $ptPassed ? ' You passed!' : ' You did not pass.' }}
-                            &nbsp;{{ $attempts['pre_test']->score }} / {{ $attempts['pre_test']->total_questions }} correct.
-                        </p>
-
-                        <div class="qz-ai-box" id="aiBox_pre_test">
-                            <p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights</p>
-                            <p style="font-size:13px;color:#aaa;margin:0;">Analyzing your performance...</p>
-                        </div>
-
-                        <div class="qz-history-card" id="historyBox_pre_test">
-                            <p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>
-                            <p class="qz-history-empty">Loading history...</p>
-                        </div>
-                    </div>
-                </div>
-            @else
-                <p class="score-detail muted" style="margin-top:16px;">You haven't taken this phase yet.</p>
-            @endif
         </div>
+    @endif
 
-        {{-- Pre-Board Card --}}
-        <div class="score-card {{ isset($attempts['pre_boards']) ? 'done' : 'pending' }}" id="scoreCard_pre_boards">
-            <div class="score-card-head" @if(isset($attempts['pre_boards'])) onclick="toggleScoreCard('pre_boards')" style="cursor:pointer;" @endif>
-                <span class="score-card-label"><i class="fas fa-clipboard-check"></i> Pre-Board</span>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    @if(isset($attempts['pre_boards']))
-                        <span class="score-status-badge {{ $attempts['pre_boards']->passed ? 'pass' : 'fail' }}">
-                            {{ $attempts['pre_boards']->passed ? 'Passed' : 'Failed' }}
-                        </span>
-                        <span class="score-card-pct">{{ (int) round($attempts['pre_boards']->percentage) }}%</span>
-                        <i class="fas fa-chevron-down score-card-chevron"></i>
-                    @else
-                        <span class="score-status-badge pending">Not Taken</span>
-                    @endif
-                </div>
-            </div>
-
-            @if(isset($attempts['pre_boards']))
-                @php
-                    $pbPct = (int) round($attempts['pre_boards']->percentage);
-                    $pbPassed = $attempts['pre_boards']->passed;
-                    $pbColor = $pbPassed ? '#1d9e75' : '#e24b4a';
-                    $pbDashArr = 251;
-                    $pbDashOff = $pbDashArr - ($pbPct / 100 * $pbDashArr);
-                @endphp
-
-                <div class="score-card-body" id="cardBody_pre_boards">
-                    <div class="score-card-body-inner">
-                        <div class="qz-gauge-wrap">
-                            <svg width="240" height="138" viewBox="0 0 240 138">
-                                <path d="M 35 118 A 85 85 0 0 1 205 118" fill="none" stroke="#f3f3f3" stroke-width="16" stroke-linecap="round"/>
-                                <path d="M 35 118 A 85 85 0 0 1 205 118" fill="none" stroke="{{ $pbColor }}"
-                                    stroke-width="16" stroke-linecap="round"
-                                    stroke-dasharray="{{ $pbDashArr }}" stroke-dashoffset="{{ $pbDashOff }}"
-                                    style="transition:stroke-dashoffset 1s ease;"/>
-                            </svg>
-                            <div class="qz-gauge-score">{{ $pbPct }}%</div>
-                        </div>
-
-                        <p class="qz-verdict {{ $pbPassed ? 'pass' : 'fail' }}">
-                            <i class="fas fa-{{ $pbPassed ? 'check-circle' : 'times-circle' }}"></i>
-                            {{ $pbPassed ? ' You passed!' : ' You did not pass.' }}
-                            &nbsp;{{ $attempts['pre_boards']->score }} / {{ $attempts['pre_boards']->total_questions }} correct.
-                        </p>
-
-                        <div class="qz-ai-box" id="aiBox_pre_boards">
-                            <p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights</p>
-                            <p style="font-size:13px;color:#aaa;margin:0;">Analyzing your performance...</p>
-                        </div>
-
-                        <div class="qz-history-card" id="historyBox_pre_boards">
-                            <p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>
-                            <p class="qz-history-empty">Loading history...</p>
-                        </div>
-                    </div>
-                </div>
-            @else
-                <p class="score-detail muted" style="margin-top:16px;">Locked or not taken yet.</p>
-            @endif
-        </div>
-    </div>
-
-    {{-- Growth Insight --}}
-    @if(isset($attempts['pre_test']) && isset($attempts['pre_boards']))
-        @php $diff = $attempts['pre_boards']->percentage - $attempts['pre_test']->percentage; @endphp
-        <div class="growth-box {{ $diff >= 0 ? 'positive' : 'negative' }}">
+    {{-- GROWTH INSIGHT --}}
+    @if($preTestAttemptItem && isset($overallPostTest) && $overallPostTest)
+        @php 
+            $diff = $overallPostTest['best_percentage'] - $preTestAttemptItem->percentage; 
+        @endphp
+        <div class="growth-box {{ $diff >= 0 ? 'positive' : 'negative' }}" style="margin-bottom: 24px;">
             <div class="growth-icon">
                 <i class="fas fa-{{ $diff >= 0 ? 'arrow-trend-up' : 'arrow-trend-down' }}"></i>
             </div>
@@ -163,32 +66,115 @@
                 <p class="growth-label">Your Growth</p>
                 <p class="growth-value">
                     {{ $diff >= 0 ? '+' : '-' }}{{ abs($diff) }}%
-                    <span class="growth-note">{{ $diff >= 0 ? 'improvement from Pre-Test to Pre-Board' : 'decline from Pre-Test to Pre-Board' }}</span>
+                    <span class="growth-note">
+                        {{ $diff >= 0 ? 'improvement from Pre-Test (' . $preTestAttemptItem->percentage . '%) to Best Post-Test (' . $overallPostTest['best_percentage'] . '%)' : 'change from Pre-Test (' . $preTestAttemptItem->percentage . '%) to Best Post-Test (' . $overallPostTest['best_percentage'] . '%)' }}
+                    </span>
                 </p>
             </div>
         </div>
-    @elseif(isset($attempts['pre_test']) && !isset($attempts['pre_boards']))
-        <div class="growth-box neutral">
+    @elseif($preTestAttemptItem && (!isset($overallPostTest) || !$overallPostTest))
+        <div class="growth-box neutral" style="margin-bottom: 24px;">
             <div class="growth-icon"><i class="fas fa-hourglass-half"></i></div>
             <div>
                 <p class="growth-label">Keep Going</p>
-                <p class="growth-value" style="font-size:15px;">Complete the Pre-Board phase to see your growth.</p>
+                <p class="growth-value" style="font-size:15px;">Complete a Post-Test phase to see your growth analysis.</p>
             </div>
         </div>
     @endif
+
+    {{-- DYNAMIC PER-PHASE SCORE CARDS --}}
+    <div class="score-cards">
+        @foreach($phasesDetail as $phase)
+            @php
+                $phaseId = $phase['id'];
+                $phaseType = $phase['phase_type'];
+                $phaseLabel = $phase['label'];
+                $phaseAttempt = $phase['attempt'];
+                $isPreTest = $phaseType === 'pre_test';
+            @endphp
+
+            <div class="score-card {{ $phaseAttempt ? 'done' : 'pending' }}" id="scoreCard_{{ $phaseId }}">
+                <div class="score-card-head" @if($phaseAttempt) onclick="toggleScoreCard('{{ $phaseId }}')" style="cursor:pointer;" @endif>
+                    <span class="score-card-label">
+                        <i class="fas {{ $isPreTest ? 'fa-pencil-alt' : 'fa-clipboard-check' }}" style="color: #245E55;"></i>
+                        {{ $phaseLabel }}
+                    </span>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        @if($phaseAttempt)
+                            <span class="score-status-badge {{ $phaseAttempt->passed ? 'pass' : 'fail' }}">
+                                {{ $phaseAttempt->passed ? 'Passed' : 'Failed' }}
+                            </span>
+                            <span class="score-card-pct">{{ (int) round($phaseAttempt->percentage) }}%</span>
+                            <i class="fas fa-chevron-down score-card-chevron"></i>
+                        @else
+                            <span class="score-status-badge pending">Not Taken</span>
+                        @endif
+                    </div>
+                </div>
+
+                @if($phaseAttempt)
+                    @php
+                        $pct = (int) round($phaseAttempt->percentage);
+                        $passed = $phaseAttempt->passed;
+                        $color = $passed ? '#1d9e75' : '#e24b4a';
+                        $dashArr = 251;
+                        $dashOff = $dashArr - ($pct / 100 * $dashArr);
+                    @endphp
+
+                    <div class="score-card-body" id="cardBody_{{ $phaseId }}">
+                        <div class="score-card-body-inner">
+                            <div class="qz-gauge-wrap">
+                                <svg width="240" height="138" viewBox="0 0 240 138">
+                                    <path d="M 35 118 A 85 85 0 0 1 205 118" fill="none" stroke="#f3f3f3" stroke-width="16" stroke-linecap="round"/>
+                                    <path d="M 35 118 A 85 85 0 0 1 205 118" fill="none" stroke="{{ $color }}"
+                                        stroke-width="16" stroke-linecap="round"
+                                        stroke-dasharray="{{ $dashArr }}" stroke-dashoffset="{{ $dashOff }}"
+                                        style="transition:stroke-dashoffset 1s ease;"/>
+                                </svg>
+                                <div class="qz-gauge-score">{{ $pct }}%</div>
+                            </div>
+
+                            <p class="qz-verdict {{ $passed ? 'pass' : 'fail' }}">
+                                <i class="fas fa-{{ $passed ? 'check-circle' : 'times-circle' }}"></i>
+                                {{ $passed ? ' You passed!' : ' You did not pass.' }}
+                                &nbsp;{{ $phaseAttempt->score }} / {{ $phaseAttempt->total_questions }} correct.
+                            </p>
+
+                            <div class="qz-ai-box" id="aiBox_{{ $phaseId }}">
+                                <p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights</p>
+                                <p style="font-size:13px;color:#aaa;margin:0;">Analyzing your performance...</p>
+                            </div>
+
+                            <div class="qz-history-card" id="historyBox_{{ $phaseId }}">
+                                <p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>
+                                <p class="qz-history-empty">Loading history...</p>
+                            </div>
+                        </div>
+                    </div>
+                @else
+                    <p class="score-detail muted" style="margin-top:16px;">You haven't taken this phase yet.</p>
+                @endif
+            </div>
+        @endforeach
+    </div>
 
 </div>
 
 <script>
     var csrfToken = '{{ csrf_token() }}';
-    var historyData = @json($history);
+    var historyDataByPhase = @json($historyByPhaseId);
+    var phaseIds = @json(collect($phasesDetail)->pluck('id'));
+
     var insightsRoutes = {
-        pre_test: '{{ route("student.mock-boards.insights", [$mockBoard, "pre_test"]) }}',
-        pre_boards: '{{ route("student.mock-boards.insights", [$mockBoard, "pre_boards"]) }}'
+        @foreach($phasesDetail as $p)
+            '{{ $p["id"] }}': '{{ route("student.mock-boards.insights", [$mockBoard, $p["id"]]) }}',
+        @endforeach
     };
+
     var cachedInsights = {
-        pre_test: @json(isset($attempts['pre_test']) ? ['strong' => $attempts['pre_test']->ai_strong, 'weak' => $attempts['pre_test']->ai_weak, 'recommendation' => $attempts['pre_test']->ai_recommendation] : null),
-        pre_boards: @json(isset($attempts['pre_boards']) ? ['strong' => $attempts['pre_boards']->ai_strong, 'weak' => $attempts['pre_boards']->ai_weak, 'recommendation' => $attempts['pre_boards']->ai_recommendation] : null)
+        @foreach($phasesDetail as $p)
+            '{{ $p["id"] }}': @json($p['attempt'] ? ['strong' => $p['attempt']->ai_strong, 'weak' => $p['attempt']->ai_weak, 'recommendation' => $p['attempt']->ai_recommendation] : null),
+        @endforeach
     };
 
     var loadedPhases = {}; // tracks which phases already had AI/history fetched (lazy load)
@@ -199,8 +185,8 @@
         return d.innerHTML;
     }
 
-    function renderAiBox(phase, data) {
-        var box = document.getElementById('aiBox_' + phase);
+    function renderAiBox(phaseId, data) {
+        var box = document.getElementById('aiBox_' + phaseId);
         if (!box) return;
         box.innerHTML =
             '<p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights</p>' +
@@ -209,22 +195,25 @@
             '<div class="qz-ai-sec"><p class="qz-ai-label">Recommendation</p><p class="qz-ai-value">' + escHtml(data.recommendation || 'Review the material again') + '</p></div>';
     }
 
-    function loadAiInsights(phase) {
-        var box = document.getElementById('aiBox_' + phase);
+    function loadAiInsights(phaseId) {
+        var box = document.getElementById('aiBox_' + phaseId);
         if (!box) return;
-        var cached = cachedInsights[phase];
+        var cached = cachedInsights[phaseId];
         if (cached && (cached.strong || cached.weak || cached.recommendation)) {
-            renderAiBox(phase, cached);
+            renderAiBox(phaseId, cached);
             return;
         }
-        fetch(insightsRoutes[phase], {
+        var url = insightsRoutes[phaseId];
+        if (!url) return;
+
+        fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
             body: JSON.stringify({}),
         })
         .then(function (r) { return r.json(); })
         .then(function (res) {
-            renderAiBox(phase, {
+            renderAiBox(phaseId, {
                 strong: (res.strong_areas || []).join(', '),
                 weak: (res.weak_areas || []).join(', '),
                 recommendation: res.recommendation
@@ -235,19 +224,19 @@
         });
     }
 
-    function renderHistory(phase) {
-        var box = document.getElementById('historyBox_' + phase);
+    function renderHistory(phaseId) {
+        var box = document.getElementById('historyBox_' + phaseId);
         if (!box) return;
-        var attempts = historyData[phase] || [];
+        var attempts = historyDataByPhase[phaseId] || [];
         if (!attempts.length) {
-            box.innerHTML = '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p><p class="qz-history-empty">No previous attempts yet.</p>';
+            box.innerHTML = '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p><p class="qz-history-empty">No previous attempts recorded yet.</p>';
             return;
         }
         var rows = attempts.map(function (a) {
             var pct = Math.round(a.percentage);
             var scoreClass = a.passed ? 'pass' : 'fail';
             var dateStr = a.completed_at ? new Date(a.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-            var itemId = phase + '_' + a.attempt_number;
+            var itemId = phaseId + '_' + a.attempt_number;
             var qHtml = (a.questions || []).map(function (q, i) {
                 var cls = q.is_correct ? 'correct' : 'incorrect';
                 var yourAns = q.selected_option ? q.selected_option + (q.options && q.options[q.selected_option] ? ' - ' + q.options[q.selected_option] : '') : 'No answer';
@@ -274,36 +263,38 @@
         if (item) item.classList.toggle('open');
     }
 
-    // ---- Accordion behavior for Pre-Test / Pre-Board cards ----
-    var scorePhases = ['pre_test', 'pre_boards'];
-
-    function toggleScoreCard(phase) {
-        var card = document.getElementById('scoreCard_' + phase);
+    // ---- Accordion behavior for Phase cards ----
+    function toggleScoreCard(phaseId) {
+        var card = document.getElementById('scoreCard_' + phaseId);
         if (!card) return;
         var isOpen = card.classList.contains('expanded');
 
         // close every card first (accordion: only one open at a time)
-        scorePhases.forEach(function (p) {
-            var c = document.getElementById('scoreCard_' + p);
+        phaseIds.forEach(function (pid) {
+            var c = document.getElementById('scoreCard_' + pid);
             if (c) c.classList.remove('expanded');
         });
 
         // if it wasn't open before, open it now (clicking an open card just closes it)
         if (!isOpen) {
             card.classList.add('expanded');
-            if (!loadedPhases[phase]) {
-                loadAiInsights(phase);
-                renderHistory(phase);
-                loadedPhases[phase] = true;
+            if (!loadedPhases[phaseId]) {
+                loadAiInsights(phaseId);
+                renderHistory(phaseId);
+                loadedPhases[phaseId] = true;
             }
         }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        // auto-open the first available phase by default: pre_boards if taken, else pre_test
-        var defaultPhase = @json(isset($attempts['pre_boards']) ? 'pre_boards' : (isset($attempts['pre_test']) ? 'pre_test' : null));
-        if (defaultPhase) {
-            toggleScoreCard(defaultPhase);
+        // auto-open the first completed phase by default (or the latest completed post-test)
+        @php
+            $firstCompleted = collect($phasesDetail)->whereNotNull('attempt')->last() 
+                ?? collect($phasesDetail)->firstWhere('attempt', '!==', null);
+        @endphp
+        var defaultPhaseId = @json($firstCompleted ? $firstCompleted['id'] : null);
+        if (defaultPhaseId) {
+            toggleScoreCard(defaultPhaseId);
         }
     });
 </script>
@@ -331,7 +322,7 @@
     .score-card.pending { border-top: 4px solid #ebebeb; opacity: 0.85; }
 
     .score-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-    .score-card-label { font-size: 14px; font-weight: 500; letter-spacing: 0.03em; color: #aaa; display: flex; align-items: center; gap: 6px; }
+    .score-card-label { font-size: 14px; font-weight: 500; letter-spacing: 0.03em; color: #334155; display: flex; align-items: center; gap: 8px; }
 
     .score-status-badge { font-size: 13px; font-weight: 500; padding: 4px 11px; border-radius: 99px; white-space: nowrap; }
     .score-status-badge.pass { background: #e1f5ee; color: #0f6e56; }

@@ -1,4 +1,4 @@
-﻿@extends('layouts.domain')
+@extends('layouts.domain')
 
 
 
@@ -491,7 +491,7 @@
         @if($isMockBoard ?? false)
             <div class="mock-board-header" style="padding: 12px 16px; background: #eff6ff; border-left: 4px solid #3b82f6; margin-bottom: 20px; border-radius: 8px;">
                 <h3 style="margin: 0 0 4px 0; font-size: 18px; color: #1e40af; font-weight: 600;">
-                    {{ $mockBoard->title }} - {{ $phase === 'pre_test' ? 'Pre-Test' : 'Pre-Boards' }}
+                    {{ $mockBoard->title }} - {{ $mockBoardPhase->phase_label ?? ($phase === 'pre_test' ? 'Pre-Test' : 'Pre-Boards') }}
                 </h3>
                 <p style="margin: 0; font-size: 14px; color: #64748b;">
                     Passing: {{ $mockBoard->passing_percentage }}% | Review Period: {{ $mockBoard->review_period_start->format('M d') }} - {{ $mockBoard->review_period_end->format('M d, Y') }}
@@ -615,7 +615,7 @@
 
     var isFormalAssessment   = {{ $module->is_formal_assessment ? 'true' : 'false' }};
 
-    var assessmentReturnUrl  = '{{ route("assessment") }}';
+    var assessmentReturnUrl  = '{{ ($isMockBoard ?? false) && isset($mockBoard) ? route("student.mock-boards.results", $mockBoard->id) : route("assessment") }}';
 
     var isResuming              = @json($is_resuming ?? false);
 

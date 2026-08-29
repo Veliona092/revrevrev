@@ -29,29 +29,62 @@
     .tb-alert { margin-bottom: 16px; padding: 12px; border-radius: 8px; background: #e8f5ee; color: #17603c; }
     .tb-errors { margin: 0 0 16px; padding: 12px 28px; border-radius: 8px; background: #fdecec; color: #982b2b; }
 
-    .pagination { display: flex; list-style: none; gap: 6px; padding: 0; margin: 0; flex-wrap: wrap; }
-    .pagination .page-item .page-link {
-        display: inline-block;
-        padding: 7px 12px;
+    .tb-pagination-wrap {
+        margin-top: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    .tb-pagination-wrap .pagination {
+        display: flex;
+        list-style: none;
+        gap: 6px;
+        padding: 0;
+        margin: 0;
+        flex-wrap: wrap;
+    }
+    .tb-pagination-wrap .page-item .page-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 36px;
+        height: 36px;
+        padding: 0 12px;
         border: 1px solid #ddd;
         border-radius: 7px;
         color: #3a4180;
         text-decoration: none;
         font-size: 14px;
         background: #fff;
+        line-height: 1;
     }
-    .pagination .page-item .page-link:hover { background: #f0f0f5; }
-    .pagination .page-item.active .page-link {
+    .tb-pagination-wrap .page-item .page-link:hover {
+        background: #f0f0f5;
+    }
+    .tb-pagination-wrap .page-item.active .page-link {
         background: #3a4180;
         border-color: #3a4180;
         color: #fff;
     }
-    .pagination .page-item.disabled .page-link {
+    .tb-pagination-wrap .page-item.disabled .page-link {
         color: #bbb;
         pointer-events: none;
         background: #fafafa;
     }
-    @media (max-width: 900px) { .tb-grid { grid-template-columns: 1fr; } .tb-filter { grid-template-columns: 1fr 1fr; } }
+    .tb-pagination-wrap p,
+    .tb-pagination-wrap .text-sm,
+    .tb-pagination-wrap .small {
+        margin: 0;
+        font-size: 13px;
+        color: #777;
+    }
+
+    @media (max-width: 900px) {
+        .tb-grid { grid-template-columns: 1fr; }
+        .tb-filter { grid-template-columns: 1fr 1fr; }
+    }
 </style>
 
 <div class="tb-wrap">
@@ -60,8 +93,16 @@
         <p>Create questions once, then reuse approved questions in pre-tests, post-tests, assessments, and mock boards.</p>
     </div>
 
-    @if(session('success'))<div class="tb-alert">{{ session('success') }}</div>@endif
-    @if($errors->any())<ul class="tb-errors">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>@endif
+    @if(session('success'))
+        <div class="tb-alert">{{ session('success') }}</div>
+    @endif
+    @if($errors->any())
+        <ul class="tb-errors">
+            @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    @endif
 
     <div class="tb-grid">
         <section class="tb-card">
@@ -95,8 +136,8 @@
                 <div class="tb-field">
                     <label>Difficulty</label>
                     <select name="difficulty">
-                        @foreach(['Average', 'Normal', 'Hard'] as $difficulty)
-                            <option value="{{ $difficulty }}" @selected(old('difficulty', $editQuestion?->difficulty ?? 'Normal') === $difficulty)>{{ $difficulty }}</option>
+                        @foreach(['Easy', 'Average', 'Difficult'] as $difficulty)
+                            <option value="{{ $difficulty }}" @selected(old('difficulty', $editQuestion?->difficulty ?? 'Average') === $difficulty)>{{ $difficulty }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -123,7 +164,7 @@
                 <input name="topic" value="{{ request('topic') }}" placeholder="Filter by topic...">
                 <select name="difficulty">
                     <option value="">All difficulties</option>
-                    @foreach(['Average', 'Normal', 'Hard'] as $difficulty)
+                    @foreach(['Easy', 'Average', 'Difficult'] as $difficulty)
                         <option value="{{ $difficulty }}" @selected(request('difficulty') === $difficulty)>{{ $difficulty }}</option>
                     @endforeach
                 </select>
@@ -175,7 +216,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5">No Test Bank questions found.</td></tr>
+                            <tr><td colspan="6">No Test Bank questions found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -188,7 +229,9 @@
                 </form>
             @endforeach
 
-            <div style="margin-top:16px;">{{ $questions->links('pagination::bootstrap-5') }}</div>
+            <div class="tb-pagination-wrap">
+                {{ $questions->links('pagination::bootstrap-5') }}
+            </div>
         </section>
     </div>
 </div>
@@ -199,12 +242,11 @@
 (function () {
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
     const minOptions = 2;
-    const maxOptions = 10;          // adjust if you want a higher limit
+    const maxOptions = 10;
     const container = document.getElementById('optionsContainer');
     const correctSelect = document.getElementById('correctOptionSelect');
     const addBtn = document.getElementById('addOptionBtn');
 
-    // Existing data when editing (or old() on validation error)
     const existingOptions = @json(old('options', $editQuestion?->options ?? []));
     const existingCorrect = @json(old('correct_option', $editQuestion?->correct_option ?? 'A'));
 
@@ -222,7 +264,6 @@
             if (letter === selected) opt.selected = true;
             correctSelect.appendChild(opt);
         });
-        // Fallback if previously selected letter was removed
         if (!current.includes(selected) && current.length) {
             correctSelect.value = current[0];
         }
@@ -281,35 +322,28 @@
         updateRemoveButtons();
     }
 
-    // Initial render
     const initialKeys = Object.keys(existingOptions || {});
     if (initialKeys.length >= minOptions) {
-        // Preserve order if possible (A, B, C...)
         const ordered = letters.filter(l => initialKeys.includes(l));
-        // Also include any extra keys that might exist
         initialKeys.forEach(k => { if (!ordered.includes(k)) ordered.push(k); });
 
         ordered.forEach(letter => {
             addOption(existingOptions[letter] ?? '');
         });
     } else {
-        // Default: 4 choices
         for (let i = 0; i < 4; i++) {
             addOption(existingOptions[letters[i]] ?? '');
         }
     }
 
-    // Set the correct answer after options are rendered
     rebuildCorrectSelect(existingCorrect);
 
     addBtn.addEventListener('click', () => addOption());
 
-    // Keep the existing module-select logic
     document.getElementById('addToModuleForm').addEventListener('submit', function () {
         this.action = this.action.replace('__MODULE__', document.getElementById('moduleSelect').value);
     });
 
-    // ── Ipakita ang mga tanong ng napiling assessment ──
     const moduleSelectEl = document.getElementById('moduleSelect');
     const previewBox = document.getElementById('moduleQuestionsPreview');
     const previewTitle = document.getElementById('moduleQuestionsTitle');

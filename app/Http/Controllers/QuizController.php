@@ -21,6 +21,22 @@ use Illuminate\Support\Str;
 
 class QuizController extends Controller
 {
+    /**
+     * Resolve which lecture stage a request refers to. NULL means "not a
+     * lecture stage" — ordinary standalone quiz or mock-board-phase quiz,
+     * preserving all pre-existing behavior exactly as it was before
+     * quiz_stage existed. Every quiz_questions/quiz_attempts/
+     * quiz_attempt_snapshots lookup in this controller must key off this
+     * value alongside module_id, or a post-test attempt will collide with
+     * (and overwrite) the pre-test attempt for the same module.
+     */
+    private function resolveStage(Request $request): ?string
+    {
+        $stage = $request->input('quiz_stage', $request->query('quiz_stage'));
+
+        return in_array($stage, ['pre_test', 'post_test'], true) ? $stage : null;
+    }
+
     private function buildFallbackQuizInsights(?QuizAttempt $attempt, $answers): array
     {
         if (! $attempt) {
@@ -55,20 +71,36 @@ class QuizController extends Controller
 
         $recommendation = match (true) {
             $attempt->percentage >= 85 => 'Keep the pace and review the missed items once for retention.',
-            $attempt->percentage >= 50 => 'Review the incorrect questions and revisit the related lesson sections.',
+            $attempt->percentage >= 50 => 'Review the incorrect questions and revisit the related lesson sections before the next attempt.',
             default => 'Revisit the module content first, then retake the quiz.',
         };
 
         return ['strong' => $strong, 'weak' => $weak, 'recommendation' => $recommendation];
     }
 
-    public function getQuestions(Module $module)
+    public function getQuestions(Request $request, Module $module)
     {
-        if (! $module->is_quiz) {
-            return response()->json(['success' => false, 'message' => 'Not a quiz.'], 400);
+        $stage = $this->resolveStage($request);
+
+        $query = QuizQuestion::where('module_id', $module->id);
+
+        if ($stage !== null) {
+            // Lecture pre-test/post-test — is_quiz does not gate this, since a
+            // lecture module carries subparts as its main content and is not
+            // itself flagged is_quiz.
+            $query->where('quiz_stage', $stage);
+        } else {
+            if (! $module->is_quiz) {
+                return response()->json(['success' => false, 'message' => 'Not a quiz.'], 400);
+            }
+            $query->whereNull('quiz_stage');
         }
 
-        $questions = QuizQuestion::where('module_id', $module->id)->orderBy('order')->get();
+        $questions = $query->orderBy('order')->get();
+
+        if ($questions->isEmpty()) {
+            return response()->json(['success' => false, 'message' => 'No questions found for this stage.'], 404);
+        }
 
         return response()->json([
             'success' => true,
@@ -84,7 +116,17 @@ class QuizController extends Controller
 
     public function generateInsights(Request $request, Module $module)
     {
+        $resolver = app(AiSettingsResolver::class);
+        $class = $module->class;
+        if ($class) {
+            $classSettings = $resolver->getClassSettings($class);
+            if (! ($classSettings['features']['quiz_insights_enabled'] ?? true)) {
+                return response()->json(['success' => false, 'message' => 'AI Quiz Insights is disabled for this class.'], 403);
+            }
+        }
+
         $user = Auth::user();
+        $stage = $this->resolveStage($request);
 
         $attemptId = $request->input('attempt_id');
         $attempt = null;
@@ -101,16 +143,36 @@ class QuizController extends Controller
             // nagpapasa ng attempt_id.
             $mockPhase = MockBoardPhase::where('module_id', $module->id)->first();
 
-            $attempt = QuizAttempt::where('user_id', $user->id)
+            $attemptQuery = QuizAttempt::where('user_id', $user->id)
                 ->where('module_id', $module->id)
-                ->where('mock_board_id', $mockPhase?->mock_board_id)
-                ->whereNotNull('completed_at')
-                ->latest('completed_at')
-                ->first();
+                ->where('mock_board_id', $mockPhase?->mock_board_id);
+
+            if ($stage !== null) {
+                $attemptQuery->where('quiz_stage', $stage);
+            }
+
+            $attempt = (clone $attemptQuery)->whereNotNull('completed_at')->latest('completed_at')->first()
+                ?? $attemptQuery->latest('id')->first();
         }
 
-        if (! $attempt || $attempt->ai_strong !== null) {
-            return response()->json(['success' => true, 'strong' => $attempt?->ai_strong, 'weak' => $attempt?->ai_weak, 'recommendation' => $attempt?->ai_recommendation]);
+        if (! $attempt) {
+            $fallback = $this->buildFallbackQuizInsights(null, []);
+
+            return response()->json([
+                'success' => true,
+                'strong' => $fallback['strong'],
+                'weak' => $fallback['weak'],
+                'recommendation' => $fallback['recommendation'],
+            ]);
+        }
+
+        if ($attempt->ai_strong !== null) {
+            return response()->json([
+                'success' => true,
+                'strong' => $attempt->ai_strong,
+                'weak' => $attempt->ai_weak,
+                'recommendation' => $attempt->ai_recommendation,
+            ]);
         }
 
         $answers = QuizAnswer::where('attempt_id', $attempt->id)->with('question')->get();
@@ -154,7 +216,9 @@ class QuizController extends Controller
     /**
      * Kunin ang totoong pinapayagang bilang ng attempts para sa estudyanteng
      * ito sa module na ito = base max_attempts ng module + kung may extra
-     * grant na ibinigay ng teacher.
+     * grant na ibinigay ng teacher. Isa lang ang max_attempts per module
+     * (hindi pa hinati per-stage) kaya pareho ang limitasyon ng pre-test at
+     * post-test kung parehong is_formal_assessment.
      */
     private function getAllowedAttempts(Module $module, int $userId): int
     {
@@ -166,9 +230,10 @@ class QuizController extends Controller
      * hindi pa nag-a-answer ang estudyante, para hindi mawala ang bakas
      * kapag nag-back/nag-abandon sila bago matapos.
      */
-    public function startAttempt(Module $module)
+    public function startAttempt(Request $request, Module $module)
     {
         $user = Auth::user();
+        $stage = $this->resolveStage($request);
 
         $mockPhase = MockBoardPhase::where('module_id', $module->id)->first();
         $mockBoardId = $mockPhase?->mock_board_id;
@@ -176,6 +241,7 @@ class QuizController extends Controller
         $attempt = QuizAttempt::where('user_id', $user->id)
             ->where('module_id', $module->id)
             ->where('mock_board_id', $mockBoardId)
+            ->where('quiz_stage', $stage)
             ->first();
 
         // Kung "in_progress" ang naunang attempt, i-check muna kung lumagpas na
@@ -211,6 +277,7 @@ class QuizController extends Controller
             $attempt = QuizAttempt::create([
                 'user_id' => $user->id,
                 'module_id' => $module->id,
+                'quiz_stage' => $stage,
                 'mock_board_id' => $mockBoardId,
                 'attempt_count' => 1,
                 'score' => 0,
@@ -281,7 +348,12 @@ class QuizController extends Controller
             'attempt_id' => 'nullable|integer|exists:quiz_attempts,id',
         ]);
 
+        $stage = $this->resolveStage($request);
         $question = QuizQuestion::findOrFail($validated['question_id']);
+
+        if ($question->module_id !== $module->id) {
+            return response()->json(['success' => false, 'message' => 'This question does not belong to this module.'], 422);
+        }
 
         $attempt = null;
 
@@ -302,6 +374,7 @@ class QuizController extends Controller
                     'user_id' => $user->id,
                     'module_id' => $module->id,
                     'mock_board_id' => $mockPhase?->mock_board_id,
+                    'quiz_stage' => $stage,
                 ],
                 [
                     'attempt_count' => 1,
@@ -315,9 +388,9 @@ class QuizController extends Controller
             );
         }
 
-        $selected = trim($validated['selected_option']);
-        $correct = trim($question->correct_option);
-        $isCorrect = (strcasecmp($selected, $correct) === 0);
+        $selected = strtoupper(trim((string) $validated['selected_option']));
+        $correct = strtoupper(trim((string) $question->correct_option));
+        $isCorrect = ($selected === $correct);
 
         QuizAnswer::updateOrCreate(
             ['attempt_id' => $attempt->id, 'question_id' => $question->id],
@@ -332,11 +405,12 @@ class QuizController extends Controller
         return response()->json(['success' => true, 'isCorrect' => $isCorrect]);
     }
 
-     public function submitQuiz(Request $request, Module $module)
+    public function submitQuiz(Request $request, Module $module)
     {
         $user = Auth::user();
+        $stage = $this->resolveStage($request);
 
-        return DB::transaction(function () use ($user, $module, $request) {
+        return DB::transaction(function () use ($user, $module, $request, $stage) {
             $mockPhase = MockBoardPhase::where('module_id', $module->id)->first();
             $mockBoardId = $mockPhase?->mock_board_id;
             $phaseType = $mockPhase?->phase_type;
@@ -359,6 +433,7 @@ class QuizController extends Controller
                         'user_id' => $user->id,
                         'module_id' => $module->id,
                         'mock_board_id' => $mockBoardId,
+                        'quiz_stage' => $stage,
                     ],
                     [
                         'attempt_count' => 1,
@@ -372,21 +447,32 @@ class QuizController extends Controller
                 );
             }
 
+            // Kung hindi pa nakatakda ang quiz_stage sa attempt na ito (e.g.
+            // galing sa firstOrCreate na dumaan sa fallback path sa itaas
+            // bago pa man magkaroon ng quiz_stage sa key), itakda ngayon.
+            if ($attempt->quiz_stage === null && $stage !== null) {
+                $attempt->quiz_stage = $stage;
+            }
+
             $answers = QuizAnswer::where('attempt_id', $attempt->id)->get();
             $correctCount = $answers->where('is_correct', true)->count();
             $totalQuestions = $answers->count() ?: (int) $request->input('total', 0);
 
             if ($totalQuestions === 0) {
-                $totalQuestions = QuizQuestion::where('module_id', $module->id)->count();
+                $totalQuestions = QuizQuestion::where('module_id', $module->id)
+                    ->where('quiz_stage', $stage)
+                    ->count();
             }
 
             $percentage = $totalQuestions > 0 ? round(($correctCount / $totalQuestions) * 100) : 0;
+            $passingThreshold = $module->passing_grade ?? config('quiz.default_passing_grade', 50);
+            $isPassed = $percentage >= $passingThreshold;
 
             $attempt->update([
                 'score' => $correctCount,
                 'total' => $totalQuestions,
                 'percentage' => $percentage,
-                'passed' => $percentage >= ($module->passing_grade ?? 50),
+                'passed' => $isPassed,
                 'status' => 'completed',
                 'completed_at' => now(),
                 'ai_strong' => null,
@@ -397,19 +483,21 @@ class QuizController extends Controller
             $nextAttemptNumber = QuizAttemptSnapshot::where('user_id', $user->id)
                 ->where('module_id', $module->id)
                 ->where('mock_board_id', $mockBoardId)
+                ->where('quiz_stage', $stage)
                 ->max('attempt_number');
             $nextAttemptNumber = ($nextAttemptNumber ?? 0) + 1;
 
             QuizAttemptSnapshot::create([
                 'user_id' => $user->id,
                 'module_id' => $module->id,
+                'quiz_stage' => $stage,
                 'mock_board_id' => $mockBoardId,
                 'phase_type' => $phaseType,
                 'attempt_number' => $nextAttemptNumber,
                 'score' => $correctCount,
                 'total' => $totalQuestions,
                 'percentage' => $percentage,
-                'passed' => $percentage >= ($module->passing_grade ?? 50),
+                'passed' => $isPassed,
                 'started_at' => $attempt->started_at,
                 'completed_at' => now(),
                 'questions_snapshot' => $answers->map(function ($a) {
@@ -425,42 +513,82 @@ class QuizController extends Controller
             ]);
 
             // SYNC TO MOCK BOARD ATTEMPTS (Para lumabas sa Teacher/Admin Analytics)
+            // Hindi apektado ng quiz_stage — ang mock board phases ay hiwalay
+            // na Modules pa rin, hindi lecture pre/post-test.
+            //
+            // IMPORTANT: MockBoardAttempt is the single cached row analytics and
+            // the student's own results screen read from for a given
+            // (user, mock_board_phase). Per product decision, an individual's
+            // pass/fail — and therefore every "passing rate" rollup built on top
+            // of this table (per-class, per-program, batch) — must be based on
+            // the student's BEST score across all their attempts for that
+            // phase, not just their most recent submission. So we only
+            // overwrite the cached score/passed fields when this attempt
+            // actually beats the previous best.
+            //
+            // Keyed by mock_board_phase_id (not phase_type) since a board can
+            // now have multiple phases of the same phase_type (e.g. several
+            // post-tests) — phase_type alone is no longer unique per board,
+            // and using it as the key would collide two different post-test
+            // phases' scores onto the same row.
             if ($mockPhase) {
                 $passingGrade = 75;
                 if ($mockPhase->mockBoard) {
                     $passingGrade = $mockPhase->mockBoard->passing_percentage ?? 75;
                 }
 
-                MockBoardAttempt::updateOrCreate(
-                    [
-                        'user_id' => $user->id,
-                        'mock_board_id' => $mockPhase->mock_board_id,
-                        'phase_type' => $mockPhase->phase_type,
-                    ],
-                    [
+                $existingMockBoardAttempt = MockBoardAttempt::where([
+                    'user_id' => $user->id,
+                    'mock_board_phase_id' => $mockPhase->id,
+                ])->first();
+
+                $isNewBestForMockBoard = ! $existingMockBoardAttempt
+                    || $percentage > ($existingMockBoardAttempt->percentage ?? -1);
+
+                $mockBoardAttemptValues = [
+                    'mock_board_id' => $mockPhase->mock_board_id,
+                    'phase_type' => $mockPhase->phase_type,
+                    'attempt_count' => $existingMockBoardAttempt
+                        ? ($existingMockBoardAttempt->attempt_count + 1)
+                        : 1,
+                ];
+
+                if ($isNewBestForMockBoard) {
+                    $mockBoardAttemptValues += [
                         'quiz_attempt_id' => $attempt->id,
                         'score' => $correctCount,
                         'total' => $totalQuestions,
                         'percentage' => $percentage,
                         'passed' => $percentage >= $passingGrade,
-                    ]
+                    ];
+                }
+
+                MockBoardAttempt::updateOrCreate(
+                    [
+                        'user_id' => $user->id,
+                        'mock_board_phase_id' => $mockPhase->id,
+                    ],
+                    $mockBoardAttemptValues
                 );
             }
 
-            return response()->json(['success' => true, 'score' => $correctCount, 'percentage' => $percentage]);
+            return response()->json(['success' => true, 'score' => $correctCount, 'percentage' => $percentage, 'passed' => $isPassed]);
         });
     }
+
     /**
      * Return the authenticated user's attempt history for a module,
-     * newest first. Summary fields only — no questions_snapshot,
-     * so the collapsed list view stays light.
+     * newest first, scoped to a single quiz stage. Summary fields only —
+     * no questions_snapshot, so the collapsed list view stays light.
      */
-    public function attemptHistory(Module $module)
+    public function attemptHistory(Request $request, Module $module)
     {
         $user = Auth::user();
+        $stage = $this->resolveStage($request);
 
         $snapshots = QuizAttemptSnapshot::where('user_id', $user->id)
             ->where('module_id', $module->id)
+            ->where('quiz_stage', $stage)
             ->orderByDesc('attempt_number')
             ->get([
                 'id',
@@ -502,7 +630,9 @@ class QuizController extends Controller
 
     /**
      * Teacher: itakda ang base na bilang ng attempts na pinapayagan sa
-     * lahat ng estudyante para sa module/assessment na ito.
+     * lahat ng estudyante para sa module/assessment na ito. Isa pa lang ito
+     * per module — parehong sinusunod ng pre-test at post-test kung
+     * parehong is_formal_assessment ang lecture module.
      */
     public function updateMaxAttempts(Request $request, Module $module)
     {
@@ -564,7 +694,7 @@ class QuizController extends Controller
         ]);
     }
 
-    public function resetMyAttempt(Module $module)
+    public function resetMyAttempt(Request $request, Module $module)
     {
         // Ang self-service reset ay libre lang para sa practice modules.
         // Sa formal assessments (Pre-Test, Post-Test, Mock Board), kailangang
@@ -577,7 +707,13 @@ class QuizController extends Controller
         }
 
         $user = Auth::user();
-        $attempt = QuizAttempt::where('user_id', $user->id)->where('module_id', $module->id)->first();
+        $stage = $this->resolveStage($request);
+
+        $attempt = QuizAttempt::where('user_id', $user->id)
+            ->where('module_id', $module->id)
+            ->where('quiz_stage', $stage)
+            ->first();
+
         if ($attempt) {
             QuizAnswer::where('attempt_id', $attempt->id)->delete();
             $attempt->update(['score' => 0, 'percentage' => 0, 'ai_strong' => null]);
@@ -611,8 +747,10 @@ class QuizController extends Controller
             'visibility' => $request->input('visibility', 'all'),
         ]);
 
-        if ($request->visibility !== 'all' && $request->has('visible_user_ids')) {
-            $module->visibleTo()->sync($request->visible_user_ids);
+        if (in_array($request->input('visibility'), ['selected', 'except']) && $request->has('visible_user_ids')) {
+            $enrolledIds = $class->students()->pluck('users.id')->toArray();
+            $visibleUserIds = array_values(array_intersect((array) $request->input('visible_user_ids', []), $enrolledIds));
+            $module->visibleTo()->sync($visibleUserIds);
         }
 
         return redirect()->route('quiz.create', $module);

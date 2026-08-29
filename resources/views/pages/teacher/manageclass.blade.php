@@ -1,4 +1,4 @@
-﻿@extends('layouts.appTeach')
+@extends('layouts.appTeach')
 
 
 
@@ -22,6 +22,16 @@
 @section('content')
 
 <style>
+    @media (max-width: 640px) {
+        .lecture-content-upload-row {
+            grid-template-columns: 1fr !important;
+        }
+
+        .lecture-remove-upload {
+            width: 100%;
+        }
+    }
+
 
     /* -”€-”€ Stats row -”€-”€ */
 
@@ -531,13 +541,70 @@
 
 
 
-    #dialogModules .rv-dialog-panel {
-
-        position: relative;
-
+    #dialogModules.rv-dialog {
+        width: 480px;
+        max-width: 96vw;
     }
 
+    #dialogModules .rv-dialog-panel {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        background: #fff;
+    }
 
+    #dialogModules .rv-drawer-head {
+        padding: 20px 24px 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+        background: #fff;
+        border-bottom: none;
+    }
+
+    #dialogModules .rv-drawer-tabs-bar {
+        background: #fff;
+        padding: 0 24px;
+        border-bottom: 1px solid #f0f0f0;
+        flex-shrink: 0;
+    }
+
+    #dialogModules .rv-drawer-tabs-bar .rv-tabs {
+        margin-bottom: 0;
+        border-bottom: none;
+    }
+
+    #dialogModules .rv-drawer-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px 24px 24px;
+        background: #fff;
+    }
+
+    .rv-scrollable-module-box {
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e1 #f8fafc;
+    }
+
+    .rv-scrollable-module-box::-webkit-scrollbar {
+        width: 5px;
+    }
+
+    .rv-scrollable-module-box::-webkit-scrollbar-track {
+        background: #f8fafc;
+        border-radius: 99px;
+    }
+
+    .rv-scrollable-module-box::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 99px;
+    }
+
+    .rv-scrollable-module-box::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
 
     #dialogModules .rv-drawer-title {
 
@@ -1463,25 +1530,17 @@
 
         </div>
 
-        <div class="rv-drawer-body">
-
-
-
-            {{-- Tabs --}}
-
+        {{-- Fixed Tab Bar (outside scrollable body so no content can peek through) --}}
+        <div class="rv-drawer-tabs-bar">
             <div class="rv-tabs">
-
-                <button class="rv-tab active" onclick="switchTab('tabUpload', this)">Upload Document</button>
-
-                <button class="rv-tab" onclick="switchTab('tabQuiz', this)">Pre-Assessment</button>
-
-                <button class="rv-tab" onclick="switchTab('tabAssessment', this)">Formal Assessment</button>
-
+                <button class="rv-tab active" onclick="switchTab('tabUpload', this)">Create Module</button>
+                <button class="rv-tab" onclick="switchTab('tabQuiz', this)">Pre-Test / Post-Test</button>
+                <button class="rv-tab" onclick="switchTab('tabAssessment', this)">Assessment</button>
                 <button class="rv-tab" onclick="switchTab('tabAnnouncements', this)">Announcements</button>
-
             </div>
+        </div>
 
-
+        <div class="rv-drawer-body">
 
             {{-- Upload tab --}}
 
@@ -1493,7 +1552,7 @@
 
                     <input type="hidden" name="class_id" id="moduleClassId">
 
-                    <input type="hidden" name="type" value="document">
+                    <input type="hidden" name="type" value="lecture">
 
                     <div class="rv-form-group">
 
@@ -1513,9 +1572,17 @@
 
                     <div class="rv-form-group">
 
-                        <label class="rv-label">File (PDF, PPT, DOCX - max 50MB)</label>
+                        <label class="rv-label">Module content</label>
 
-                        <input type="file" name="file" class="rv-input" accept=".pdf,.ppt,.pptx,.doc,.docx,.mov" required style="padding:7px 12px;">
+                        <div id="lectureContentUploadFields">
+                            <div class="lecture-content-upload-row" style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px;">
+                                <input type="text" name="subpart_titles[]" class="rv-input" required maxlength="150" placeholder="Subdomain title" style="grid-column:1 / -1;">
+                                <input type="file" name="files[]" class="rv-input" accept=".pdf,.ppt,.pptx,.docx,.mov" required style="padding:7px 12px;">
+                                <button type="button" class="rv-btn rv-btn-danger lecture-remove-upload" style="height:38px;padding:0 10px;display:none;" onclick="this.closest('.lecture-content-upload-row').remove()"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <button type="button" class="rv-btn rv-btn-secondary" onclick="addLectureUploadField()"><i class="fas fa-plus"></i> Add another file</button>
+                        <p style="font-size:13px;color:#aaa;margin:6px 0 0;">Each file needs its own Subdomain title. Titles are numbered automatically as 1.1, 1.2, 1.3, and so on.</p>
 
                     </div>
 
@@ -1555,7 +1622,7 @@
 
                     <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;">
 
-                        <i class="fas fa-upload"></i> Upload Document
+                        <i class="fas fa-upload"></i> Create Module
 
                     </button>
 
@@ -1563,23 +1630,23 @@
 
 
 
-                <div style="margin-top:16px;">
-
-                    <label class="rv-label" style="margin-bottom:10px;">Documents:</label>
-
-                    <div id="documentsList">
-
-                        <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load.</p>
-
+                <div class="rv-module-list-section" style="margin-top:20px;padding-top:16px;border-top:1.5px dashed #e5e7eb;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <label class="rv-label" style="margin:0;font-size:13px;font-weight:600;color:#374151;">
+                            <i class="fas fa-folder-open" style="color:#245E55;margin-right:6px;"></i> Existing Documents
+                        </label>
+                        <span id="documentsCountBadge" style="font-size:12px;color:#6b7280;font-weight:500;"></span>
                     </div>
-
+                    <div id="documentsList" class="rv-scrollable-module-box" style="max-height:250px;overflow-y:auto;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;">
+                        <p style="font-size: 14px;color:#9ca3af;text-align:center;padding:1rem 0;">Open this tab to load.</p>
+                    </div>
                 </div>
 
             </div>
 
 
 
-            {{-- Pre-Assessment tab --}}
+            {{-- Pre-Test / Post-Test tab --}}
 
             <div class="rv-tab-panel" id="tabQuiz">
 
@@ -1595,8 +1662,16 @@
 
                         <label class="rv-label">Quiz Title <span style="color:#e24b4a">*</span></label>
 
-                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Pre-Assessment 1: Basic Concepts">
+                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Pre-Test or Post-Test: Basic Concepts">
 
+                    </div>
+
+                    <div class="rv-form-group">
+                        <label class="rv-label">Test Type <span style="color:#e24b4a">*</span></label>
+                        <select name="quiz_stage" class="rv-input" required>
+                            <option value="pre_test">Pre-Test</option>
+                            <option value="post_test">Post-Test</option>
+                        </select>
                     </div>
 
                     <div class="rv-form-group">
@@ -1659,7 +1734,7 @@
 
                     <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;">
 
-                        <i class="fas fa-brain"></i> Start Pre-Assessment
+                        <i class="fas fa-brain"></i> Create Pre-Test / Post-Test
 
                     </button>
 
@@ -1667,16 +1742,16 @@
 
 
 
-                <div style="margin-top:16px;">
-
-                    <label class="rv-label" style="margin-bottom:10px;">Pre-Assessments:</label>
-
-                    <div id="preAssessmentsList">
-
-                        <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load.</p>
-
+                <div class="rv-module-list-section" style="margin-top:20px;padding-top:16px;border-top:1.5px dashed #e5e7eb;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <label class="rv-label" style="margin:0;font-size:13px;font-weight:600;color:#374151;">
+                            <i class="fas fa-brain" style="color:#245E55;margin-right:6px;"></i> Existing Pre-Test / Post-Test Modules
+                        </label>
+                        <span id="preAssessmentsCountBadge" style="font-size:12px;color:#6b7280;font-weight:500;"></span>
                     </div>
-
+                    <div id="preAssessmentsList" class="rv-scrollable-module-box" style="max-height:250px;overflow-y:auto;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;">
+                        <p style="font-size: 14px;color:#9ca3af;text-align:center;padding:1rem 0;">Open this tab to load.</p>
+                    </div>
                 </div>
 
             </div>
@@ -1694,15 +1769,6 @@
                     <input type="hidden" name="class_id" id="assessmentClassId" value="0">
 
                     <input type="hidden" name="is_formal_assessment" value="1">
-
-                    <div class="rv-form-group">
-                        <label class="rv-label">Assessment Purpose</label>
-                        <select name="assessment_purpose" class="rv-input" style="width:100%;">
-                            <option value="formal_assessment">Formal Assessment</option>
-                            <option value="pre_test">Pre-Test</option>
-                            <option value="post_test">Post-Test</option>
-                        </select>
-                    </div>
 
                     <div class="rv-form-group">
 
@@ -1784,16 +1850,16 @@
 
 
 
-                <div style="margin-top:16px;">
-
-                    <label class="rv-label" style="margin-bottom:10px;">Formal Assessments:</label>
-
-                    <div id="formalAssessmentsList">
-
-                        <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load.</p>
-
+                <div class="rv-module-list-section" style="margin-top:20px;padding-top:16px;border-top:1.5px dashed #e5e7eb;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <label class="rv-label" style="margin:0;font-size:13px;font-weight:600;color:#374151;">
+                            <i class="fas fa-clipboard-check" style="color:#245E55;margin-right:6px;"></i> Existing Formal Assessments
+                        </label>
+                        <span id="formalAssessmentsCountBadge" style="font-size:12px;color:#6b7280;font-weight:500;"></span>
                     </div>
-
+                    <div id="formalAssessmentsList" class="rv-scrollable-module-box" style="max-height:250px;overflow-y:auto;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;">
+                        <p style="font-size: 14px;color:#9ca3af;text-align:center;padding:1rem 0;">Open this tab to load.</p>
+                    </div>
                 </div>
 
             </div>
@@ -1880,16 +1946,16 @@
 
 
 
-                <div style="margin-top:16px;">
-
-                    <label class="rv-label" style="margin-bottom:10px;">Announcements:</label>
-
-                    <div id="classAnnouncementsList">
-
-                        <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load announcements.</p>
-
+                <div class="rv-module-list-section" style="margin-top:20px;padding-top:16px;border-top:1.5px dashed #e5e7eb;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <label class="rv-label" style="margin:0;font-size:13px;font-weight:600;color:#374151;">
+                            <i class="fas fa-bullhorn" style="color:#245E55;margin-right:6px;"></i> Existing Announcements
+                        </label>
+                        <span id="announcementsCountBadge" style="font-size:12px;color:#6b7280;font-weight:500;"></span>
                     </div>
-
+                    <div id="classAnnouncementsList" class="rv-scrollable-module-box" style="max-height:250px;overflow-y:auto;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;">
+                        <p style="font-size: 14px;color:#9ca3af;text-align:center;padding:1rem 0;">Open this tab to load announcements.</p>
+                    </div>
                 </div>
 
             </div>
@@ -1900,6 +1966,46 @@
 
     </div>
 
+</dialog>
+
+<dialog id="dialogLectureContent" class="rv-dialog">
+    <div class="rv-dialog-panel">
+        <div class="rv-drawer-head">
+            <div>
+                <div class="rv-drawer-title">Module Content</div>
+                <div class="rv-drawer-subtitle" id="lectureContentSubtitle">Manage Domains and Lessons.</div>
+            </div>
+            <button class="rv-drawer-close" onclick="document.getElementById('dialogLectureContent').close()">&#x2715;</button>
+        </div>
+        <div class="rv-drawer-body">
+            <form id="lectureContentForm" enctype="multipart/form-data">
+                @csrf
+                <input type="hidden" id="lectureContentModuleId">
+                <div class="rv-form-group">
+                    <label class="rv-label">Add Content File</label>
+                    <input type="text" id="lectureContentTitle" class="rv-input" required maxlength="150" placeholder="Content title">
+                    <input type="file" id="lectureContentFile" class="rv-input" accept=".pdf,.ppt,.pptx,.docx,.mov" required style="margin-top:8px;padding:7px 12px;">
+                </div>
+                <button type="submit" class="rv-btn rv-btn-primary"><i class="fas fa-upload"></i> Upload Content</button>
+            </form>
+            <form id="lectureSubpartForm">
+                @csrf
+                <input type="hidden" id="lectureSubpartModuleId">
+                <div class="rv-form-group">
+                    <label class="rv-label">New Domain</label>
+                    <input type="text" id="lectureSubpartTitle" class="rv-input" required maxlength="150" placeholder="e.g. 1.1 Introduction">
+                </div>
+                <div class="rv-form-group">
+                    <textarea id="lectureSubpartDescription" class="rv-textarea" placeholder="Domain description (optional)"></textarea>
+                </div>
+                <button type="submit" class="rv-btn rv-btn-primary"><i class="fas fa-plus"></i> Add Domain</button>
+            </form>
+            <div style="margin-top:20px;">
+                <label class="rv-label">Domains and Lessons</label>
+                <div id="lectureContentList"><p style="font-size:16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p></div>
+            </div>
+        </div>
+    </div>
 </dialog>
 
 {{-- Delete Class Confirmation Modal --}}
@@ -2224,12 +2330,20 @@ function loadModulesForTab(classId, type, containerId) {
 
 
 
+        const badgeMap = {
+            'documentsList': 'documentsCountBadge',
+            'preAssessmentsList': 'preAssessmentsCountBadge',
+            'formalAssessmentsList': 'formalAssessmentsCountBadge'
+        };
+        const badgeId = badgeMap[containerId];
+        if (badgeId) {
+            const badgeEl = document.getElementById(badgeId);
+            if (badgeEl) badgeEl.textContent = filtered.length > 0 ? `(${filtered.length})` : '(0)';
+        }
+
         if (filtered.length === 0) {
-
-            $('#' + containerId).html('<p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">None yet.</p>');
-
+            $('#' + containerId).html('<p style="font-size: 14px;color:#9ca3af;text-align:center;padding:1rem 0;">None yet.</p>');
             return;
-
         }
 
 
@@ -2279,8 +2393,174 @@ const html = filtered.map(m => `
 
 // -”€-”€ Delete module from a typed tab -”€-”€
 
-function deleteModuleFromTab(moduleId, type, containerId) {
+// ── Lecture Pre-Test / Post-Test list (Assessment tab) ──
+function loadLectureAssessments(classId) {
+    $('#lectureAssessmentsList').html('<p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p>');
 
+    $.get("{{ url('/classes') }}/" + classId + "/modules/lectures", function (data) {
+        const modules = data.modules || [];
+
+        if (modules.length === 0) {
+            $('#lectureAssessmentsList').html('<p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">No Lecture modules yet. Create one from the Content tab first.</p>');
+            return;
+        }
+
+        const html = modules.map(m => {
+            const preLabel = m.has_pre_test ? 'Edit Pre-Test' : 'Add Pre-Test';
+            const postLabel = m.has_post_test ? 'Edit Post-Test' : 'Add Post-Test';
+
+            return `
+                <div class="rv-module-item">
+                    <div style="flex:1;">
+                        <div class="rv-module-title">${m.title}</div>
+                        <div class="rv-module-meta">
+                            ${m.has_pre_test ? '<span style="color:#1d9e75;">&#10003; Pre-Test</span>' : '<span style="color:#ccc;">No Pre-Test</span>'}
+                            &nbsp;&bull;&nbsp;
+                            ${m.has_post_test ? '<span style="color:#1d9e75;">&#10003; Post-Test</span>' : '<span style="color:#ccc;">No Post-Test</span>'}
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <button type="button" class="rv-btn rv-btn-primary" style="height:28px;padding:0 10px;font-size:14px;" onclick="openLectureContent(${m.id}, ${JSON.stringify(m.title)})">
+                            <i class="fas fa-layer-group"></i> Content
+                        </button>
+                        <a href="${m.pre_test_url}" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size: 14px;text-decoration:none;">${preLabel}</a>
+                        <a href="${m.post_test_url}" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size: 14px;text-decoration:none;">${postLabel}</a>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        $('#lectureAssessmentsList').html(html);
+    }).fail(() => {
+        $('#lectureAssessmentsList').html('<p style="font-size: 16px;color:#e24b4a;text-align:center;">Failed to load.</p>');
+    });
+}
+
+function openLectureContent(moduleId, title) {
+    $('#lectureContentSubtitle').text(title);
+    $('#lectureSubpartModuleId').val(moduleId);
+    $('#lectureContentModuleId').val(moduleId);
+    $('#lectureContentList').html('<p style="font-size:16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p>');
+    document.getElementById('dialogLectureContent').showModal();
+    loadLectureSubparts(moduleId);
+}
+
+$('#lectureContentForm').on('submit', function (event) {
+    event.preventDefault();
+    const moduleId = $('#lectureContentModuleId').val();
+    const formData = new FormData();
+    formData.append('_token', '{{ csrf_token() }}');
+    formData.append('title', $('#lectureContentTitle').val());
+    formData.append('file', $('#lectureContentFile').get(0).files[0]);
+
+    $.ajax({
+        url: `{{ url('/modules') }}/${moduleId}/subparts`,
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false
+    }).done(function () {
+        document.getElementById('lectureContentForm').reset();
+        loadLectureSubparts(moduleId);
+        showUploadValidationToast('Content uploaded.', 'success');
+    }).fail(xhr => showUploadValidationToast(xhr.responseJSON?.message || 'Failed to upload content.', 'error'));
+});
+
+function loadLectureSubparts(moduleId) {
+    $.get(`{{ url('/modules') }}/${moduleId}/subparts`, function (data) {
+        const subparts = data.subparts || [];
+
+        if (subparts.length === 0) {
+            $('#lectureContentList').html('<p style="font-size:16px;color:#aaa;">No Domains yet.</p>');
+            return;
+        }
+
+        $('#lectureContentList').html(subparts.map(subpart => `
+            <div class="rv-module-item" style="display:block;margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+                    <div>
+                        <div class="rv-module-title">${subpart.order}. ${subpart.title}</div>
+                        <div class="rv-module-meta">${subpart.description || 'No description'}</div>
+                    </div>
+                    <button type="button" class="rv-btn rv-btn-danger" style="height:28px;padding:0 10px;font-size:14px;" onclick="deleteLectureSubpart(${subpart.id}, ${moduleId})"><i class="fas fa-trash"></i></button>
+                </div>
+                <div id="lessons-${subpart.id}" style="margin:10px 0 0 14px;"><p style="font-size:14px;color:#aaa;">Loading lessons...</p></div>
+                <form onsubmit="addLectureLesson(event, ${subpart.id}, ${moduleId})" enctype="multipart/form-data" style="margin:10px 0 0 14px;">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <input name="title" class="rv-input" required maxlength="150" placeholder="New lesson title" style="flex:1;min-width:180px;">
+                        <textarea name="body" class="rv-textarea" placeholder="Lesson body (optional)" style="flex:1;min-width:180px;min-height:34px;"></textarea>
+                        <input name="file" type="file" class="rv-input" accept=".pdf,.ppt,.pptx,.docx,.mov" style="flex:1;min-width:200px;padding:7px 12px;">
+                        <button type="submit" class="rv-btn rv-btn-secondary" style="height:34px;"><i class="fas fa-plus"></i> Lesson</button>
+                    </div>
+                </form>
+            </div>
+        `).join(''));
+
+        subparts.forEach(subpart => loadLectureLessons(subpart.id));
+    }).fail(() => $('#lectureContentList').html('<p style="font-size:16px;color:#e24b4a;">Failed to load Domains.</p>'));
+}
+
+function loadLectureLessons(subpartId) {
+    $.get(`{{ url('/subparts') }}/${subpartId}/lessons`, function (data) {
+        const lessons = data.lessons || [];
+        const html = lessons.length === 0
+            ? '<p style="font-size:14px;color:#aaa;">No lessons yet.</p>'
+            : lessons.map(lesson => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #f1f1f1;font-size:14px;"><span>${lesson.order}. ${lesson.title}</span><button type="button" class="rv-btn rv-btn-danger" style="height:24px;padding:0 8px;font-size:12px;" onclick="deleteLectureLesson(${lesson.id}, ${subpartId})"><i class="fas fa-trash"></i></button></div>`).join('');
+        $(`#lessons-${subpartId}`).html(html);
+    });
+}
+
+$('#lectureSubpartForm').on('submit', function (event) {
+    event.preventDefault();
+    const moduleId = $('#lectureSubpartModuleId').val();
+    $.post(`{{ url('/modules') }}/${moduleId}/subparts`, {
+        _token: '{{ csrf_token() }}',
+        title: $('#lectureSubpartTitle').val(),
+        description: $('#lectureSubpartDescription').val()
+    }).done(function () {
+        $('#lectureSubpartTitle, #lectureSubpartDescription').val('');
+        loadLectureSubparts(moduleId);
+        showUploadValidationToast('Domain added.', 'success');
+    }).fail(() => showUploadValidationToast('Failed to add Domain.', 'error'));
+});
+
+function addLectureLesson(event, subpartId, moduleId) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    formData.append('_token', '{{ csrf_token() }}');
+
+    $.ajax({
+        url: `{{ url('/subparts') }}/${subpartId}/lessons`,
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false
+    }).done(function () {
+        form.reset();
+        loadLectureLessons(subpartId);
+        showUploadValidationToast('Lesson added.', 'success');
+    }).fail(xhr => showUploadValidationToast(xhr.responseJSON?.message || 'Failed to add lesson.', 'error'));
+}
+
+function deleteLectureSubpart(subpartId, moduleId) {
+    openManageConfirm('Delete this Domain and its Lessons? This cannot be undone.', function () {
+        $.ajax({ url: `{{ url('/subparts') }}/${subpartId}`, type: 'DELETE', data: { _token: '{{ csrf_token() }}' } })
+            .done(() => { loadLectureSubparts(moduleId); showUploadValidationToast('Domain deleted.', 'success'); })
+            .fail(() => showUploadValidationToast('Failed to delete Domain.', 'error'));
+    });
+}
+
+function deleteLectureLesson(lessonId, subpartId) {
+    openManageConfirm('Delete this Lesson? This cannot be undone.', function () {
+        $.ajax({ url: `{{ url('/lessons') }}/${lessonId}`, type: 'DELETE', data: { _token: '{{ csrf_token() }}' } })
+            .done(() => { loadLectureLessons(subpartId); showUploadValidationToast('Lesson deleted.', 'success'); })
+            .fail(() => showUploadValidationToast('Failed to delete lesson.', 'error'));
+    });
+}
+
+// ── Delete module from a typed tab ──
+function deleteModuleFromTab(moduleId, type, containerId) {
     openManageConfirm('Delete this item? This cannot be undone.', function () {
 
         $.ajax({
@@ -2319,12 +2599,12 @@ function loadClassAnnouncements(classId) {
 
 
 
+        const badgeEl = document.getElementById('announcementsCountBadge');
+        if (badgeEl) badgeEl.textContent = items.length > 0 ? `(${items.length})` : '(0)';
+
         if (items.length === 0) {
-
-            $('#classAnnouncementsList').html('<p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">No announcements yet.</p>');
-
+            $('#classAnnouncementsList').html('<p style="font-size: 14px;color:#9ca3af;text-align:center;padding:1rem 0;">No announcements yet.</p>');
             return;
-
         }
 
 
@@ -3057,6 +3337,18 @@ $('#assessmentDraftForm').on('submit', function (e) {
 
 
 
+function addLectureUploadField() {
+    const row = document.createElement('div');
+    row.className = 'lecture-content-upload-row';
+    row.style.cssText = 'display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px;';
+    row.innerHTML = `
+        <input type="text" name="subpart_titles[]" class="rv-input" required maxlength="150" placeholder="Subdomain title" style="grid-column:1 / -1;">
+        <input type="file" name="files[]" class="rv-input" accept=".pdf,.ppt,.pptx,.docx,.mov" required style="padding:7px 12px;">
+        <button type="button" class="rv-btn rv-btn-danger lecture-remove-upload" style="height:38px;padding:0 10px;" onclick="this.closest('.lecture-content-upload-row').remove()"><i class="fas fa-trash"></i></button>
+    `;
+    document.getElementById('lectureContentUploadFields').appendChild(row);
+}
+
 // -”€-”€ Upload module form -”€-”€
 
 $('#moduleUploadForm').on('submit', function (e) {
@@ -3099,9 +3391,18 @@ $('#moduleUploadForm').on('submit', function (e) {
 
     }).done(function (res) {
 
-        showUploadValidationToast(res.success || 'Uploaded!', 'success');
+        showUploadValidationToast(res.success || 'Lecture created!', 'success');
 
         document.getElementById('moduleUploadForm').reset();
+
+        document.querySelectorAll('#lectureContentUploadFields .lecture-content-upload-row').forEach((row, index) => {
+            if (index > 0) {
+                row.remove();
+            }
+        });
+
+        const firstUploadRow = document.querySelector('#lectureContentUploadFields .lecture-content-upload-row');
+        firstUploadRow?.querySelector('.lecture-remove-upload')?.style.setProperty('display', 'none');
 
         resetVisibilityPicker('doc');
 

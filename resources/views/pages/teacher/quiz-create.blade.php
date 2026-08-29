@@ -1,4 +1,4 @@
-﻿@php
+@php
     $layout = in_array(auth()->user()->role, ['admin', 'superadmin'])
         ? 'layouts.appAdmin'
         : 'layouts.appTeach';
@@ -9,8 +9,8 @@
     $isEditing = $existingQuestions->isNotEmpty();
     $isAssessment = (bool) $module->is_formal_assessment;
     $pageLabel = $isEditing
-        ? ($isAssessment ? 'Edit Exam' : 'Edit Quiz')
-        : ($isAssessment ? 'Create Exam' : 'Create Quiz');
+        ? ($isAssessment ? 'Edit Assessment' : 'Edit Pre-Test')
+        : ($isAssessment ? 'Create Assessment' : 'Create Pre-Test');
 @endphp
 
 @section('title', $pageLabel)
@@ -90,16 +90,23 @@
     /* Question blocks */
     .qb-block {
         background: #fafafa;
-        border: 1px solid #e8e8e8;
+        border: 1.5px solid #e8e8e8;
         border-radius: 12px;
         padding: 20px;
         margin-bottom: 16px;
-        animation: qb-in 0.18s ease both;
+        transition: border-color 0.5s ease, box-shadow 0.5s ease, background 0.5s ease, transform 0.35s ease;
+        animation: qb-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .qb-block.qb-just-added {
+        border-color: #245E55;
+        box-shadow: 0 0 0 4px rgba(36, 94, 85, 0.14), 0 8px 20px rgba(0,0,0,0.06);
+        background: #fcfffd;
     }
 
     @keyframes qb-in {
-        from { opacity: 0; transform: translateY(4px); }
-        to   { opacity: 1; transform: translateY(0); }
+        from { opacity: 0; transform: translateY(20px) scale(0.985); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     .qb-header {
@@ -341,12 +348,12 @@
             <input type="text" id="tbSearch" class="rv-input" placeholder="Search questions...">
         </div>
         <div>
-            <select id="tbDifficulty" class="rv-input">
-                <option value="">All difficulties</option>
-                <option value="Average">Average</option>
-                <option value="Normal">Normal</option>
-                <option value="Hard">Hard</option>
-            </select>
+        <select id="tbDifficulty" class="rv-input">
+            <option value="">All difficulties</option>
+            <option value="Easy">Easy</option>
+            <option value="Average">Average</option>
+            <option value="Difficult">Difficult</option>
+        </select>
         </div>
         <button type="button" id="tbFilterBtn" class="rv-btn rv-btn-secondary">
             <i class="fas fa-search"></i> Filter
@@ -470,7 +477,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const serverQuizSettings = {
         quiz_defaults: {
             question_count: {{ (int) ($classQuizDefaults['question_count'] ?? max($existingQuestions->count(), 5)) }},
-            difficulty: @json((string) ($classQuizDefaults['difficulty'] ?? 'Normal')),
+            difficulty: @json((string) ($classQuizDefaults['difficulty'] ?? 'Average')),
         },
         features: {
             quiz_generation_enabled: {{ (isset($isAiQuizGenerationEnabled) && ! $isAiQuizGenerationEnabled) ? 'false' : 'true' }},
@@ -539,7 +546,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('saveQuestionsBtn').style.display = n === 0 ? 'none' : 'block';
     }
 
-    window.addQuestionBlock = function (text = '', options = {A:'',B:'',C:'',D:''}, correct = 'A', testBankId = null) {
+    window.addQuestionBlock = function (text = '', options = {A:'',B:'',C:'',D:''}, correct = 'A', testBankId = null, shouldScroll = false) {
         questionCount++;
         const qn = questionCount;
         const block = document.createElement('div');
@@ -580,6 +587,20 @@ document.addEventListener('DOMContentLoaded', function () {
         optionKeys.forEach(key => addOption(qn, key, options[key] || '', correct === key));
 
         updateCountLabel();
+
+        if (shouldScroll) {
+            block.classList.add('qb-just-added');
+            setTimeout(() => {
+                block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const textarea = block.querySelector('textarea');
+                if (textarea) {
+                    setTimeout(() => textarea.focus(), 320);
+                }
+                setTimeout(() => {
+                    block.classList.remove('qb-just-added');
+                }, 1800);
+            }, 60);
+        }
     };
 
     function nextOptionLetter(qn) {
@@ -649,7 +670,9 @@ document.addEventListener('DOMContentLoaded', function () {
         updateCountLabel();
     };
 
-    document.getElementById('addQuestionBtn').addEventListener('click', () => addQuestionBlock());
+    document.getElementById('addQuestionBtn').addEventListener('click', () => {
+        addQuestionBlock('', { A: '', B: '', C: '', D: '' }, 'A', null, true);
+    });
 
     if (existingQuestions.length) {
         existingQuestions.forEach(question => {
@@ -770,6 +793,12 @@ document.addEventListener('DOMContentLoaded', function () {
             document.querySelector('.qc-tab[data-panel="manual"]')?.click();
 
             if (added > 0) {
+                setTimeout(() => {
+                    const lastBlock = document.querySelector('.qb-block:last-child');
+                    if (lastBlock) {
+                        lastBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 100);
                 showQuizCreateToast(added + ' question(s) added from Test Bank. Review then Save.', 'success');
             } else {
                 showQuizCreateToast('No new questions added (already on the form).', 'error');
@@ -792,7 +821,7 @@ document.addEventListener('DOMContentLoaded', function () {
 fileInput.addEventListener('change', function () {
     Array.from(this.files).forEach(file => {
         if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
-            file.difficultyCounts = { Average: 0, Normal: 5, Hard: 0 };
+            file.difficultyCounts = { Easy: 0, Average: 5, Difficult: 0 };
             selectedFiles.push(file);
         }
     });
@@ -803,18 +832,18 @@ function renderFileList() {
     fileListDiv.innerHTML = '';
     if (selectedFiles.length === 0) { return; }
 
-    const tiers = ['Average', 'Normal', 'Hard'];
+    const tiers = ['Easy', 'Average', 'Difficult'];
 
     selectedFiles.forEach((file, i) => {
         if (!file.difficultyCounts) {
-            file.difficultyCounts = { Average: 0, Normal: 5, Hard: 0 };
+            file.difficultyCounts = { Easy: 0, Average: 5, Difficult: 0 };
         }
 
         const total = tiers.reduce((sum, t) => sum + (parseInt(file.difficultyCounts[t], 10) || 0), 0);
 
         const tierInputs = tiers.map(t => `
             <label style="font-size:13px;color:#666;font-weight:500;white-space:nowrap;margin:0;">${t}:</label>
-            <input type="number" class="rv-input tier-count-input" style="width:60px;height:34px;padding:4px 6px;text-align:center;margin:0;" min="0" max="20" value="${file.difficultyCounts[t]}" data-index="${i}" data-tier="${t}">
+            <input type="number" class="rv-input tier-count-input" style="width:68px;height:34px;padding:4px 6px;text-align:center;margin:0;" min="0" max="100" value="${file.difficultyCounts[t]}" data-index="${i}" data-tier="${t}">
         `).join('');
 
         const div = document.createElement('div');
@@ -867,9 +896,9 @@ function renderFileList() {
 
             const formData = new FormData(this);
 
-        selectedFiles.forEach((file, index) => {
+selectedFiles.forEach((file, index) => {
     formData.append('context_files[' + index + ']', file);
-    ['Average', 'Normal', 'Hard'].forEach(tier => {
+    ['Easy', 'Average', 'Difficult'].forEach(tier => {
         formData.append(
             'file_difficulty_counts[' + index + '][' + tier + ']',
             (file.difficultyCounts && file.difficultyCounts[tier]) || 0
@@ -891,9 +920,13 @@ function renderFileList() {
                     document.getElementById('questionsContainer').innerHTML = '';
                     questionCount = 0;
                     loadedTestBankIds.clear();
-                    response.questions.forEach(q =>
-                        addQuestionBlock(q.question_text || q.question || '', q.options || {A:'',B:'',C:'',D:''}, q.correct_option || 'A')
-                    );
+response.questions.forEach(q =>
+    addQuestionBlock(
+        q.question_text || q.question || '',
+        q.options || { A: '', B: '', C: '', D: '' },
+        q.correct || q.correct_option || 'A'
+    )
+);
                     document.querySelector('[data-panel="manual"]').click();
                     showQuizCreateToast(response.message, 'success');
                 } else {

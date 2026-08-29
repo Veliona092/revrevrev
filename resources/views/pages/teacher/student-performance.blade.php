@@ -1,4 +1,4 @@
-﻿@extends('layouts.appTeach')
+@extends('layouts.appTeach')
 
 @section('title', 'Student Performance')
 @section('page-heading', 'Student Performance')
@@ -565,7 +565,14 @@
         </div>
 
         <div class="sp-card sp-chart-card">
-            <p class="sp-section-title">Question Breakdown</p>
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                <p class="sp-section-title" style="margin: 0;">Question Breakdown</p>
+                <div class="sp-chart-legend" style="display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 500;">
+                    <span style="display: inline-flex; align-items: center; gap: 5px; color: #166534;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #1d9e75; display: inline-block;"></span> &ge;70% High</span>
+                    <span style="display: inline-flex; align-items: center; gap: 5px; color: #9a3412;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #ef9f27; display: inline-block;"></span> 40–69% Moderate</span>
+                    <span style="display: inline-flex; align-items: center; gap: 5px; color: #991b1b;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #e24b4a; display: inline-block;"></span> &lt;40% Low</span>
+                </div>
+            </div>
             @if($questionStats->isNotEmpty())
                 <div class="sp-chart-wrap" id="questionChartWrap">
                     <canvas id="questionBreakdownChart"></canvas>
@@ -681,7 +688,14 @@
         </div>
 
         <div class="sp-card sp-chart-card" id="assessQuestionChartCard">
-            <p class="sp-section-title">Question Breakdown</p>
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                <p class="sp-section-title" style="margin: 0;">Question Breakdown</p>
+                <div class="sp-chart-legend" style="display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 500;">
+                    <span style="display: inline-flex; align-items: center; gap: 5px; color: #166534;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #1d9e75; display: inline-block;"></span> &ge;70% High</span>
+                    <span style="display: inline-flex; align-items: center; gap: 5px; color: #9a3412;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #ef9f27; display: inline-block;"></span> 40–69% Moderate</span>
+                    <span style="display: inline-flex; align-items: center; gap: 5px; color: #991b1b;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #e24b4a; display: inline-block;"></span> &lt;40% Low</span>
+                </div>
+            </div>
             @if($aQuestionStats->isNotEmpty())
                 <div class="sp-chart-wrap" id="assessQuestionChartWrap">
                     <canvas id="assessQuestionBreakdownChart"></canvas>
@@ -1080,14 +1094,16 @@ function renderQuestionStats(items) {
     var wrap = document.getElementById('questionChartWrap');
     var card = document.querySelector('.sp-top-grid .sp-card.sp-chart-card:last-child');
 
+    var qbHeaderHtml = '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;"><p class="sp-section-title" style="margin: 0;">Question Breakdown</p><div class="sp-chart-legend" style="display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 500;"><span style="display: inline-flex; align-items: center; gap: 5px; color: #166534;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #1d9e75; display: inline-block;"></span> &ge;70% High</span><span style="display: inline-flex; align-items: center; gap: 5px; color: #9a3412;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #ef9f27; display: inline-block;"></span> 40–69% Moderate</span><span style="display: inline-flex; align-items: center; gap: 5px; color: #991b1b;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #e24b4a; display: inline-block;"></span> &lt;40% Low</span></div></div>';
+
     if (!stats.length) {
         if (questionChart) { questionChart.destroy(); questionChart = null; }
-        if (card) card.innerHTML = '<p class="sp-section-title">Question Breakdown</p><p class="sp-empty" id="questionBreakdownEmpty">No answer data yet.</p>';
+        if (card) card.innerHTML = qbHeaderHtml + '<p class="sp-empty" id="questionBreakdownEmpty">No answer data yet.</p>';
         return;
     }
 
     if (!wrap) {
-        if (card) card.innerHTML = '<p class="sp-section-title">Question Breakdown</p><div class="sp-chart-wrap" id="questionChartWrap"><canvas id="questionBreakdownChart"></canvas></div>';
+        if (card) card.innerHTML = qbHeaderHtml + '<div class="sp-chart-wrap" id="questionChartWrap"><canvas id="questionBreakdownChart"></canvas></div>';
     }
 
     buildQuestionChart(stats);
@@ -1349,14 +1365,16 @@ function renderAssessmentQuestionStats(items) {
     var wrap = document.getElementById('assessQuestionChartWrap');
     var card = document.getElementById('assessQuestionChartCard');
 
+    var qbHeaderHtml = '<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;"><p class="sp-section-title" style="margin: 0;">Question Breakdown</p><div class="sp-chart-legend" style="display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 500;"><span style="display: inline-flex; align-items: center; gap: 5px; color: #166534;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #1d9e75; display: inline-block;"></span> &ge;70% High</span><span style="display: inline-flex; align-items: center; gap: 5px; color: #9a3412;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #ef9f27; display: inline-block;"></span> 40–69% Moderate</span><span style="display: inline-flex; align-items: center; gap: 5px; color: #991b1b;"><span style="width: 9px; height: 9px; border-radius: 2px; background: #e24b4a; display: inline-block;"></span> &lt;40% Low</span></div></div>';
+
     if (!stats.length) {
         if (assessQuestionChart) { assessQuestionChart.destroy(); assessQuestionChart = null; }
-        if (card) card.innerHTML = '<p class="sp-section-title">Question Breakdown</p><p class="sp-empty" id="assessQuestionBreakdownEmpty">No answer data yet.</p>';
+        if (card) card.innerHTML = qbHeaderHtml + '<p class="sp-empty" id="assessQuestionBreakdownEmpty">No answer data yet.</p>';
         return;
     }
 
     if (!wrap) {
-        if (card) card.innerHTML = '<p class="sp-section-title">Question Breakdown</p><div class="sp-chart-wrap" id="assessQuestionChartWrap"><canvas id="assessQuestionBreakdownChart"></canvas></div>';
+        if (card) card.innerHTML = qbHeaderHtml + '<div class="sp-chart-wrap" id="assessQuestionChartWrap"><canvas id="assessQuestionBreakdownChart"></canvas></div>';
     }
 
     buildAssessmentQuestionChart(stats);

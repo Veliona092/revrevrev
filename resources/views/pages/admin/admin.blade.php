@@ -230,8 +230,45 @@
         color: #9e2f2e;
         padding: 4px 12px;
         border-radius: 99px;
-        font-weight: 700;
+        font-weight: 500;
         font-size: 14px;
+    }
+
+    .ad-progress-track {
+        width: 100%;
+        height: 8px;
+        background: #f0eae1;
+        border-radius: 99px;
+        overflow: hidden;
+    }
+
+    .ad-progress-fill {
+        height: 100%;
+        border-radius: 99px;
+        transition: width 0.4s ease;
+    }
+
+    .ad-pass-badge {
+        font-size: 13px;
+        font-weight: 500;
+        padding: 4px 10px;
+        border-radius: 99px;
+        white-space: nowrap;
+    }
+
+    .badge-pass-good {
+        background: #e1f5ee;
+        color: #0f6e56;
+    }
+
+    .badge-pass-mid {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .badge-pass-low {
+        background: #fee2e2;
+        color: #991b1b;
     }
 
     @media (max-width: 1100px) {
@@ -373,6 +410,58 @@
                 </div>
             </div>
         </article>
+    </section>
+
+    {{-- POST-TEST PASSING RATES BY PROGRAM --}}
+    <section class="ad-card">
+        <header class="ad-card-head">
+            <div>
+                <h3 class="ad-card-title">Post-Test Passing Rate by Program</h3>
+                <p style="margin: 2px 0 0 0; font-size: 14px; color: #8e8678; font-weight: 400;">Actual completion & passing rates per discipline</p>
+            </div>
+            <a href="{{ route('mock-boards.batch.dashboard') }}" class="ad-card-link">Batch Analytics →</a>
+        </header>
+        <div class="ad-card-body">
+            @php
+                $progAnalytics = $postTestAnalytics['by_program'] ?? [];
+            @endphp
+            @if(empty($progAnalytics))
+                <p style="font-size:16px;color:#a09583;">No post-test data available yet.</p>
+            @else
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    @foreach($progAnalytics as $progKey => $prog)
+                        @php
+                            $pRate = $prog['passing_rate'];
+                            $pColor = $pRate >= 75 ? '#1d9e75' : ($pRate >= 50 ? '#f59e0b' : ($prog['students_attempted'] > 0 ? '#e24b4a' : '#8e8678'));
+                        @endphp
+                        <div style="border: 1px solid #f2ede3; border-radius: 10px; padding: 12px 16px; background: #faf8f3;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <div>
+                                    <a href="{{ route('mock-boards.batch.dashboard', ['program' => $progKey]) }}" style="font-weight: 500; color: #1f2937; text-decoration: none; font-size: 16px;">
+                                        {{ $prog['label'] }}
+                                    </a>
+                                    <span style="font-size: 14px; color: #8e8678; font-weight: 400; margin-left: 6px;">
+                                        ({{ $prog['students_passed'] }}/{{ $prog['students_attempted'] }} passed · {{ $prog['boards_count'] }} {{ \Illuminate\Support\Str::plural('board', $prog['boards_count']) }})
+                                    </span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-weight: 500; font-size: 18px; color: {{ $pColor }};">
+                                        {{ $pRate }}%
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="ad-progress-track" style="height: 6px;">
+                                <div class="ad-progress-fill" style="width: {{ min($pRate, 100) }}%; background: {{ $pColor }};"></div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 14px; color: #8e8678; font-weight: 400; margin-top: 6px;">
+                                <span>Average Score: <span style="font-weight: 500; color: #1f2937;">{{ $prog['average_score'] }}%</span></span>
+                                <span>Benchmark: 75%</span>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
     </section>
 
     {{-- SIDE-BY-SIDE: Failed Students per Class & Failed Students per Program --}}

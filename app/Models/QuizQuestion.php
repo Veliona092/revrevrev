@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class QuizQuestion extends Model
 {
     protected $fillable = [
-        'module_id', 'question_text', 'options', 'correct_option',
+        'module_id', 'quiz_stage', 'question_text', 'options', 'correct_option',
         'points', 'order', 'difficulty', 'domain', 'explanation', 'test_bank_question_id',
     ];
 

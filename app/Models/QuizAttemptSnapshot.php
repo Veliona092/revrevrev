@@ -9,6 +9,7 @@ class QuizAttemptSnapshot extends Model
     protected $fillable = [
         'user_id',
         'module_id',
+        'quiz_stage',
         'mock_board_id',
         'phase_type',
         'attempt_number',
