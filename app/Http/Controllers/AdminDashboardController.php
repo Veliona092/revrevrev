@@ -16,8 +16,7 @@ class AdminDashboardController extends Controller
 {
     public function __construct(
         private MockBoardStatisticsService $statisticsService
-    ) {
-    }
+    ) {}
 
     public function index(): View
     {
@@ -204,95 +203,97 @@ class AdminDashboardController extends Controller
             ->limit(5)
             ->get(['id', 'name', 'created_by', 'created_at']);
 
-// Failed students count per program (lahat ng program ay lilitaw, 0 kung wala)
-$failedStudentsByProgram = User::query()
-    ->where('status', 'active')
-    ->where('role', 'student')
-    ->whereNotNull('program')
-    ->select('program')
-    ->distinct()
-    ->get()
-    ->map(function ($user) {
-        $prog = $user->program;
-        
-        $failedCount = DB::table('mock_board_attempts')
-            ->join('users', 'users.id', '=', 'mock_board_attempts.user_id')
-            ->where('mock_board_attempts.passed', false)
-            ->where('users.program', $prog)
-            ->distinct('users.id')
-            ->count('users.id');
+        // Failed students count per program (lahat ng program ay lilitaw, 0 kung wala)
+        $failedStudentsByProgram = User::query()
+            ->where('status', 'active')
+            ->where('role', 'student')
+            ->whereNotNull('program')
+            ->select('program')
+            ->distinct()
+            ->get()
+            ->map(function ($user) {
+                $prog = $user->program;
 
-        return (object) [
-            'program' => $prog,
-            'failed_count' => $failedCount
+                $failedCount = DB::table('mock_board_attempts')
+                    ->join('users', 'users.id', '=', 'mock_board_attempts.user_id')
+                    ->where('mock_board_attempts.passed', false)
+                    ->where('users.program', $prog)
+                    ->distinct('users.id')
+                    ->count('users.id');
+
+                return (object) [
+                    'program' => $prog,
+                    'failed_count' => $failedCount,
+                ];
+            })
+            ->sortByDesc('failed_count')
+            ->values();
+
+        // Forecast: projected pass rate per mock board, grouped by program.
+        // Lahat ng mock boards na may attempts na ang isasama (iba-ibang teacher).
+        $examLabels = [
+            'accountancy' => 'Accountancy (CPALE)',
+            'education' => 'Education (LEPT)',
+            'psychology' => 'Psychology (RPsy Board Exam)',
         ];
-    })
-    ->sortByDesc('failed_count')
-    ->values();
 
-// Forecast: projected pass rate per mock board, grouped by program.
-// Lahat ng mock boards na may attempts na ang isasama (iba-ibang teacher).
-$examLabels = [
-    'accountancy' => 'Accountancy (CPALE)',
-    'education'   => 'Education (LEPT)',
-    'psychology'  => 'Psychology (RPsy Board Exam)',
-];
+        $forecastByProgram = [];
 
-$forecastByProgram = [];
+        foreach ($examLabels as $programKey => $label) {
+            $variants = match ($programKey) {
+                'education' => ['education', 'educ'],
+                'psychology' => ['psychology', 'psych'],
+                default => [$programKey],
+            };
 
-foreach ($examLabels as $programKey => $label) {
-    $variants = match ($programKey) {
-        'education'  => ['education', 'educ'],
-        'psychology' => ['psychology', 'psych'],
-        default      => [$programKey],
-    };
+            $boardsForProgram = MockBoard::whereIn('program', $variants)
+                ->orderByDesc('created_at')
+                ->get();
 
-    $boardsForProgram = MockBoard::whereIn('program', $variants)
-        ->orderByDesc('created_at')
-        ->get();
+            $boardEntries = [];
+            foreach ($boardsForProgram as $board) {
+                $forecast = $this->statisticsService->computeForecastedPassRate($board, $programKey);
 
-    $boardEntries = [];
-    foreach ($boardsForProgram as $board) {
-        $forecast = $this->statisticsService->computeForecastedPassRate($board, $programKey);
+                if (($forecast['sample_size'] ?? 0) === 0) {
+                    continue;
+                }
 
-        if (($forecast['sample_size'] ?? 0) === 0) {
-            continue;
+                $boardEntries[] = [
+                    'title' => $board->title,
+                    'projected_pass_rate' => $forecast['projected_batch_pass_rate'] ?? 0,
+                    'sample_size' => $forecast['sample_size'] ?? 0,
+                    'batch_average' => $forecast['batch_average'] ?? 0,
+                ];
+            }
+
+            if (! empty($boardEntries)) {
+                $forecastByProgram[$programKey] = [
+                    'exam_label' => $label,
+                    'boards' => $boardEntries,
+                ];
+            }
         }
 
-        $boardEntries[] = [
-            'title' => $board->title,
-            'projected_pass_rate' => $forecast['projected_batch_pass_rate'] ?? 0,
-            'sample_size' => $forecast['sample_size'] ?? 0,
-            'batch_average' => $forecast['batch_average'] ?? 0,
-        ];
-    }
+        $postTestAnalytics = $this->statisticsService->getAdminPostTestAnalytics();
 
-    if (!empty($boardEntries)) {
-        $forecastByProgram[$programKey] = [
-            'exam_label' => $label,
-            'boards' => $boardEntries,
-        ];
-    }
-}
-
-// 2. Isama sa compact() sa dulo ng controller:
-return view('pages.admin.admin', compact(
-    'totalUsers',
-    'pendingApprovals',
-    'totalActiveClasses',
-    'totalQuizAttempts',
-    'pendingUsers',
-    'roleDistribution',
-    'roleBreakdown',
-    'platformActivity',
-    'recentClasses',
-    'totalStudents',
-    'totalTeachers',
-    'classesBreakdown',
-    'programEnrollment',
-    'failedStudentsByClassSection',
-    'failedStudentsByProgram', // <--- Isama ito dito
-    'forecastByProgram'
-));
+        return view('pages.admin.admin', compact(
+            'totalUsers',
+            'pendingApprovals',
+            'totalActiveClasses',
+            'totalQuizAttempts',
+            'pendingUsers',
+            'roleDistribution',
+            'roleBreakdown',
+            'platformActivity',
+            'recentClasses',
+            'totalStudents',
+            'totalTeachers',
+            'classesBreakdown',
+            'programEnrollment',
+            'failedStudentsByClassSection',
+            'failedStudentsByProgram',
+            'forecastByProgram',
+            'postTestAnalytics'
+        ));
     }
 }

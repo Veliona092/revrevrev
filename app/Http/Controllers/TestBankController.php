@@ -47,6 +47,19 @@ class TestBankController extends Controller
         $data = $request->validated();
         $data['program'] = $request->user()->program;
 
+        $duplicate = TestBankQuestion::query()
+            ->where('is_archived', false)
+            ->where('program', $data['program'])
+            ->where('question_text', $data['question_text'])
+            ->exists();
+
+        if ($duplicate) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['question_text' => 'This question already exists in the Test Bank.']);
+        }
+
         TestBankQuestion::query()->create([
             ...$data,
             'created_by' => $request->user()->id,
@@ -58,7 +71,24 @@ class TestBankController extends Controller
     public function update(UpdateTestBankQuestionRequest $request, TestBankQuestion $testBankQuestion)
     {
         $this->authorizeQuestion($request->user(), $testBankQuestion);
-        $testBankQuestion->update($request->validated());
+
+        $data = $request->validated();
+
+        $duplicate = TestBankQuestion::query()
+            ->where('is_archived', false)
+            ->where('program', $testBankQuestion->program)
+            ->where('question_text', $data['question_text'])
+            ->where('id', '!=', $testBankQuestion->id)
+            ->exists();
+
+        if ($duplicate) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['question_text' => 'This question already exists in the Test Bank.']);
+        }
+
+        $testBankQuestion->update($data);
 
         return redirect()->route('test-bank.index')->with('success', 'Test Bank question updated.');
     }
@@ -129,8 +159,13 @@ class TestBankController extends Controller
             return $addedCount;
         });
 
-        return redirect()->route('quiz.create', $module)
-            ->with('success', "{$addedCount} Test Bank question(s) added as assessment snapshots.");
+        $skipped = count($questionIds) - $addedCount;
+        $message = "{$addedCount} Test Bank question(s) added as assessment snapshots.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} question(s) were already in this assessment and were skipped.";
+        }
+
+        return redirect()->route('quiz.create', $module)->with('success', $message);
     }
 
     public function importModuleQuestions(Request $request, Module $module)
@@ -143,15 +178,32 @@ class TestBankController extends Controller
         ]);
         $topic = $validated['topic'] ?? null;
 
-        $createdCount = DB::transaction(function () use ($module, $request, $topic): int {
+        [$createdCount, $skippedDuplicates] = DB::transaction(function () use ($module, $request, $topic): array {
+            $createdCount = 0;
+            $skippedDuplicates = 0;
+
             $questions = $module->quizQuestions()
                 ->whereNull('test_bank_question_id')
                 ->get();
 
+            $program = $module->class?->program ?? $request->user()->program;
+
             foreach ($questions as $question) {
+                $alreadyExists = TestBankQuestion::query()
+                    ->where('is_archived', false)
+                    ->where('program', $program)
+                    ->where('question_text', $question->question_text)
+                    ->exists();
+
+                if ($alreadyExists) {
+                    $skippedDuplicates++;
+
+                    continue;
+                }
+
                 $testBankQuestion = TestBankQuestion::query()->create([
                     'created_by' => $request->user()->id,
-                    'program' => $module->class?->program ?? $request->user()->program,
+                    'program' => $program,
                     'question_text' => $question->question_text,
                     'options' => $question->options,
                     'correct_option' => $question->correct_option,
@@ -162,44 +214,50 @@ class TestBankController extends Controller
                 ]);
 
                 $question->update(['test_bank_question_id' => $testBankQuestion->id]);
+                $createdCount++;
             }
 
-            return $questions->count();
+            return [$createdCount, $skippedDuplicates];
         });
 
         $topicNote = $topic ? " Tagged as \"{$topic}\"." : '';
+        $message = "{$createdCount} existing question(s) added to the Test Bank.{$topicNote}";
+        if ($skippedDuplicates > 0) {
+            $message .= " {$skippedDuplicates} question(s) were skipped because they already exist in the Test Bank.";
+        }
 
-        return redirect()->route('test-bank.index')
-            ->with('success', "{$createdCount} existing question(s) added to the Test Bank.{$topicNote}");
+        return redirect()->route('test-bank.index')->with('success', $message);
     }
+
     public function questionsJson(Request $request)
-{
-    abort_unless(in_array($request->user()?->role, ['teacher', 'admin', 'superadmin'], true), 403);
+    {
+        abort_unless(in_array($request->user()?->role, ['teacher', 'admin', 'superadmin'], true), 403);
 
-    $questions = $this->visibleQuestionsQuery($request->user())
-        ->where('status', 'approved')
-        ->when($request->filled('search'), function ($query) use ($request) {
-            $term = $request->string('search')->toString();
-            $query->where('question_text', 'like', "%{$term}%");
-        })
-        ->when($request->filled('difficulty'), fn ($query) => $query->where('difficulty', $request->string('difficulty')))
-        ->when($request->filled('topic'), fn ($query) => $query->where('topic', 'like', '%'.$request->string('topic').'%'))
-        ->latest()
-        ->limit(100)
-        ->get([
-            'id',
-            'question_text',
-            'options',
-            'correct_option',
-            'points',
-            'difficulty',
-            'topic',
+        $questions = $this->visibleQuestionsQuery($request->user())
+            ->where('status', 'approved')
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $term = $request->string('search')->toString();
+                $query->where('question_text', 'like', "%{$term}%");
+            })
+            ->when($request->filled('difficulty'), fn ($query) => $query->where('difficulty', $request->string('difficulty')))
+            ->when($request->filled('topic'), fn ($query) => $query->where('topic', 'like', '%'.$request->string('topic').'%'))
+            ->latest()
+            ->limit(100)
+            ->get([
+                'id',
+                'question_text',
+                'options',
+                'correct_option',
+                'points',
+                'difficulty',
+                'topic',
+            ]);
+
+        return response()->json([
+            'data' => $questions,
         ]);
+    }
 
-    return response()->json([
-        'data' => $questions,
-    ]);
-}
     private function visibleQuestionsQuery($user)
     {
         return TestBankQuestion::query()

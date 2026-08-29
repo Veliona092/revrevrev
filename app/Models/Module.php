@@ -14,13 +14,15 @@ class Module extends Model
 
     protected $fillable = [
         'class_id', 'title', 'description', 'file_path', 'file_type', 'order',
-        'is_quiz', 'is_assignment', 'is_formal_assessment', 'time_limit', 'passing_grade', 'visibility',
-        'created_by', 'is_mock_board', 'due_date', 'max_attempts',
+        'is_quiz', 'is_assignment', 'is_lecture', 'is_formal_assessment', 'time_limit', 'passing_grade', 'visibility',
+        'created_by', 'is_mock_board', 'due_date', 'max_attempts', 'quiz_stage',
     ];
 
     protected $casts = [
         'is_quiz' => 'boolean',
         'is_assignment' => 'boolean',
+        'is_lecture' => 'boolean',
+        'quiz_stage' => 'string',
         'is_formal_assessment' => 'boolean',
         'passing_grade' => 'integer',
         'max_attempts' => 'integer',
@@ -48,6 +50,46 @@ class Module extends Model
     public function quizQuestions(): HasMany
     {
         return $this->hasMany(QuizQuestion::class)->orderBy('order');
+    }
+
+    /**
+     * Pre-test questions only, for lecture-style modules. Ordinary standalone
+     * quizzes / mock board phase quizzes have quiz_stage = null and will not
+     * appear here.
+     */
+    public function preTestQuestions(): HasMany
+    {
+        return $this->quizQuestions()->where('quiz_stage', 'pre_test');
+    }
+
+    /**
+     * Post-test questions only, for lecture-style modules.
+     */
+    public function postTestQuestions(): HasMany
+    {
+        return $this->quizQuestions()->where('quiz_stage', 'post_test');
+    }
+
+    public function hasPreTest(): bool
+    {
+        return $this->preTestQuestions()->exists();
+    }
+
+    public function hasPostTest(): bool
+    {
+        return $this->postTestQuestions()->exists();
+    }
+
+    /**
+     * Ordered content sub-parts — this is the entire content stage for a
+     * lecture-style module. There is no separate module-level file/content
+     * fallback: file_path/description above stay on the model for backward
+     * compatibility with non-lecture module types (standalone quizzes, mock
+     * board phase modules) but are not used as lecture content anymore.
+     */
+    public function subparts(): HasMany
+    {
+        return $this->hasMany(ModuleSubpart::class)->orderBy('order');
     }
 
     public function visibleTo(): BelongsToMany

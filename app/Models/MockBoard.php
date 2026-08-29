@@ -21,6 +21,7 @@ class MockBoard extends Model
         'review_period_start',
         'review_period_end',
         'passing_percentage',
+        'historical_board_exam_result_id',
         'visibility',
         'visible_to',
         'status',
@@ -31,10 +32,10 @@ class MockBoard extends Model
 
     protected $casts = [
         'review_period_start' => 'date',
-        'review_period_end'   => 'date',
-        'passing_percentage'  => 'integer',
-        'approved_at'         => 'datetime',
-        'visible_to'          => 'array',
+        'review_period_end' => 'date',
+        'passing_percentage' => 'integer',
+        'approved_at' => 'datetime',
+        'visible_to' => 'array',
     ];
 
     /**
@@ -59,6 +60,15 @@ class MockBoard extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * The real/historical licensure exam this board is compared against,
+     * if the teacher has linked one.
+     */
+    public function historicalBoardExamResult(): BelongsTo
+    {
+        return $this->belongsTo(HistoricalBoardExamResult::class);
     }
 
     /**
@@ -99,6 +109,7 @@ class MockBoard extends Model
     public function isActive(): bool
     {
         $today = now()->toDateString();
+
         return $this->review_period_start <= $today && $this->review_period_end >= $today;
     }
 

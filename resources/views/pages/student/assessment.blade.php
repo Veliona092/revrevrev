@@ -295,7 +295,7 @@
                                     @if($assessment->due_date)
                                         Due {{ $assessment->due_date->format('M d, g:i A') }}
                                     @else
-                                        Attempts: {{ $assessment->attempts_used }}/{{ $assessment->attempts_allowed }}
+                                        Attempts: {{ $assessment->attempts_used }} / {{ $assessment->attempts_allowed }}
                                     @endif
                                 </span>
 
@@ -315,13 +315,13 @@
                                     @if($isOverdue)
                                         <span class="as-btn-pill disabled"><i class="fas fa-lock"></i> Past Due</span>
                                     @elseif($attempt?->status === 'in_progress')
-                                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn-pill">Resume</a>
+                                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn-pill">Resume Assessment</a>
                                     @elseif($attempt === null)
                                         <a href="{{ route('assessment.take', $assessment) }}" class="as-btn-pill">Take Assessment</a>
                                     @elseif($assessment->attempts_used < $assessment->attempts_allowed)
-                                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn-pill">Retake</a>
+                                        <a href="{{ route('assessment.take', $assessment) }}" class="as-btn-pill">Retake ({{ $assessment->attempts_used + 1 }} of {{ $assessment->attempts_allowed }})</a>
                                     @else
-                                        <span class="as-btn-pill disabled">Used Up</span>
+                                        <span class="as-btn-pill disabled">Attempts Used Up</span>
                                     @endif
                                 </div>
                             </div>

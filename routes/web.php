@@ -8,8 +8,10 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BatchAnalyticsController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ClassManagerController;
+use App\Http\Controllers\HistoricalBoardExamController;
 use App\Http\Controllers\LectureController;
 use App\Http\Controllers\MockBoardApprovalController;
+use App\Http\Controllers\ModuleSubpartController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuizController;
@@ -17,6 +19,7 @@ use App\Http\Controllers\StudentAssessmentController;
 use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\StudentMockBoardController;
 use App\Http\Controllers\StudentProgressController;
+use App\Http\Controllers\SubpartLessonController;
 use App\Http\Controllers\TeacherDashboardController;
 use App\Http\Controllers\TestAiController;
 use App\Http\Controllers\TestBankController;
@@ -711,6 +714,7 @@ Route::post('/admin/approvals/{user}/reject', [AdminApprovalController::class, '
 Route::prefix('mock-boards/batch-analytics')->middleware('auth')->group(function () {
     Route::get('/', [BatchAnalyticsController::class, 'dashboard'])->name('mock-boards.batch.dashboard');
     Route::get('{program}/{mock_board}', [BatchAnalyticsController::class, 'mockBoardsAnalysis'])->name('mock-boards.batch.analysis');
+    Route::get('{program}/{mock_board}/student-analysis/{user}', [BatchAnalyticsController::class, 'studentItemAnalysis'])->name('mock-boards.batch.student-analysis');
     Route::post('{program}/{mock_board}/compute-anova', [BatchAnalyticsController::class, 'computeANOVA'])->name('mock-boards.batch.anova.compute');
 });
 
@@ -724,9 +728,9 @@ Route::middleware(['auth'])->prefix('student/mock-boards')->name('student.mock-b
     Route::post('{mock_board}/phases', [StudentMockBoardController::class, 'updatePhases'])->name('phases.update');
 
     Route::get('{mock_board}', [StudentMockBoardController::class, 'show'])->name('show');
-    Route::get('{mock_board}/{phase}/take', [StudentMockBoardController::class, 'take'])->name('take');
-    Route::post('{mock_board}/{phase}/submit', [StudentMockBoardController::class, 'submit'])->name('submit');
-    Route::post('{mock_board}/{phase}/insights', [StudentMockBoardController::class, 'insights'])->name('insights');
+    Route::get('{mock_board}/{mock_board_phase}/take', [StudentMockBoardController::class, 'take'])->name('take');
+    Route::post('{mock_board}/{mock_board_phase}/submit', [StudentMockBoardController::class, 'submit'])->name('submit');
+    Route::post('{mock_board}/{mock_board_phase}/insights', [StudentMockBoardController::class, 'insights'])->name('insights');
     Route::get('{mock_board}/results', [StudentMockBoardController::class, 'results'])->name('results');
 });
 // Admin — Mock Board Approvals
@@ -735,6 +739,17 @@ Route::middleware(['auth'])->prefix('admin/mock-boards')->name('admin.mock-board
     Route::post('/{mock_board}/approve', [MockBoardApprovalController::class, 'approve'])->name('approve');
     Route::post('/{mock_board}/reject', [MockBoardApprovalController::class, 'reject'])->name('reject');
 });
+// Historical board/licensure exam results — CRUD is admin/superadmin-gated
+// inside the controller; index is readable by any teacher so they can pick
+// a record to link on their own mock board for comparison.
+Route::middleware(['auth'])->prefix('historical-board-exams')->name('historical-board-exams.')->group(function () {
+    Route::get('/', [HistoricalBoardExamController::class, 'index'])->name('index');
+    Route::post('/', [HistoricalBoardExamController::class, 'store'])->name('store');
+    Route::put('/{historical_board_exam_result}', [HistoricalBoardExamController::class, 'update'])->name('update');
+    Route::delete('/{historical_board_exam_result}', [HistoricalBoardExamController::class, 'destroy'])->name('destroy');
+});
+Route::middleware(['auth'])->post('student/mock-boards/{mock_board}/link-historical-exam', [HistoricalBoardExamController::class, 'link'])->name('student.mock-boards.link-historical-exam');
+Route::middleware(['auth'])->post('mock-boards/{mock_board}/quick-benchmark', [HistoricalBoardExamController::class, 'quickBenchmark'])->name('mock-boards.quick-benchmark');
 // Idagdag ito sa web.php
 Route::get('/pre-assessments', [StudentAssessmentController::class, 'preassessments'])->name('student.preassessments')->middleware('auth');
 
@@ -746,3 +761,31 @@ Route::middleware(['auth'])->group(function () {
 Route::post('/modules/{module}/quiz/start', [QuizController::class, 'startAttempt'])->name('quiz.start');
 Route::put('/modules/{module}/quiz/max-attempts', [QuizController::class, 'updateMaxAttempts'])->name('quiz.max-attempts.update');
 Route::post('/modules/{module}/quiz/grant-attempt/{student}', [QuizController::class, 'grantExtraAttempt'])->name('quiz.grant.attempt');
+
+// ── Module Sub-Parts (teacher management) ──
+Route::get('/modules/{module}/subparts', [ModuleSubpartController::class, 'index'])->name('module.subparts.index');
+Route::post('/modules/{module}/subparts', [ModuleSubpartController::class, 'store'])->name('module.subparts.store');
+Route::put('/subparts/{subpart}', [ModuleSubpartController::class, 'update'])->name('module.subparts.update');
+Route::post('/modules/{module}/subparts/reorder', [ModuleSubpartController::class, 'reorder'])->name('module.subparts.reorder');
+Route::delete('/subparts/{subpart}', [ModuleSubpartController::class, 'destroy'])->name('module.subparts.destroy');
+
+// ── Module Sub-Parts (student view + progress) ──
+Route::get('/modules/{module}/subparts/student', [ModuleSubpartController::class, 'studentIndex'])->name('module.subparts.student.index');
+Route::post('/subparts/{subpart}/progress', [ModuleSubpartController::class, 'updateProgress'])->name('module.subparts.progress.update');
+Route::get('/subparts/{subpart}/view', [ModuleSubpartController::class, 'viewFile'])->name('module.subparts.view');
+Route::get('/subparts/{subpart}/pdfjs', [ModuleSubpartController::class, 'pdfjsViewer'])->name('module.subparts.pdfjs');
+Route::get('/subparts/{subpart}/docxjs', [ModuleSubpartController::class, 'docxViewer'])->name('module.subparts.docxjs');
+
+// ── Lessons within Module Sub-Parts ──
+Route::get('/subparts/{subpart}/lessons', [SubpartLessonController::class, 'index'])->name('subpart.lessons.index');
+Route::post('/subparts/{subpart}/lessons', [SubpartLessonController::class, 'store'])->name('subpart.lessons.store');
+Route::put('/lessons/{lesson}', [SubpartLessonController::class, 'update'])->name('subpart.lessons.update');
+Route::post('/subparts/{subpart}/lessons/reorder', [SubpartLessonController::class, 'reorder'])->name('subpart.lessons.reorder');
+Route::delete('/lessons/{lesson}', [SubpartLessonController::class, 'destroy'])->name('subpart.lessons.destroy');
+Route::get('/subparts/{subpart}/lessons/student', [SubpartLessonController::class, 'studentIndex'])->name('subpart.lessons.student.index');
+Route::post('/lessons/{lesson}/progress', [SubpartLessonController::class, 'updateProgress'])->name('subpart.lessons.progress.update');
+Route::get('/lessons/{lesson}/view', [SubpartLessonController::class, 'viewFile'])->name('subpart.lessons.view');
+Route::get('/lessons/{lesson}/docxjs', [SubpartLessonController::class, 'docxViewer'])->name('subpart.lessons.docxjs');
+
+Route::get('/classes/{class}/modules/lectures', [ClassManagerController::class, 'listLectureModulesJson'])->name('classes.modules.lectures');
+Route::get('/classes/{class}/modules/list', [ClassManagerController::class, 'listModulesJson'])->name('classes.modules.list');

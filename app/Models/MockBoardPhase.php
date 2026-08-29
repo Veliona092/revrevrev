@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MockBoardPhase extends Model
 {
@@ -13,6 +14,8 @@ class MockBoardPhase extends Model
     protected $fillable = [
         'mock_board_id',
         'phase_type',
+        'sequence_number',
+        'label',
         'title',
         'module_id',
         'question_ids',
@@ -22,6 +25,7 @@ class MockBoardPhase extends Model
     protected $casts = [
         'question_ids' => 'array',
         'is_same_questions' => 'boolean',
+        'sequence_number' => 'integer',
     ];
 
     /**
@@ -41,10 +45,42 @@ class MockBoardPhase extends Model
     }
 
     /**
+     * All cached student attempts for this specific phase.
+     */
+    public function attempts(): HasMany
+    {
+        return $this->hasMany(MockBoardAttempt::class);
+    }
+
+    /**
      * Get a human-readable label for this phase type.
+     *
+     * Falls back to a numbered "Post-Test N" label when a mock board has
+     * more than one phase of the same phase_type and no custom label was
+     * set, so multiple post-tests remain distinguishable in the UI.
      */
     public function getPhaseLabelAttribute(): string
     {
-        return $this->phase_type === 'pre_test' ? 'Pre-Test' : 'Pre-Boards';
+        if (! empty($this->label)) {
+            return $this->label;
+        }
+
+        if ($this->phase_type === 'pre_test') {
+            return $this->sequence_number > 1
+                ? "Pre-Test {$this->sequence_number}"
+                : 'Pre-Test';
+        }
+
+        return $this->sequence_number > 1
+            ? "Post-Test {$this->sequence_number}"
+            : 'Pre-Boards';
+    }
+
+    /**
+     * Scope: Only post-test-type phases (currently stored as 'pre_boards').
+     */
+    public function scopePostTests($query)
+    {
+        return $query->where('phase_type', 'pre_boards');
     }
 }

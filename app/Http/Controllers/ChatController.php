@@ -59,9 +59,18 @@ class ChatController extends Controller
 
         // Return role-specific chat view
         $view = match ($track) {
-            'teacher', 'accountancy', 'educ', 'psych', 'admin', 'superadmin' => 'pages.chat.index',
+            'teacher' => 'pages.chat.teacher',
+            'accountancy' => 'pages.chat.accountancy',
+            'educ' => 'pages.chat.educ',
+            'psych' => 'pages.chat.psych',
+            'admin' => 'pages.chat.admin',
+            'superadmin' => 'pages.chat.superadmin',
             default => 'pages.chat.index',
         };
+
+        if (! view()->exists($view)) {
+            $view = 'pages.chat.index';
+        }
 
         return view($view, compact('classes', 'layout', 'chatTheme'));
     }

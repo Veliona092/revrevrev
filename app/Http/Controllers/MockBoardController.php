@@ -5,163 +5,161 @@ namespace App\Http\Controllers;
 use App\Models\ClassModel;
 use App\Models\MockBoard;
 use App\Models\MockBoardPhase;
-use App\Models\MockBoardStatistic;
 use App\Models\Module;
 use App\Models\Question; // Idinagdag para sa approveGeneratedQuestions
-use App\Models\QuizQuestion;
 use App\Models\User;
 use App\Services\MockBoardStatisticsService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class MockBoardController extends Controller
 {
     public function __construct(
         private MockBoardStatisticsService $statisticsService
-    ) {
-    }
+    ) {}
 
     /**
      * Admin: List all mock boards for management.
      */
-public function index(Request $request)
-{
-    $user = auth()->user();
+    public function index(Request $request)
+    {
+        $user = auth()->user();
 
-    // Check kung Admin ang logged-in user
-    $isAdmin = $user->role === 'admin' 
-        || ($user->is_admin ?? false) 
-        || (method_exists($user, 'hasRole') && $user->hasRole('admin'));
+        // Check kung Admin ang logged-in user
+        $isAdmin = $user->role === 'admin'
+            || ($user->is_admin ?? false)
+            || (method_exists($user, 'hasRole') && $user->hasRole('admin'));
 
-    $teacherClasses = collect();
-    $selectedClass = null;
-    $mockBoards = collect();
-    // Siguraduhing lowercase ang program para mag-match sa database
-    $selectedProgram = strtolower(trim($request->query('program', '')));
+        $teacherClasses = collect();
+        $selectedClass = null;
+        $mockBoards = collect();
+        // Siguraduhing lowercase ang program para mag-match sa database
+        $selectedProgram = strtolower(trim($request->query('program', '')));
 
-    if ($isAdmin) {
-        // KUNG ADMIN: Ipakita ang lahat ng Mock Boards (o i-filter batay sa program)
-        $query = MockBoard::with(['phases.module.quizQuestions'])->withCount(['attempts']);
+        if ($isAdmin) {
+            // KUNG ADMIN: Ipakita ang lahat ng Mock Boards (o i-filter batay sa program)
+            $query = MockBoard::with(['phases.module.quizQuestions'])->withCount(['attempts']);
 
-        if (!empty($selectedProgram)) {
-            $query->whereRaw('LOWER(program) = ?', [$selectedProgram]);
-        }
-
-        $mockBoards = $query->orderBy('created_at', 'desc')->get();
-
-    } else {
-        // KUNG TEACHER: Hinahanap sa 'teacher_id', 'created_by', o 'user_id'
-        $teacherClasses = ClassModel::where(function ($q) use ($user) {
-                $q->where('teacher_id', $user->id)
-                  ->orWhere('created_by', $user->id)
-                  ->orWhere('user_id', $user->id);
-            })
-            ->withCount('students')
-            ->get();
-
-        // Kunin ang class_id mula sa URL string, o kunin ang unang klase ng teacher kung wala pa
-        $classId = $request->query('class_id') ?? ($teacherClasses->first()->id ?? null);
-
-        if ($classId) {
-            $selectedClass = $teacherClasses->firstWhere('id', $classId);
-
-            if ($selectedClass) {
-                $selectedProgram = strtolower(trim($selectedClass->program ?? $selectedProgram));
-
-              // Kuhanin ang Mock Boards na nakatali sa class_id O kaya sa kaparehong program ng klase
-                // (per-teacher: dapat gawa mismo ng kasalukuyang teacher)
-                $mockBoards = MockBoard::where('teacher_id', $user->id)
-                    ->where(function ($q) use ($selectedClass) {
-                        $q->where('class_id', $selectedClass->id);
-
-                        if (!empty($selectedClass->program)) {
-                            $prog = strtolower(trim($selectedClass->program));
-                            $q->orWhereRaw('LOWER(program) = ?', [$prog]);
-                        }
-                    })
-                    ->with(['phases.module.quizQuestions'])
-                    ->withCount(['attempts'])
-                    ->orderBy('created_at', 'desc')
-                    ->get();
+            if (! empty($selectedProgram)) {
+                $query->whereRaw('LOWER(program) = ?', [$selectedProgram]);
             }
+
+            $mockBoards = $query->orderBy('created_at', 'desc')->get();
+
         } else {
-            // FALLBACK KUNG WALANG MAHANAP NA KLASE:
-            if (!empty($user->program)) {
-                $selectedProgram = strtolower(trim($user->program));
-                $mockBoards = MockBoard::where('teacher_id', $user->id)
-                    ->whereRaw('LOWER(program) = ?', [$selectedProgram])
-                    ->with(['phases.module.quizQuestions'])
-                    ->withCount(['attempts'])
-                    ->orderBy('created_at', 'desc')
-                    ->get();
+            // KUNG TEACHER: Hinahanap sa 'teacher_id', 'created_by', o 'user_id'
+            $teacherClasses = ClassModel::where(function ($q) use ($user) {
+                $q->where('teacher_id', $user->id)
+                    ->orWhere('created_by', $user->id)
+                    ->orWhere('user_id', $user->id);
+            })
+                ->withCount('students')
+                ->get();
+
+            // Kunin ang class_id mula sa URL string, o kunin ang unang klase ng teacher kung wala pa
+            $classId = $request->query('class_id') ?? ($teacherClasses->first()->id ?? null);
+
+            if ($classId) {
+                $selectedClass = $teacherClasses->firstWhere('id', $classId);
+
+                if ($selectedClass) {
+                    $selectedProgram = strtolower(trim($selectedClass->program ?? $selectedProgram));
+
+                    // Kuhanin ang Mock Boards na nakatali sa class_id O kaya sa kaparehong program ng klase
+                    // (per-teacher: dapat gawa mismo ng kasalukuyang teacher)
+                    $mockBoards = MockBoard::where('teacher_id', $user->id)
+                        ->where(function ($q) use ($selectedClass) {
+                            $q->where('class_id', $selectedClass->id);
+
+                            if (! empty($selectedClass->program)) {
+                                $prog = strtolower(trim($selectedClass->program));
+                                $q->orWhereRaw('LOWER(program) = ?', [$prog]);
+                            }
+                        })
+                        ->with(['phases.module.quizQuestions'])
+                        ->withCount(['attempts'])
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+                }
+            } else {
+                // FALLBACK KUNG WALANG MAHANAP NA KLASE:
+                if (! empty($user->program)) {
+                    $selectedProgram = strtolower(trim($user->program));
+                    $mockBoards = MockBoard::where('teacher_id', $user->id)
+                        ->whereRaw('LOWER(program) = ?', [$selectedProgram])
+                        ->with(['phases.module.quizQuestions'])
+                        ->withCount(['attempts'])
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+                }
             }
         }
+
+        // Kinukuha at gi-ngroup ang mock boards para sa Blade view fallback
+        // (admin: lahat; teacher: sarili lang niyang mga board)
+        $mockBoardsByProgramQuery = MockBoard::with(['phases.module.quizQuestions'])
+            ->withCount(['attempts']);
+
+        if (! $isAdmin) {
+            $mockBoardsByProgramQuery->where('teacher_id', $user->id);
+        }
+
+        $mockBoardsByProgram = $mockBoardsByProgramQuery
+            ->get()
+            ->groupBy(function ($item) {
+                return strtolower(trim($item->program));
+            });
+
+        return view('pages.admin.mock-boards.index', [
+            'teacherClasses' => $teacherClasses,
+            'selectedClass' => $selectedClass,
+            'mockBoards' => $mockBoards,
+            'mock_boards_by_program' => $mockBoardsByProgram, // <-- NAKAPASOK NA ANG VARIABLE DITO
+            'selectedProgram' => $selectedProgram,
+            'isAdmin' => $isAdmin,
+        ]);
     }
 
-  // Kinukuha at gi-ngroup ang mock boards para sa Blade view fallback
-    // (admin: lahat; teacher: sarili lang niyang mga board)
-    $mockBoardsByProgramQuery = MockBoard::with(['phases.module.quizQuestions'])
-        ->withCount(['attempts']);
-
-    if (!$isAdmin) {
-        $mockBoardsByProgramQuery->where('teacher_id', $user->id);
-    }
-
-    $mockBoardsByProgram = $mockBoardsByProgramQuery
-        ->get()
-        ->groupBy(function ($item) {
-            return strtolower(trim($item->program));
-        });
-
-    return view('pages.admin.mock-boards.index', [
-        'teacherClasses'         => $teacherClasses,
-        'selectedClass'          => $selectedClass,
-        'mockBoards'             => $mockBoards,
-        'mock_boards_by_program' => $mockBoardsByProgram, // <-- NAKAPASOK NA ANG VARIABLE DITO
-        'selectedProgram'        => $selectedProgram,
-        'isAdmin'                => $isAdmin,
-    ]);
-}
     /**
      * List mock boards filtered specifically by the teacher's assigned program.
      */
-public function batchAnalytics(Request $request)
-{
-    $teacher = auth()->user();
+    public function batchAnalytics(Request $request)
+    {
+        $teacher = auth()->user();
 
-    // Kunin ang program mula sa URL query string (hal. ?program=psychology), 
-    // kung wala, gamitin ang program ng teacher, o fallback sa 'education'
-    $selectedProgram = $request->query('program', $teacher->program ?? 'education');
+        // Kunin ang program mula sa URL query string (hal. ?program=psychology),
+        // kung wala, gamitin ang program ng teacher, o fallback sa 'education'
+        $selectedProgram = $request->query('program', $teacher->program ?? 'education');
 
-    // Fetch mock boards belonging to the program AT sa mismong teacher lang
-    // (per-teacher ownership: hindi makikita ng ibang teacher ang gawa ng kapwa niya teacher)
-    $mockBoards = MockBoard::where('program', $selectedProgram)
-        ->where('teacher_id', $teacher->id)
-        ->with(['phases.module.quizQuestions'])
-        ->withCount('attempts')
-        ->orderBy('created_at', 'desc')
-        ->get();
+        // Fetch mock boards belonging to the program AT sa mismong teacher lang
+        // (per-teacher ownership: hindi makikita ng ibang teacher ang gawa ng kapwa niya teacher)
+        $mockBoards = MockBoard::where('program', $selectedProgram)
+            ->where('teacher_id', $teacher->id)
+            ->with(['phases.module.quizQuestions'])
+            ->withCount('attempts')
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-    // Get total students enrolled under this program
-    $totalProgramStudents = User::where('role', 'student')
-        ->where('program', $selectedProgram)
-        ->count();
+        // Get total students enrolled under this program
+        $totalProgramStudents = User::where('role', 'student')
+            ->where('program', $selectedProgram)
+            ->count();
 
-    // Calculate aggregated overview stats
-    $classAverageScore = $mockBoards->avg('average_score') ?? 0;
-    $completionRate = $mockBoards->avg('completion_rate') ?? 0;
-    $highestScore = $mockBoards->max('highest_score') ?? 0;
+        // Calculate aggregated overview stats
+        $classAverageScore = $mockBoards->avg('average_score') ?? 0;
+        $completionRate = $mockBoards->avg('completion_rate') ?? 0;
+        $highestScore = $mockBoards->max('highest_score') ?? 0;
 
-    return view('pages.teacher.mock-boards.batch-dashboard', [
-        'selectedProgram'      => $selectedProgram,
-        'mockBoards'           => $mockBoards ?? collect(),
-        'totalProgramStudents' => $totalProgramStudents,
-        'classAverageScore'    => $classAverageScore,
-        'completionRate'       => $completionRate,
-        'highestScore'         => $highestScore,
-    ]);
-}
+        return view('pages.teacher.mock-boards.batch-dashboard', [
+            'selectedProgram' => $selectedProgram,
+            'mockBoards' => $mockBoards ?? collect(),
+            'totalProgramStudents' => $totalProgramStudents,
+            'classAverageScore' => $classAverageScore,
+            'completionRate' => $completionRate,
+            'highestScore' => $highestScore,
+        ]);
+    }
 
     /**
      * Update a mock board and sync changes to associated quiz modules.
@@ -169,7 +167,7 @@ public function batchAnalytics(Request $request)
     public function update(Request $request, MockBoard $mockBoard)
     {
         // 1. Authorization check using your existing Gate
-        if (!auth()->user()->can('manage-mock-board', $mockBoard)) {
+        if (! auth()->user()->can('manage-mock-board', $mockBoard)) {
             abort(403, 'You do not have permission to update this Mock Board.');
         }
 
@@ -214,7 +212,7 @@ public function batchAnalytics(Request $request)
     public function destroy(Request $request, MockBoard $mockBoard)
     {
         // 1. Authorization check
-        if (!auth()->user()->can('manage-mock-board', $mockBoard)) {
+        if (! auth()->user()->can('manage-mock-board', $mockBoard)) {
             abort(403, 'You do not have permission to delete this Mock Board.');
         }
 
@@ -243,9 +241,9 @@ public function batchAnalytics(Request $request)
     /**
      * Update phase details.
      */
-  public function updatePhases(Request $request, MockBoard $mockBoard)
+    public function updatePhases(Request $request, MockBoard $mockBoard)
     {
-        if (!auth()->user()->can('manage-mock-board', $mockBoard)) {
+        if (! auth()->user()->can('manage-mock-board', $mockBoard)) {
             abort(403);
         }
 
@@ -291,7 +289,7 @@ public function batchAnalytics(Request $request)
      */
     public function addPhase(Request $request, MockBoard $mockBoard)
     {
-        if (!auth()->user()->can('manage-mock-board', $mockBoard)) {
+        if (! auth()->user()->can('manage-mock-board', $mockBoard)) {
             abort(403, 'You do not have permission to modify this Mock Board.');
         }
 
@@ -309,7 +307,7 @@ public function batchAnalytics(Request $request)
         }
 
         $phaseLabel = $phaseType === 'pre_test' ? 'Pre-Test' : 'Pre-Boards';
-        $phaseTitle = $validated['title'] ?? ($mockBoard->title . ' - ' . $phaseLabel);
+        $phaseTitle = $validated['title'] ?? ($mockBoard->title.' - '.$phaseLabel);
 
         $phaseModule = Module::create([
             'title' => $phaseTitle,
@@ -339,17 +337,17 @@ public function batchAnalytics(Request $request)
      */
     public function generateQuestions(Request $request, MockBoard $mockBoard, string $phase)
     {
-        if (!auth()->user()->can('manage-mock-board', $mockBoard)) {
+        if (! auth()->user()->can('manage-mock-board', $mockBoard)) {
             abort(403);
         }
 
-        if (!in_array($phase, ['pre_test', 'pre_boards'])) {
+        if (! in_array($phase, ['pre_test', 'pre_boards'])) {
             abort(400, 'Invalid phase type');
         }
 
         $validated = $request->validate([
             'pdf_url' => 'required|string',
-            'question_count' => 'required|integer|min:1|max:50',
+            'question_count' => 'required|integer|min:1|max:100',
             'domain' => 'required|string',
         ]);
 
@@ -379,7 +377,7 @@ public function batchAnalytics(Request $request)
      */
     public function approveGeneratedQuestions(Request $request, MockBoard $mockBoard, string $phase)
     {
-        if (!auth()->user()->can('manage-mock-board', $mockBoard)) {
+        if (! auth()->user()->can('manage-mock-board', $mockBoard)) {
             abort(403);
         }
 
@@ -394,7 +392,7 @@ public function batchAnalytics(Request $request)
         $phaseModel = $mockBoard->phases()->where('phase_type', $phase)->firstOrFail();
         $module = $phaseModel->module;
 
-        if (!$module) {
+        if (! $module) {
             abort(400, 'Module not found for this phase');
         }
 
@@ -416,7 +414,7 @@ public function batchAnalytics(Request $request)
         ]);
 
         return response()->json([
-            'message' => count($createdQuestionIds) . ' questions added to ' . $phase,
+            'message' => count($createdQuestionIds).' questions added to '.$phase,
             'question_ids' => $createdQuestionIds,
         ]);
     }
@@ -424,13 +422,13 @@ public function batchAnalytics(Request $request)
     /**
      * Get class-level analysis with ANOVA.
      */
-/**
+    /**
      * Get class-level analysis with ANOVA.
      */
-  /**
+    /**
      * Get class-level analysis with ANOVA.
      */
-   /**
+    /**
      * Redirect to the unified Mock Board Analytics page, pre-filtered
      * to this mock board's program. Dating hiwalay na computation dito,
      * pinagsama na natin sa MockBoardAnalyticsController para iisa
@@ -438,7 +436,7 @@ public function batchAnalytics(Request $request)
      */
     public function classAnalysis(MockBoard $mockBoard)
     {
-        if (!auth()->user()->can('view-mock-board', $mockBoard)) {
+        if (! auth()->user()->can('view-mock-board', $mockBoard)) {
             abort(403);
         }
 
@@ -447,12 +445,13 @@ public function batchAnalytics(Request $request)
             'program' => $mockBoard->program,
         ]);
     }
+
     /**
      * Get individual student analysis.
      */
     public function studentAnalysis(MockBoard $mockBoard, User $student)
     {
-        if (!auth()->user()->can('view-mock-board', $mockBoard)) {
+        if (! auth()->user()->can('view-mock-board', $mockBoard)) {
             abort(403);
         }
 
@@ -480,7 +479,7 @@ public function batchAnalytics(Request $request)
      */
     public function computeANOVA(MockBoard $mockBoard)
     {
-        if (!auth()->user()->can('view-mock-board', $mockBoard)) {
+        if (! auth()->user()->can('view-mock-board', $mockBoard)) {
             abort(403);
         }
 
@@ -507,7 +506,7 @@ public function batchAnalytics(Request $request)
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to compute ANOVA: ' . $e->getMessage(),
+                'error' => 'Failed to compute ANOVA: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -515,7 +514,7 @@ public function batchAnalytics(Request $request)
     /**
      * Show the form for creating a new mock board.
      */
-   public function store(Request $request)
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'class_id' => 'nullable|exists:classes,id',
@@ -532,12 +531,12 @@ public function batchAnalytics(Request $request)
         ]);
 
         $classId = $validated['class_id'] ?? null;
-        
+
         // Kung may klase, kunin din ang program mula sa klase para sigurado
         $program = $validated['program'];
         if ($classId) {
             $classModel = ClassModel::find($classId);
-            if ($classModel && !empty($classModel->program)) {
+            if ($classModel && ! empty($classModel->program)) {
                 $program = $classModel->program;
             }
         }
@@ -558,8 +557,8 @@ public function batchAnalytics(Request $request)
 
             $selectedPhase = $validated['selected_phase'];
             $phaseTitle = $selectedPhase === 'pre_test'
-                ? ($validated['pre_test_title'] ?? $validated['title'] . ' - Pre-Test')
-                : ($validated['pre_boards_title'] ?? $validated['title'] . ' - Pre-Boards');
+                ? ($validated['pre_test_title'] ?? $validated['title'].' - Pre-Test')
+                : ($validated['pre_boards_title'] ?? $validated['title'].' - Pre-Boards');
 
             $phaseModule = Module::create([
                 'title' => $phaseTitle,
@@ -586,5 +585,4 @@ public function batchAnalytics(Request $request)
                 ->with('success', "Mock Board created successfully. Start by building the {$examName} now.");
         });
     }
-    
 }

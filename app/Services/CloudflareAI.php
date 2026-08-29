@@ -26,7 +26,7 @@ class CloudflareAI
         $baseUrl = $gateway
     ? "https://gateway.ai.cloudflare.com/v1/{$accountId}/{$gateway}"
     : "https://api.cloudflare.com/client/v4/accounts/{$accountId}/ai";
-    
+
         $url = "{$baseUrl}/run/{$model}";
 
         // FIX #2: Explicit HTTP 30-second timeout
@@ -56,6 +56,30 @@ class CloudflareAI
         if (! is_array($result) || ! isset($result['response'])) {
             throw new RuntimeException('Invalid response format from Cloudflare Workers AI');
         }
+
+        $usage = $response->json('result.usage') ?? $response->json('usage');
+        if (! is_array($usage)) {
+            $promptHeader = (int) $response->header('cf-aig-prompt-tokens');
+            $completionHeader = (int) $response->header('cf-aig-completion-tokens');
+            if ($promptHeader > 0 || $completionHeader > 0) {
+                $usage = [
+                    'prompt_tokens' => $promptHeader,
+                    'completion_tokens' => $completionHeader,
+                    'total_tokens' => $promptHeader + $completionHeader,
+                ];
+            } else {
+                $promptText = json_encode($payload['messages'] ?? []);
+                $responseText = is_string($result['response']) ? $result['response'] : json_encode($result['response']);
+                $promptTokens = (int) ceil(mb_strlen($promptText) / 3.8);
+                $completionTokens = (int) ceil(mb_strlen($responseText) / 3.8);
+                $usage = [
+                    'prompt_tokens' => $promptTokens,
+                    'completion_tokens' => $completionTokens,
+                    'total_tokens' => $promptTokens + $completionTokens,
+                ];
+            }
+        }
+        $result['usage'] = $usage;
 
         return $result;
     }

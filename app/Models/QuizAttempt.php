@@ -7,9 +7,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class QuizAttempt extends Model
 {
-protected $fillable = [
+    protected $fillable = [
         'user_id',
         'module_id',
+        'quiz_stage',
+        'mock_board_id',
         'score',
         'total',
         'percentage',

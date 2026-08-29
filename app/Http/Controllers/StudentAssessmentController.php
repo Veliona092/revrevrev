@@ -38,7 +38,6 @@ class StudentAssessmentController extends Controller
         $assessments = Module::query()
             ->whereIn('class_id', $classIds)
             ->where('is_formal_assessment', true)
-            ->whereHas('quizQuestions')
             ->where(function ($query) use ($user) {
                 $query->where('visibility', 'all')
                     ->orWhere(function ($sub) use ($user) {

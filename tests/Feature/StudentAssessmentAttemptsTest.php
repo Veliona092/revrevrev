@@ -291,6 +291,7 @@ class StudentAssessmentAttemptsTest extends TestCase
         $class = $this->createClass($teacher);
         $assessment = $this->createAssessment($class);
         $class->users()->attach($student);
+        $this->createQuestion($assessment);
 
         QuizAttempt::query()->create([
             'user_id' => $student->id,
@@ -316,6 +317,7 @@ class StudentAssessmentAttemptsTest extends TestCase
         $class = $this->createClass($teacher);
         $assessment = $this->createAssessment($class, ['max_attempts' => 2]);
         $class->users()->attach($student);
+        $this->createQuestion($assessment);
 
         $attempt = QuizAttempt::query()->create([
             'user_id' => $student->id,

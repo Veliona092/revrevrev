@@ -6,8 +6,10 @@ use App\Models\AssessmentAttemptGrant;
 use App\Models\ClassModel;
 use App\Models\Module;
 use App\Models\ModuleProgress;
+use App\Models\ModuleSubpart;
 use App\Models\QuizAttempt;
 use App\Models\QuizQuestion;
+use App\Models\TestBankQuestion;
 use App\Models\User;
 use App\Services\AiSettingsResolver;
 use App\Services\CloudflareAI;
@@ -138,6 +140,12 @@ class ClassManagerController extends Controller
                 continue;
             }
 
+            $evidence = trim((string) ($candidate['evidence'] ?? $candidate['evidence_text'] ?? ''));
+            $questionType = strtolower(trim((string) ($candidate['question_type'] ?? $candidate['type'] ?? '')));
+            if ($questionType !== '' && ! in_array($questionType, ['what', 'why', 'how'], true)) {
+                $questionType = '';
+            }
+
             $optionsRaw = $candidate['options'] ?? null;
             if (! is_array($optionsRaw)) {
                 continue;
@@ -188,6 +196,8 @@ class ClassManagerController extends Controller
                 'question' => $questionText,
                 'options' => $options,
                 'correct' => $correctLetter,
+                'evidence' => $evidence,
+                'question_type' => $questionType !== '' ? $questionType : null,
             ];
         }
 
@@ -296,6 +306,312 @@ class ClassManagerController extends Controller
         }
 
         return [];
+    }
+
+    protected function cleanExtractedPdfText(string $rawText): string
+    {
+        // 1. Strip Bibliography / References section at the end of academic papers
+        $cleaned = preg_replace('/\n\s*(?:\[?\d+\]?\.?\s*)?(?:REFERENCES|BIBLIOGRAPHY|WORKS CITED)\s*[:\n].*$/is', '', $rawText);
+        if (! is_string($cleaned) || mb_strlen(trim($cleaned)) < 50) {
+            $cleaned = $rawText;
+        }
+
+        // 2. Remove common journal headers, footers, ISSNs, URLs, emails, watermarks
+        $noisePatterns = [
+            '/(?:International\s+Journal\s+for\s+[^\n\r]+)/iu',
+            '/IJFMR\w*/iu',
+            '/E?-?ISSN:\s*[\d\-]+/iu',
+            '/ISBN:\s*[\d\-]+/iu',
+            '/Volume\s+\d+,\s*Issue\s+\d+[^,\n\r]*/iu',
+            '/Website:\s*www\.[^\s]+/iu',
+            '/Email:\s*[\w\.\-]+@[\w\.\-]+/iu',
+            '/https?:\/\/[^\s]+/iu',
+            '/www\.[^\s]+/iu',
+            '/\bPage\s+\d+(?:\s+of\s+\d+)?\b/iu',
+            '/\b\d+\s*\|\s*P\s*a\s*g\s*e\b/iu',
+            '/©\s*\d{4}[^\n\r]*/u',
+            '/All\s+Rights?\s+Reserved[^\n\r]*/iu',
+        ];
+
+        foreach ($noisePatterns as $pattern) {
+            $cleaned = preg_replace($pattern, ' ', (string) $cleaned);
+        }
+
+        return trim(preg_replace('/\s+/', ' ', (string) $cleaned));
+    }
+
+    protected function sliceDocumentIntoSections(string $text, int $desiredSections = 6): array
+    {
+        $desiredSections = max(1, $desiredSections);
+        $textLength = mb_strlen($text);
+
+        if ($textLength <= 1200 || $desiredSections <= 1) {
+            return [$text];
+        }
+
+        $targetChunkSize = (int) ceil($textLength / $desiredSections);
+        $targetChunkSize = max(350, min(2500, $targetChunkSize));
+
+        $sentences = preg_split('/(?<=[.!?])\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+
+        if (empty($sentences)) {
+            return [$text];
+        }
+
+        $sections = [];
+        $currentSection = '';
+
+        foreach ($sentences as $sentence) {
+            if (mb_strlen($currentSection) + mb_strlen($sentence) > $targetChunkSize && mb_strlen($currentSection) >= 300) {
+                $sections[] = trim($currentSection);
+                $currentSection = $sentence;
+            } else {
+                $currentSection .= ($currentSection !== '' ? ' ' : '').$sentence;
+            }
+        }
+
+        if (trim($currentSection) !== '') {
+            $sections[] = trim($currentSection);
+        }
+
+        return ! empty($sections) ? $sections : [$text];
+    }
+
+    private function getStemEchoThreshold(?string $questionType): float
+    {
+        return in_array($questionType, ['why', 'how'], true) ? 92.0 : 85.0;
+    }
+
+    private function getCrossBatchDuplicateThreshold(): float
+    {
+        return 75.0;
+    }
+
+    private function normalizeForComparison(mixed $value): string
+    {
+        $normalized = trim((string) preg_replace('/\s+/u', ' ', mb_strtolower((string) $value)));
+
+        return preg_replace('/[^\pL\pN\s]/u', '', $normalized) ?? $normalized;
+    }
+
+    private function normalizeQuestionStemForDeduplication(string $text): string
+    {
+        $normalized = mb_strtolower(trim($text));
+        $pattern = '/^(what\s+is\s+the|what\s+are\s+the|why\s+does\s+the|why\s+is\s+the|how\s+does\s+the|how\s+is\s+the|which\s+of\s+the\s+following\s+best\s+describes|which\s+of\s+the\s+following\s+describes|which\s+of\s+the\s+following\s+is|which\s+of\s+the\s+following|according\s+to\s+the|according\s+to|based\s+on\s+the\s+text|in\s+terms\s+of)\s+/u';
+        $normalized = preg_replace($pattern, '', $normalized) ?? $normalized;
+        $normalized = preg_replace('/[^\pL\pN\s]/u', '', $normalized) ?? $normalized;
+
+        return trim(preg_replace('/\s+/u', ' ', $normalized));
+    }
+
+    private function isGroundedInSource(string $evidence, string $sourceText): bool
+    {
+        $normalizedEvidence = $this->normalizeForComparison($evidence);
+        $normalizedSource = $this->normalizeForComparison($sourceText);
+
+        if ($normalizedEvidence === '' || $normalizedSource === '') {
+            return false;
+        }
+
+        // Direct match
+        if (str_contains($normalizedSource, $normalizedEvidence)) {
+            return true;
+        }
+
+        // Token-based presence: extract significant words (>= 3 chars)
+        $words = array_filter(
+            explode(' ', $normalizedEvidence),
+            fn (string $w): bool => mb_strlen($w) >= 3
+        );
+
+        if (empty($words)) {
+            return true;
+        }
+
+        $found = 0;
+        foreach ($words as $w) {
+            if (str_contains($normalizedSource, $w)) {
+                $found++;
+            }
+        }
+
+        // Grounded if at least 50% of the significant words in the evidence are present in the source
+        return ($found / count($words)) >= 0.5;
+    }
+
+    private function shouldReplaceExistingQuestions(int $requested, int $generated, float $minimumAcceptanceRatio = 0.8): bool
+    {
+        if ($requested <= 0) {
+            return false;
+        }
+
+        return $generated >= (int) ceil($requested * $minimumAcceptanceRatio);
+    }
+
+    private function deduplicateQuestionBatch(array $questions): array
+    {
+        $deduplicated = [];
+        $removed = [];
+
+        foreach ($questions as $index => $question) {
+            $questionText = (string) ($question['question'] ?? '');
+            $normalizedQuestion = $this->normalizeForComparison($questionText);
+            $stemCleanedQuestion = $this->normalizeQuestionStemForDeduplication($questionText);
+            $questionType = (string) ($question['question_type'] ?? 'what');
+
+            if ($normalizedQuestion === '') {
+                $deduplicated[] = $question;
+
+                continue;
+            }
+
+            $isDuplicate = false;
+            foreach ($deduplicated as $existingIndex => $existingQuestion) {
+                $existingText = (string) ($existingQuestion['question'] ?? '');
+                $normalizedExisting = $this->normalizeForComparison($existingText);
+                $stemCleanedExisting = $this->normalizeQuestionStemForDeduplication($existingText);
+
+                if ($normalizedExisting === '') {
+                    continue;
+                }
+
+                // 1. Direct similar_text on full normalized string
+                similar_text($normalizedExisting, $normalizedQuestion, $similarity);
+
+                // 2. Similar_text on prefix-stripped stem
+                similar_text($stemCleanedExisting, $stemCleanedQuestion, $stemSimilarity);
+
+                // 3. Jaccard word-level overlap
+                $words1 = array_unique(array_filter(explode(' ', $normalizedExisting), fn ($w) => mb_strlen($w) >= 3));
+                $words2 = array_unique(array_filter(explode(' ', $normalizedQuestion), fn ($w) => mb_strlen($w) >= 3));
+                $jaccard = 0.0;
+                if (! empty($words1) && ! empty($words2)) {
+                    $intersection = count(array_intersect($words1, $words2));
+                    $union = count(array_unique(array_merge($words1, $words2)));
+                    $jaccard = $union > 0 ? ($intersection / $union) * 100 : 0;
+                }
+
+                // 4. Correct Answer text comparison
+                $ans1 = mb_strtolower(trim((string) ($existingQuestion['options'][$existingQuestion['correct'] ?? ''] ?? '')));
+                $ans2 = mb_strtolower(trim((string) ($question['options'][$question['correct'] ?? ''] ?? '')));
+                $hasAnswer = ($ans1 !== '' && $ans2 !== '');
+                $ansSimilarity = 0.0;
+                if ($hasAnswer) {
+                    similar_text($ans1, $ans2, $ansSimilarity);
+                }
+
+                // 5. Token containment check for core question stem
+                $isContained = false;
+                $shorterStem = mb_strlen($stemCleanedExisting) <= mb_strlen($stemCleanedQuestion) ? $stemCleanedExisting : $stemCleanedQuestion;
+                $longerStem = mb_strlen($stemCleanedExisting) <= mb_strlen($stemCleanedQuestion) ? $stemCleanedQuestion : $stemCleanedExisting;
+                if (mb_strlen($shorterStem) >= 15 && str_contains($longerStem, $shorterStem)) {
+                    $isContained = true;
+                } else {
+                    $wordsShorter = mb_strlen($stemCleanedExisting) <= mb_strlen($stemCleanedQuestion) ? $words1 : $words2;
+                    $wordsLonger = mb_strlen($stemCleanedExisting) <= mb_strlen($stemCleanedQuestion) ? $words2 : $words1;
+                    if (count($wordsShorter) >= 3 && count(array_diff($wordsShorter, $wordsLonger)) === 0) {
+                        $isContained = true;
+                    }
+                }
+
+                $maxStemSim = max($similarity, $stemSimilarity);
+
+                // Condition 1: Nearly exact question stem (>= 92%)
+                if ($maxStemSim >= 92.0) {
+                    $isDuplicate = true;
+                }
+                // Condition 2: Highly similar question stem (>= 80%) AND similar answer or options (>= 40%)
+                elseif ($maxStemSim >= 80.0 && (! $hasAnswer || $ansSimilarity >= 40.0)) {
+                    $isDuplicate = true;
+                }
+                // Condition 3: Rephrased question on same topic (>= 45% stem similarity or shared keywords) AND matching correct answer (>= 65%)
+                elseif ($ansSimilarity >= 65.0 && ($maxStemSim >= 45.0 || $jaccard >= 35.0)) {
+                    $isDuplicate = true;
+                }
+                // Condition 4: Stem containment / subset
+                elseif ($isContained) {
+                    $isDuplicate = true;
+                }
+
+                if ($isDuplicate) {
+                    $removed[] = [
+                        'dropped_index' => $index,
+                        'kept_index' => $existingIndex,
+                        'dropped_question' => $questionText,
+                        'kept_question' => $existingText,
+                        'similarity' => round($maxStemSim, 2),
+                        'jaccard' => round($jaccard, 2),
+                        'ans_similarity' => round($ansSimilarity, 2),
+                        'question_type' => $questionType,
+                    ];
+                    break;
+                }
+            }
+
+            if (! $isDuplicate) {
+                $deduplicated[] = $question;
+            }
+        }
+
+        return [
+            'questions' => $deduplicated,
+            'duplicates' => $removed,
+        ];
+    }
+
+    private function aiQuestionRejectionReason(mixed $question, array $choiceLetters, ?string $questionType = null, ?string $sourceText = null): ?string
+    {
+        if (! is_array($question)
+            || ! isset($question['question'], $question['options'], $question['correct'])
+            || ! is_string($question['question'])
+            || ! is_string($question['correct'])
+            || ! is_array($question['options'])
+            || count($question['options']) !== count($choiceLetters)
+            || ! in_array(strtoupper($question['correct']), $choiceLetters, true)) {
+            return 'invalid_structure';
+        }
+
+        $normalize = static fn (mixed $value): string => trim((string) preg_replace('/\s+/u', ' ', mb_strtolower((string) $value)));
+        $normalizedQuestion = $normalize($question['question']);
+        $normalizedOptions = array_map($normalize, array_values($question['options']));
+
+        if ($normalizedQuestion === ''
+            || in_array('', $normalizedOptions, true)) {
+            return 'empty_question_or_option';
+        }
+
+        if (count($normalizedOptions) !== count(array_unique($normalizedOptions))) {
+            return 'duplicate_options';
+        }
+
+        if ($sourceText !== null) {
+            $evidence = trim((string) ($question['evidence'] ?? $question['evidence_text'] ?? ''));
+            if ($evidence === '' || ! $this->isGroundedInSource($evidence, $sourceText)) {
+                return 'ungrounded';
+            }
+        }
+
+        $similarityThreshold = $this->getStemEchoThreshold($questionType);
+
+        if (mb_strlen($normalizedQuestion) >= 20) {
+            foreach ($normalizedOptions as $option) {
+                similar_text($normalizedQuestion, $option, $similarity);
+                if ($similarity > $similarityThreshold) {
+                    return 'stem_echo';
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function isCleanAiQuestion(mixed $question, array $choiceLetters, ?string $questionType = null, ?string $sourceText = null): bool
+    {
+        if ($this->aiQuestionRejectionReason($question, $choiceLetters, $questionType, $sourceText) !== null) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -644,14 +960,23 @@ class ClassManagerController extends Controller
     {
         $validated = $request->validate([
             'class_id' => 'required|exists:classes,id',
-            'title' => 'required_if:type,document,assignment|string|max:150',
+            'title' => 'required_if:type,document,assignment,lecture|string|max:150',
             'description' => 'nullable|string',
             'file' => 'required_if:type,document|file|max:102400|mimes:pdf,ppt,pptx,docx,mov',
-            'type' => 'required|in:document,quiz,assignment',
+            'subpart_titles' => 'required_if:type,lecture|array|min:1',
+            'subpart_titles.*' => 'required_if:type,lecture|string|max:150',
+            'files' => 'required_if:type,lecture|array|min:1',
+            'files.*' => 'file|max:102400|mimes:pdf,ppt,pptx,docx,mov',
+            'type' => 'required|in:document,quiz,assignment,lecture',
             'visibility' => 'nullable|in:all,selected,except',
             'visible_user_ids' => 'nullable|array',
             'visible_user_ids.*' => 'integer|exists:users,id',
         ]);
+
+        if ($validated['type'] === 'lecture'
+            && count($validated['subpart_titles']) !== count($request->file('files', []))) {
+            abort(422, 'Each Lecture content file must have a title.');
+        }
 
         $class = ClassModel::findOrFail($validated['class_id']);
 
@@ -669,7 +994,7 @@ class ClassManagerController extends Controller
 
         $filePath = null;
 
-        // Handle file upload for document type
+        // Handle file upload for legacy document type only. Lectures store content below the parent.
         if ($validated['type'] === 'document' && $request->hasFile('file')) {
             $file = $request->file('file');
             $extension = strtolower($file->extension());
@@ -716,8 +1041,33 @@ class ClassManagerController extends Controller
             'file_type' => $fileType,
             'is_quiz' => $validated['type'] === 'quiz',
             'is_assignment' => $validated['type'] === 'assignment',
+            'is_lecture' => $validated['type'] === 'lecture',
             'visibility' => $visibility,
         ]);
+
+        if ($validated['type'] === 'lecture') {
+            foreach ($request->file('files', []) as $index => $file) {
+                $extension = strtolower($file->extension());
+                $uniqueName = time().'_'.Str::random(8).'.'.$extension;
+                $filePath = $file->storeAs("modules/{$module->id}/subparts", $uniqueName, 'public');
+                $fileType = match ($extension) {
+                    'pdf' => 'pdf',
+                    'ppt' => 'ppt',
+                    'pptx' => 'pptx',
+                    'docx' => 'docx',
+                    'mov' => 'mov',
+                    default => null,
+                };
+
+                ModuleSubpart::create([
+                    'module_id' => $module->id,
+                    'title' => '1.'.($index + 1).' '.$validated['subpart_titles'][$index],
+                    'file_path' => $filePath,
+                    'file_type' => $fileType,
+                    'order' => $index + 1,
+                ]);
+            }
+        }
 
         // Visibility is set at creation time only — editing is a future feature.
         if (in_array($visibility, ['selected', 'except']) && ! empty($visibleUserIds)) {
@@ -805,7 +1155,6 @@ class ClassManagerController extends Controller
         }
 
         $modules = $class->modules()
-            ->where('is_formal_assessment', false)
             ->where(function ($query) use ($user) {
                 $query->where('visibility', 'all')
                     ->orWhere(function ($sub) use ($user) {
@@ -817,8 +1166,49 @@ class ClassManagerController extends Controller
                             ->whereDoesntHave('visibleTo', fn ($q) => $q->where('users.id', $user->id));
                     });
             })
+            ->with([
+                'subparts.lessons.progress' => fn ($query) => $query->where('user_id', $user->id),
+                'subparts.progress' => fn ($query) => $query->where('user_id', $user->id),
+            ])
+            ->orderByRaw("
+                CASE 
+                    WHEN quiz_stage = 'pre_test' 
+                         OR assessment_purpose IN ('pre_test', 'pre_assessment') 
+                         OR LOWER(title) LIKE '%pre-test%' 
+                         OR LOWER(title) LIKE '%pre-assessment%' 
+                         OR LOWER(title) LIKE '%pre test%' 
+                         OR LOWER(title) LIKE '%pre assessment%' 
+                         OR (is_quiz = 1 AND (is_formal_assessment = 0 OR is_formal_assessment IS NULL)) THEN 0
+                    WHEN is_lecture = 1 OR is_quiz = 0 OR file_path IS NOT NULL THEN 1
+                    WHEN quiz_stage = 'post_test' 
+                         OR assessment_purpose IN ('post_test', 'post_assessment') 
+                         OR LOWER(title) LIKE '%post-test%' 
+                         OR LOWER(title) LIKE '%post-assessment%' 
+                         OR LOWER(title) LIKE '%post test%' 
+                         OR LOWER(title) LIKE '%post assessment%' 
+                         OR LOWER(title) LIKE '%final assessment%' 
+                         OR LOWER(title) LIKE '%pre-board%' 
+                         OR LOWER(title) LIKE '%pre board%' THEN 3
+                    ELSE 2
+                END
+            ")
             ->orderBy('order')
+            ->orderBy('id')
             ->get();
+
+        $modules->each(function (Module $module): void {
+            $module->subparts->each(function ($subpart): void {
+                $subpartProgress = $subpart->progress->first();
+                $subpart->student_progress = (float) ($subpartProgress?->progress ?? 0);
+                $subpart->student_completed = (bool) ($subpartProgress?->completed ?? false);
+
+                $subpart->lessons->each(function ($lesson): void {
+                    $lessonProgress = $lesson->progress->first();
+                    $lesson->student_progress = (float) ($lessonProgress?->progress ?? 0);
+                    $lesson->student_completed = (bool) ($lessonProgress?->completed ?? false);
+                });
+            });
+        });
 
         $progress = [];
         $completed = [];
@@ -839,7 +1229,7 @@ class ClassManagerController extends Controller
         // Sequential lock removed: modules are no longer gated by previous completion.
         $locked = [];
 
-        // Load completed pre-assessment quiz attempts so the view can show locked results.
+        // Load completed quiz attempts so the view can show locked results.
         $quizModuleIds = $modules->where('is_quiz', true)->pluck('id');
         $quizAttempts = [];
 
@@ -849,7 +1239,8 @@ class ClassManagerController extends Controller
                 ->where('total', '>', 0)
                 ->get()
                 ->each(function (QuizAttempt $attempt) use (&$quizAttempts) {
-                    $quizAttempts[$attempt->module_id] = [
+                    $attemptData = [
+                        'attempt_id' => $attempt->id,
                         'score' => $attempt->score,
                         'total' => $attempt->total,
                         'percentage' => $attempt->percentage,
@@ -859,6 +1250,10 @@ class ClassManagerController extends Controller
                         'ai_weak' => $attempt->ai_weak,
                         'ai_recommendation' => $attempt->ai_recommendation,
                     ];
+                    $quizAttempts[$attempt->module_id] = $attemptData;
+                    if (! empty($attempt->quiz_stage)) {
+                        $quizAttempts["{$attempt->module_id}:{$attempt->quiz_stage}"] = $attemptData;
+                    }
                 });
         }
 
@@ -1210,7 +1605,8 @@ POWERSHELL;
                     'id' => $module->id,
                     'title' => $module->title,
                     'description' => $module->description ?? 'No description',
-                    'type' => $module->is_quiz ? 'Quiz' : ($module->is_assignment ? 'Assignment' : 'Document'),
+                    'type' => $module->is_quiz ? 'Quiz' : ($module->is_assignment ? 'Assignment' : ($module->is_lecture ? 'Lecture' : 'Document')),
+                    'is_lecture' => (bool) $module->is_lecture,
                     'is_formal_assessment' => (bool) $module->is_formal_assessment,
                     'edit_url' => $module->is_quiz ? route('quiz.create', $module) : null,
                     'file_path' => $module->file_path ? asset('storage/'.$module->file_path) : null,
@@ -1266,7 +1662,7 @@ POWERSHELL;
         return response()->json(['success' => true]);
     }
 
-    public function createQuiz(Module $module)
+    public function createQuiz(Request $request, Module $module)
     {
         $class = $module->class;
 
@@ -1282,18 +1678,35 @@ POWERSHELL;
             }
         }
 
+        // Which Lecture stage are we editing? null = standalone quiz / mock
+        // board phase (exactly the old behavior). 'pre_test' / 'post_test' =
+        // editing that specific stage of a Lecture module's quiz.
+        $stage = $request->query('stage');
+        $stage = in_array($stage, ['pre_test', 'post_test'], true) ? $stage : null;
+
         // Eksplisitong destinasyon para sa "Back" button — hindi na umaasa sa
         // url()->previous(), na nagiging self-referencing pagkatapos ng save/redirect loop.
         $isMockBoardModule = \DB::table('mock_board_phases')->where('module_id', $module->id)->exists() || ($module->is_mock_board ?? false);
         $backUrl = $isMockBoardModule
-? route('student.mock-boards.index')
-: route('manageclass');
+            ? route('student.mock-boards.index')
+            : route('manageclass');
 
-        if (! $module->is_quiz) {
+        // Reachable in two cases: (a) a standalone/mock-board quiz module
+        // (is_quiz = true), or (b) a Lecture module (is_quiz = false) when a
+        // valid ?stage= is supplied — Lecture modules never carry is_quiz,
+        // so the old check alone would 404 every pre-test/post-test edit.
+        if (! $module->is_quiz && $stage === null) {
             abort(404, 'This module is not a quiz.');
         }
 
-        $existingQuestions = $module->quizQuestions()
+        $questionsQuery = $module->quizQuestions();
+        if ($stage !== null) {
+            $questionsQuery->where('quiz_stage', $stage);
+        } else {
+            $questionsQuery->whereNull('quiz_stage');
+        }
+
+        $existingQuestions = $questionsQuery
             ->get()
             ->map(function (QuizQuestion $question) {
                 return [
@@ -1321,7 +1734,7 @@ POWERSHELL;
             $isAiQuizGenerationEnabled = false;
         }
 
-$existingTopics = \App\Models\TestBankQuestion::query()
+        $existingTopics = TestBankQuestion::query()
             ->whereNotNull('topic')
             ->where('topic', '!=', '')
             ->distinct()
@@ -1329,14 +1742,15 @@ $existingTopics = \App\Models\TestBankQuestion::query()
             ->pluck('topic');
 
         return view('pages.teacher.quiz-create', compact(
-            'module', 
-            'class', 
-            'existingQuestions', 
-            'classQuizDefaults', 
+            'module',
+            'class',
+            'existingQuestions',
+            'classQuizDefaults',
             'isAiQuizGenerationEnabled',
             'isMockBoard',
             'backUrl',
-            'existingTopics'
+            'existingTopics',
+            'stage'
         ));
     }
 
@@ -1346,271 +1760,301 @@ $existingTopics = \App\Models\TestBankQuestion::query()
     /**
      * Generate quiz questions using AI, with precise target counts per uploaded document
      */
-public function generateQuizAi(Request $request, Module $module, AiSettingsResolver $settingsResolver)
-{
-    $class = $module->class;
+    public function generateQuizAi(Request $request, Module $module, AiSettingsResolver $settingsResolver)
+    {
+        $class = $module->class;
 
-    if ($class) {
-        if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
-            abort(403);
-        }
-    } else {
-        if (Auth::user()->role !== 'admin' && (int) $module->created_by !== (int) Auth::id()) {
-            abort(403, 'You do not have permission to generate questions for this Mock Board.');
-        }
-    }
-
-    if (! $module->is_quiz) {
-        abort(404, 'This module is not a quiz.');
-    }
-
-    // Sundin ang Global/Class AI feature toggle. Dati, frontend lang (disabled
-    // button) ang nag-e-enforce nito, kaya pwedeng ma-bypass sa direktang request.
-    if (! $settingsResolver->isFeatureEnabled('quiz_generation', $class)) {
-        abort(403, 'AI quiz generation is currently disabled for this class.');
-    }
-
-    $validator = Validator::make($request->all(), [
-        'context_files' => 'required|array|min:1',
-        'context_files.*' => 'file|mimes:pdf,doc,docx,txt|max:20480',
-        'file_difficulty_counts' => 'required|array|min:1',
-        'file_difficulty_counts.*' => 'array',
-        'file_difficulty_counts.*.Average' => 'nullable|integer|min:0',
-        'file_difficulty_counts.*.Normal' => 'nullable|integer|min:0',
-        'file_difficulty_counts.*.Hard' => 'nullable|integer|min:0',
-        'extra_instructions' => 'nullable|string|max:500',
-        'choice_count' => 'nullable|integer|min:2|max:10',
-    ]);
-
-    $validator->after(function ($v) use ($request) {
-        $allCounts = $request->input('file_difficulty_counts', []);
-        $grandTotal = 0;
-
-        if (is_array($allCounts)) {
-            foreach ($allCounts as $index => $tiers) {
-                if (! is_array($tiers)) {
-                    continue;
-                }
-
-                $fileTotal = ((int) ($tiers['Average'] ?? 0))
-                    + ((int) ($tiers['Normal'] ?? 0))
-                    + ((int) ($tiers['Hard'] ?? 0));
-
-                if ($fileTotal > 20) {
-                    $v->errors()->add(
-                        "file_difficulty_counts.{$index}",
-                        "The total requested questions for this file ({$fileTotal}) exceeds the maximum allowed per-file limit of 20."
-                    );
-                }
-
-                $grandTotal += $fileTotal;
+        if ($class) {
+            if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
+                abort(403);
+            }
+        } else {
+            if (Auth::user()->role !== 'admin' && (int) $module->created_by !== (int) Auth::id()) {
+                abort(403, 'You do not have permission to generate questions for this Mock Board.');
             }
         }
 
-        if ($grandTotal > 50) {
-            $v->errors()->add(
-                'file_difficulty_counts',
-                "The total requested questions across all files ({$grandTotal}) exceeds the maximum allowed limit of 50."
-            );
+        if (! $module->is_quiz) {
+            abort(404, 'This module is not a quiz.');
         }
 
-        if ($grandTotal === 0) {
-            $v->errors()->add(
-                'file_difficulty_counts',
-                'Please request at least one question for at least one file.'
-            );
+        // Sundin ang Global/Class AI feature toggle. Dati, frontend lang (disabled
+        // button) ang nag-e-enforce nito, kaya pwedeng ma-bypass sa direktang request.
+        if (! $settingsResolver->isFeatureEnabled('quiz_generation', $class)) {
+            abort(403, 'AI quiz generation is currently disabled for this class.');
         }
-    });
 
-    $validated = $validator->validate();
+        $validator = Validator::make($request->all(), [
+            'context_files' => 'required|array|min:1',
+            'context_files.*' => 'file|mimes:pdf,doc,docx,txt|max:20480',
+            'file_difficulty_counts' => 'required|array|min:1',
+            'file_difficulty_counts.*' => 'array',
+            'file_difficulty_counts.*.Easy' => 'nullable|integer|min:0',
+            'file_difficulty_counts.*.Average' => 'nullable|integer|min:0',
+            'file_difficulty_counts.*.Difficult' => 'nullable|integer|min:0',
+            'extra_instructions' => 'nullable|string|max:500',
+            'choice_count' => 'nullable|integer|min:2|max:10',
+            'quiz_stage' => 'nullable|in:pre_test,post_test',
+        ]);
 
-    $difficultyCounts = $validated['file_difficulty_counts'] ?? [];
-    $allowedDifficulties = ['Average', 'Normal', 'Hard'];
+        $validator->after(function ($v) use ($request) {
+            $allCounts = $request->input('file_difficulty_counts', []);
+            $grandTotal = 0;
 
-    // Count active (file, tier) jobs to size the time limit correctly.
-    $activeJobCount = 0;
-    foreach ($difficultyCounts as $tiers) {
-        foreach ($allowedDifficulties as $tier) {
-            if ((int) ($tiers[$tier] ?? 0) > 0) {
-                $activeJobCount++;
+            if (is_array($allCounts)) {
+                foreach ($allCounts as $index => $tiers) {
+                    if (! is_array($tiers)) {
+                        continue;
+                    }
+
+                    $fileTotal = ((int) ($tiers['Easy'] ?? 0))
+                        + ((int) ($tiers['Average'] ?? 0))
+                        + ((int) ($tiers['Difficult'] ?? 0));
+
+                    if ($fileTotal > 100) {
+                        $v->errors()->add(
+                            "file_difficulty_counts.{$index}",
+                            "The total requested questions for this file ({$fileTotal}) exceeds the maximum allowed per-file limit of 100."
+                        );
+                    }
+
+                    $grandTotal += $fileTotal;
+                }
+            }
+
+            if ($grandTotal > 100) {
+                $v->errors()->add(
+                    'file_difficulty_counts',
+                    "The total requested questions across all files ({$grandTotal}) exceeds the maximum allowed limit of 100."
+                );
+            }
+
+            if ($grandTotal === 0) {
+                $v->errors()->add(
+                    'file_difficulty_counts',
+                    'Please request at least one question for at least one file.'
+                );
+            }
+        });
+
+        $validated = $validator->validate();
+
+        $difficultyCounts = $validated['file_difficulty_counts'] ?? [];
+        $allowedDifficulties = ['Easy', 'Average', 'Difficult'];
+        $requestedQuestionCount = collect($difficultyCounts)
+            ->sum(fn (array $tiers): int => collect($allowedDifficulties)->sum(fn (string $tier): int => (int) ($tiers[$tier] ?? 0)));
+
+        // Count active total requested questions to size the time limit correctly.
+        $totalQuestionsToGenerate = 0;
+        foreach ($difficultyCounts as $tiers) {
+            foreach ($allowedDifficulties as $tier) {
+                $totalQuestionsToGenerate += (int) ($tiers[$tier] ?? 0);
             }
         }
-    }
-    // More AI calls (per file × per tier × per type) — allow more time
-    set_time_limit(max(90, $activeJobCount * 90));
+        set_time_limit(max(120, $totalQuestionsToGenerate * 10));
 
-    $allGeneratedQuestions = [];
-    $ai = app(CloudflareAI::class);
+        $allGeneratedQuestions = [];
+        $allExtractedTexts = [];
+        $totalTokenUsage = [
+            'prompt_tokens' => 0,
+            'completion_tokens' => 0,
+            'total_tokens' => 0,
+        ];
+        $ai = app(CloudflareAI::class);
 
-    $choiceCount = (int) ($validated['choice_count'] ?? 4);
-    $choiceLetters = array_slice(range('A', 'J'), 0, $choiceCount);
+        $choiceCount = (int) ($validated['choice_count'] ?? 4);
+        $choiceLetters = array_slice(range('A', 'J'), 0, $choiceCount);
 
-    $typePatterns = [
-        // what, why, how  (base = 5)
-        'Average' => [3, 1, 1],
-        'Normal' => [1, 2, 2],
-        'Hard' => [0, 2, 3],
-    ];
+        $typePatterns = [
+            // what, why, how  (base = 5)
+            'Easy' => [3, 1, 1],
+            'Average' => [1, 2, 2],
+            'Difficult' => [0, 2, 3],
+        ];
 
-    foreach ($request->file('context_files') as $index => $file) {
-        $fileTiers = $difficultyCounts[$index] ?? [];
+        foreach ($request->file('context_files') as $index => $file) {
+            $fileTiers = $difficultyCounts[$index] ?? [];
 
-        $fileTotalRequested = 0;
-        foreach ($allowedDifficulties as $tier) {
-            $fileTotalRequested += (int) ($fileTiers[$tier] ?? 0);
-        }
+            $fileTotalRequested = 0;
+            foreach ($allowedDifficulties as $tier) {
+                $fileTotalRequested += (int) ($fileTiers[$tier] ?? 0);
+            }
 
-        if ($fileTotalRequested === 0 || ! $file->isValid()) {
-            continue;
-        }
-
-        $storedPath = $file->storeAs(
-            'temp_context',
-            uniqid('ctx_').'.'.$file->getClientOriginalExtension(),
-            'local'
-        );
-        $fullPath = Storage::disk('local')->path($storedPath);
-
-        try {
-            $parser = new Parser;
-            $pdf = $parser->parseFile($fullPath);
-            $text = trim(preg_replace('/\s+/', ' ', $pdf->getText()));
-            $text = $this->truncateAtSentenceBoundary($text, 8000);
-        } catch (\Exception $e) {
-            Log::warning('PDF parse failed for file '.$file->getClientOriginalName().' - '.$e->getMessage());
-            @unlink($fullPath);
-            continue;
-        }
-        @unlink($fullPath);
-
-        if ($text === '') {
-            Log::warning('Empty text after parse: '.$file->getClientOriginalName());
-            continue;
-        }
-
-        $extraInstructions = trim($validated['extra_instructions'] ?? '');
-        $extraInstructionsBlock = $extraInstructions !== ''
-            ? "Additional Teacher Instructions: {$extraInstructions}\n\n"
-            : '';
-
-        $optionsExample = '{'.implode(',', array_map(fn ($l) => "\"{$l}\":\"...\"", $choiceLetters)).'}';
-        $letterList = implode('|', $choiceLetters);
-
-        $fileQuestions = [];
-
-        // Loop over each difficulty tier that has a count > 0 for this file.
-        foreach ($allowedDifficulties as $targetDifficulty) {
-            $requestedCount = (int) ($fileTiers[$targetDifficulty] ?? 0);
-
-            if ($requestedCount <= 0) {
+            if ($fileTotalRequested === 0 || ! $file->isValid()) {
                 continue;
             }
 
-            $pattern = $typePatterns[$targetDifficulty] ?? $typePatterns['Normal'];
-            $base = array_sum($pattern);
+            $storedPath = $file->storeAs(
+                'temp_context',
+                uniqid('ctx_').'.'.$file->getClientOriginalExtension(),
+                'local'
+            );
+            $fullPath = Storage::disk('local')->path($storedPath);
 
-            $targetWhat = (int) round($requestedCount * ($pattern[0] / $base));
-            $targetWhy = (int) round($requestedCount * ($pattern[1] / $base));
-            $targetHow = (int) round($requestedCount * ($pattern[2] / $base));
+            try {
+                $parser = new Parser;
+                $pdf = $parser->parseFile($fullPath);
+                $rawText = $pdf->getText();
+                $cleanedText = $this->cleanExtractedPdfText($rawText);
+                $text = $this->truncateAtSentenceBoundary($cleanedText, 25000);
+            } catch (\Exception $e) {
+                Log::warning('PDF parse failed for file '.$file->getClientOriginalName().' - '.$e->getMessage());
+                @unlink($fullPath);
 
-            $sum = $targetWhat + $targetWhy + $targetHow;
-            if ($sum < $requestedCount) {
-                if ($targetDifficulty === 'Average') {
-                    $targetWhat += ($requestedCount - $sum);
-                } else {
-                    $targetHow += ($requestedCount - $sum);
+                continue;
+            }
+            @unlink($fullPath);
+
+            if ($text === '') {
+                Log::warning('Empty text after parse: '.$file->getClientOriginalName());
+
+                continue;
+            }
+
+            $allExtractedTexts[$index] = [
+                'name' => $file->getClientOriginalName(),
+                'text' => $text,
+            ];
+
+            // Slice document into distinct coherent sections so different batches read different parts of the PDF
+            $desiredSections = max(5, min(40, (int) ceil($fileTotalRequested / 2)));
+            $sections = $this->sliceDocumentIntoSections($text, $desiredSections);
+            $sectionCount = count($sections);
+
+            $extraInstructions = trim($validated['extra_instructions'] ?? '');
+            $extraInstructionsBlock = $extraInstructions !== ''
+                ? "Additional Teacher Instructions: {$extraInstructions}\n\n"
+                : '';
+
+            $optionsExample = '{'.implode(',', array_map(fn ($l) => "\"{$l}\":\"...\"", $choiceLetters)).'}';
+            $letterList = implode('|', $choiceLetters);
+
+            // Build task queue of micro-jobs (1 to 2 questions per job) for this file
+            $tasks = [];
+            foreach ($allowedDifficulties as $targetDifficulty) {
+                $requestedCount = (int) ($fileTiers[$targetDifficulty] ?? 0);
+                if ($requestedCount <= 0) {
+                    continue;
                 }
-            } elseif ($sum > $requestedCount) {
-                $overflow = $sum - $requestedCount;
-                if ($targetWhat >= $overflow) {
-                    $targetWhat -= $overflow;
-                } else {
-                    $overflow -= $targetWhat;
-                    $targetWhat = 0;
-                    if ($targetWhy >= $overflow) {
-                        $targetWhy -= $overflow;
+
+                $pattern = $typePatterns[$targetDifficulty] ?? $typePatterns['Normal'];
+                $base = array_sum($pattern);
+
+                $targetWhat = (int) round($requestedCount * ($pattern[0] / $base));
+                $targetWhy = (int) round($requestedCount * ($pattern[1] / $base));
+                $targetHow = (int) round($requestedCount * ($pattern[2] / $base));
+
+                $sum = $targetWhat + $targetWhy + $targetHow;
+                if ($sum < $requestedCount) {
+                    if ($targetDifficulty === 'Average') {
+                        $targetWhat += ($requestedCount - $sum);
                     } else {
-                        $overflow -= $targetWhy;
-                        $targetWhy = 0;
-                        $targetHow = max(0, $targetHow - $overflow);
+                        $targetHow += ($requestedCount - $sum);
+                    }
+                } elseif ($sum > $requestedCount) {
+                    $overflow = $sum - $requestedCount;
+                    if ($targetWhat >= $overflow) {
+                        $targetWhat -= $overflow;
+                    } else {
+                        $overflow -= $targetWhat;
+                        $targetWhat = 0;
+                        if ($targetWhy >= $overflow) {
+                            $targetWhy -= $overflow;
+                        } else {
+                            $overflow -= $targetWhy;
+                            $targetWhy = 0;
+                            $targetHow = max(0, $targetHow - $overflow);
+                        }
+                    }
+                }
+
+                foreach (['what' => $targetWhat, 'why' => $targetWhy, 'how' => $targetHow] as $qType => $count) {
+                    while ($count > 0) {
+                        $batchSize = min(2, $count);
+                        $tasks[] = [
+                            'difficulty' => $targetDifficulty,
+                            'type' => $qType,
+                            'count' => $batchSize,
+                        ];
+                        $count -= $batchSize;
                     }
                 }
             }
 
-            Log::info('AI quiz per-type plan', [
-                'file' => $file->getClientOriginalName(),
-                'targetDifficulty' => $targetDifficulty,
-                'targetWhat' => $targetWhat,
-                'targetWhy' => $targetWhy,
-                'targetHow' => $targetHow,
-            ]);
+            $fileQuestions = [];
 
-            $typeJobs = [
-                'what' => $targetWhat,
-                'why' => $targetWhy,
-                'how' => $targetHow,
-            ];
+            // Process each micro-task targeting its own distinct document section
+            foreach ($tasks as $tIdx => $task) {
+                $targetDifficulty = $task['difficulty'];
+                $questionType = $task['type'];
+                $typeCount = $task['count'];
+                $bufferedCount = $typeCount + 1; // +1 buffer candidate
 
-            foreach ($typeJobs as $questionType => $typeCount) {
-                if ($typeCount <= 0) {
-                    continue;
-                }
+                $pass = (int) floor($tIdx / max(1, $sectionCount));
+                $assignedSection = $sections[$tIdx % $sectionCount];
 
-                $typeInstructions = match ($questionType) {
-                    'why' => "ALL {$typeCount} questions MUST be WHY questions.\n"
-                        ."- Stem MUST start with \"Why...\" or \"What is the rationale...\" or \"What best explains...\".\n"
-                        ."- Ask for reasoning behind a rule, principle, choice, or outcome.\n"
-                        ."- Set question_type to \"why\" on every object.\n"
-                        ."- Do NOT use \"Which of the following\".\n",
-                    'how' => "ALL {$typeCount} questions MUST be HOW questions.\n"
-                        ."- Stem MUST start with \"How should...\" or \"How is ... computed/applied...\" or \"What is the correct procedure to...\".\n"
-                        ."- Ask for procedure, process, or application steps.\n"
-                        ."- Set question_type to \"how\" on every object.\n"
-                        ."- Do NOT use \"Which of the following\".\n",
-                    default => "ALL {$typeCount} questions MUST be WHAT questions.\n"
-                        ."- Identify something FROM a scenario, case, computation, or data — never bare definition.\n"
-                        ."- Set question_type to \"what\" on every object.\n"
-                        ."- Do NOT start every item with \"Given...\".\n",
+                $angleDirective = match ($pass % 4) {
+                    1 => "FOCUS ANGLE: Focus specifically on implementation details, practical steps, or rule constraints found in this text.\n",
+                    2 => "FOCUS ANGLE: Focus specifically on challenges, limitations, exceptions, or rationale behind rules found in this text.\n",
+                    3 => "FOCUS ANGLE: Focus specifically on outcomes, benefits, evaluation methods, or comparative points found in this text.\n",
+                    default => "FOCUS ANGLE: Focus specifically on definitions, key components, concepts, or primary facts found in this text.\n",
                 };
 
-                $prompt = "Generate EXACTLY {$typeCount} multiple-choice questions based ONLY on the text below.\n"
+                $typeInstructions = match ($questionType) {
+                    'why' => "ALL {$bufferedCount} questions MUST be WHY questions.\n"
+                        ."- Ask for reasoning, justification, purpose, or rationale behind a rule, principle, or outcome.\n"
+                        ."- Set question_type to \"why\" on every object.\n"
+                        ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
+                    'how' => "ALL {$bufferedCount} questions MUST be HOW questions.\n"
+                        ."- Ask for process, method, computation, application steps, or procedure.\n"
+                        ."- Set question_type to \"how\" on every object.\n"
+                        ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
+                    default => "ALL {$bufferedCount} questions MUST be WHAT questions.\n"
+                        ."- Identify specific concepts, components, definitions, rules, or scenarios.\n"
+                        ."- Set question_type to \"what\" on every object.\n"
+                        ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
+                };
+
+                $existingStems = array_map(fn ($q) => (string) ($q['question'] ?? ''), array_merge($allGeneratedQuestions, $fileQuestions));
+                $avoidBlock = '';
+                if (! empty($existingStems)) {
+                    $sampled = array_slice($existingStems, -35);
+                    $avoidList = implode("\n", array_map(fn ($s) => '- '.trim($s), $sampled));
+                    $avoidBlock = "CRITICAL: Avoid Duplicates. Do NOT generate questions that repeat or closely resemble any of these already created questions:\n{$avoidList}\n\n";
+                }
+
+                $prompt = "Generate EXACTLY {$bufferedCount} unique multiple-choice questions based ONLY on the text below.\n"
                     ."Each question must have EXACTLY {$choiceCount} answer choices ({$letterList}).\n"
-                    ."Batch difficulty target: {$targetDifficulty}.\n"
+                    ."Difficulty: {$targetDifficulty}.\n"
                     ."Source file: {$file->getClientOriginalName()}\n\n"
+                    .$avoidBlock
                     ."════════════════════════════════════════\n"
+                    .$angleDirective
                     .$typeInstructions
                     ."════════════════════════════════════════\n\n"
-                    ."Difficulty guide (most items should feel {$targetDifficulty}):\n"
-                    ."- Average: one concept, simple scenario.\n"
-                    ."- Normal: two related concepts or richer scenario.\n"
-                    ."- Hard: multi-step reasoning or nuanced case.\n\n"
+                    ."Requirements:\n"
+                    ."- Formulate questions specifically testing concepts, rules, facts, or scenarios found in the content below.\n"
+                    ."- Return ONLY a valid JSON array of {$bufferedCount} objects.\n"
+                    ."- Format: {\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"{$targetDifficulty}\",\"question_type\":\"{$questionType}\",\"evidence\":\"...\"}\n"
+                    ."- Spread correct answers across {$letterList}.\n\n"
                     .$extraInstructionsBlock
-                    ."Content:\n{$text}\n\n"
-                    ."Rules:\n"
-                    ."- Return ONLY a valid JSON array with EXACTLY {$typeCount} objects.\n"
-                    ."- Format: {\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"Average|Normal|Hard\",\"question_type\":\"{$questionType}\"}\n"
-                    ."- Every question_type MUST be \"{$questionType}\".\n"
-                    .'- No markdown, no backticks, no extra text.';
+                    ."Content:\n{$assignedSection}\n\n"
+                    .'Rules: Return valid JSON array only. No markdown, no extra text.';
 
                 try {
-                    // Ang admin-configured max_tokens ay ginagamit bilang ceiling —
-                    // hindi ito papayagang mas mababa sa 320/tanong (structural minimum),
-                    // para hindi ma-truncate ang JSON output kahit mababa ang naka-set.
-                    $configuredCeiling = max($settingsResolver->getMaxTokens(), 320 * $typeCount);
-
                     $payload = [
                         'messages' => [
                             [
                                 'role' => 'system',
-                                'content' => "You generate board-exam MCQs. Output ONLY a JSON array of exactly {$typeCount} objects. Every object must have question_type \"{$questionType}\". No markdown.",
+                                'content' => "You generate board-exam MCQs. Output ONLY a JSON array of {$bufferedCount} objects. Every question must be distinct and non-duplicative. No markdown.",
                             ],
                             [
                                 'role' => 'user',
                                 'content' => $prompt,
                             ],
                         ],
-                        'max_tokens' => min(320 * $typeCount, $configuredCeiling, 4096),
-                        'temperature' => 0.2,
+                        'max_tokens' => min(320 * $bufferedCount, 1500),
+                        'temperature' => 0.35,
                         'response_format' => [
                             'type' => 'json_schema',
                             'json_schema' => [
@@ -1636,14 +2080,20 @@ public function generateQuizAi(Request $request, Module $module, AiSettingsResol
                                             'type' => 'string',
                                             'enum' => ['what', 'why', 'how'],
                                         ],
+                                        'evidence' => ['type' => 'string'],
                                     ],
-                                    'required' => ['question', 'options', 'correct', 'difficulty', 'question_type'],
+                                    'required' => ['question', 'options', 'correct', 'difficulty', 'question_type', 'evidence'],
                                 ],
                             ],
                         ],
                     ];
 
                     $result = $ai->run($settingsResolver->getModel(), $payload);
+                    if (isset($result['usage'])) {
+                        $totalTokenUsage['prompt_tokens'] += (int) ($result['usage']['prompt_tokens'] ?? 0);
+                        $totalTokenUsage['completion_tokens'] += (int) ($result['usage']['completion_tokens'] ?? 0);
+                        $totalTokenUsage['total_tokens'] += (int) ($result['usage']['total_tokens'] ?? 0);
+                    }
                     $aiResponse = $result['response'] ?? '';
 
                     if (is_array($aiResponse)) {
@@ -1670,125 +2120,294 @@ public function generateQuizAi(Request $request, Module $module, AiSettingsResol
                         }
                     }
 
-                    $batch = array_values(array_filter($batch, function ($q) use ($choiceLetters) {
-                        return isset($q['question'], $q['options'], $q['correct'])
-                            && is_string($q['question'])
-                            && is_string($q['correct'])
-                            && is_array($q['options'])
-                            && count($q['options']) === count($choiceLetters)
-                            && in_array(strtoupper($q['correct']), $choiceLetters, true);
-                    }));
+                    $cleanBatch = [];
+                    foreach ($batch as $candidateIndex => $candidate) {
+                        $rejectionReason = $this->aiQuestionRejectionReason($candidate, $choiceLetters, $questionType, $text);
+                        if ($rejectionReason !== null) {
+                            continue;
+                        }
 
-                    $batch = array_slice($batch, 0, $typeCount);
+                        $cleanBatch[] = $candidate;
+                    }
+                    $batch = $cleanBatch;
 
-                    // Force correct question_type + difficulty label for this job
+                    // Force question_type + difficulty, then shuffle options so correct is not always A
                     foreach ($batch as &$q) {
                         $q['question_type'] = $questionType;
                         $q['difficulty'] = $targetDifficulty;
+
+                        $options = $q['options'];
+                        $correctLetter = strtoupper((string) $q['correct']);
+                        $correctText = $options[$correctLetter] ?? reset($options);
+
+                        $texts = array_values($options);
+                        for ($i = count($texts) - 1; $i > 0; $i--) {
+                            $j = random_int(0, $i);
+                            [$texts[$i], $texts[$j]] = [$texts[$j], $texts[$i]];
+                        }
+
+                        $newOptions = [];
+                        $newCorrect = $choiceLetters[0];
+                        foreach ($choiceLetters as $idx => $letter) {
+                            $newOptions[$letter] = $texts[$idx] ?? '';
+                            if (($texts[$idx] ?? null) === $correctText) {
+                                $newCorrect = $letter;
+                            }
+                        }
+
+                        $q['options'] = $newOptions;
+                        $q['correct'] = $newCorrect;
                     }
                     unset($q);
-
-                    // If short, one focused retry for this (tier, type) only
-                    if (count($batch) < $typeCount) {
-                        Log::warning('AI per-type short — retry once', [
-                            'file' => $file->getClientOriginalName(),
-                            'difficulty' => $targetDifficulty,
-                            'type' => $questionType,
-                            'got' => count($batch),
-                            'need' => $typeCount,
-                        ]);
-
-                        $need = $typeCount - count($batch);
-                        $retryPrompt = $prompt."\n\nRETRY: Return EXACTLY {$need} more \"{$questionType}\" questions only.";
-
-                        try {
-                            $retryPayload = $payload;
-                            $retryPayload['messages'][1]['content'] = $retryPrompt;
-                            $retryPayload['max_tokens'] = min(320 * $need, 4096);
-
-                            $retryResult = $ai->run($settingsResolver->getModel(), $retryPayload);
-                            $retryResponse = $retryResult['response'] ?? '';
-                            $retryBatch = is_array($retryResponse) ? $retryResponse : null;
-
-                            if (! is_array($retryBatch)) {
-                                $rawRetry = trim((string) $retryResponse);
-                                preg_match('/\[.*\]/s', $rawRetry, $m);
-                                $retryBatch = json_decode($m[0] ?? $rawRetry, true);
-                            }
-
-                            if (is_array($retryBatch)) {
-                                $retryBatch = array_values(array_filter($retryBatch, function ($q) use ($choiceLetters) {
-                                    return isset($q['question'], $q['options'], $q['correct'])
-                                        && is_string($q['question'])
-                                        && is_string($q['correct'])
-                                        && is_array($q['options'])
-                                        && count($q['options']) === count($choiceLetters)
-                                        && in_array(strtoupper($q['correct']), $choiceLetters, true);
-                                }));
-                                $retryBatch = array_slice($retryBatch, 0, $need);
-                                foreach ($retryBatch as &$rq) {
-                                    $rq['question_type'] = $questionType;
-                                    $rq['difficulty'] = $targetDifficulty;
-                                }
-                                unset($rq);
-                                $batch = array_merge($batch, $retryBatch);
-                            }
-                        } catch (\Exception $retryEx) {
-                            Log::warning('AI per-type retry failed: '.$retryEx->getMessage());
-                        }
-                    }
 
                     foreach (array_slice($batch, 0, $typeCount) as $q) {
                         $fileQuestions[] = $q;
                     }
                 } catch (\Exception $typeEx) {
-                    Log::error("AI per-type generation failed [{$targetDifficulty}/{$questionType}] {$file->getClientOriginalName()}: ".$typeEx->getMessage());
+                    Log::error("AI section task generation failed [{$targetDifficulty}/{$questionType}] {$file->getClientOriginalName()}: ".$typeEx->getMessage());
                 }
             }
-        }
 
-        // Optional light shuffle so tiers/types are not clumped in output order
-        shuffle($fileQuestions);
+            // Optional light shuffle so tiers/types are naturally distributed
+            shuffle($fileQuestions);
 
-        foreach ($fileQuestions as $q) {
-            $allGeneratedQuestions[] = $q;
-        }
-    }
-
-    if (empty($allGeneratedQuestions)) {
-        return response()->json([
-            'success' => false,
-            'message' => 'No valid questions could be generated from any of the uploaded documents.',
-        ], 422);
-    }
-
-    DB::transaction(function () use ($module, $allGeneratedQuestions, $allowedDifficulties) {
-        QuizQuestion::query()->where('module_id', $module->id)->delete();
-
-        foreach ($allGeneratedQuestions as $index => $q) {
-            $questionDifficulty = ucfirst(strtolower((string) ($q['difficulty'] ?? '')));
-            if (! in_array($questionDifficulty, $allowedDifficulties, true)) {
-                $questionDifficulty = 'Normal';
+            foreach ($fileQuestions as $q) {
+                $allGeneratedQuestions[] = $q;
             }
+        }
 
-            QuizQuestion::create([
-                'module_id' => $module->id,
-                'question_text' => trim((string) $q['question']),
-                'options' => $q['options'],
-                'correct_option' => strtoupper((string) $q['correct']),
-                'points' => 1,
-                'order' => $index + 1,
-                'difficulty' => $questionDifficulty,
+        $deduplication = $this->deduplicateQuestionBatch($allGeneratedQuestions);
+        $allGeneratedQuestions = $deduplication['questions'];
+
+        if (! empty($deduplication['duplicates'])) {
+            Log::warning('AI quiz cross-batch duplicates removed', [
+                'removed' => count($deduplication['duplicates']),
+                'duplicates' => $deduplication['duplicates'],
             ]);
         }
-    });
 
-    return response()->json([
-        'success' => true,
-        'message' => count($allGeneratedQuestions).' customized questions generated and saved into the quiz module.',
-        'questions' => $allGeneratedQuestions,
-    ]);
-}
+        // SMART MICRO-BATCH TOP-UP: Top up in fast micro-batches targeting rotating sections
+        $missingInitial = max(0, $requestedQuestionCount - count($allGeneratedQuestions));
+        $maxMicroBatches = max(20, (int) ceil($missingInitial / 2) + 12);
+        $microBatchCount = 0;
+
+        while (count($allGeneratedQuestions) < $requestedQuestionCount && $microBatchCount < $maxMicroBatches && ! empty($allExtractedTexts)) {
+            $microBatchCount++;
+            $missingCount = $requestedQuestionCount - count($allGeneratedQuestions);
+            $batchTarget = min($missingCount, 3);
+            $bufferedTopUp = $batchTarget + 2;
+
+            $fileKeys = array_keys($allExtractedTexts);
+            $selectedKey = $fileKeys[$microBatchCount % count($fileKeys)];
+            $topUpFile = $allExtractedTexts[$selectedKey];
+            $fullDocText = $topUpFile['text'] ?? '';
+            $topUpFileName = $topUpFile['name'] ?? 'context_file';
+
+            if ($fullDocText === '') {
+                break;
+            }
+
+            $topUpSections = $this->sliceDocumentIntoSections($fullDocText, 30);
+            $topUpChunkText = $topUpSections[$microBatchCount % count($topUpSections)];
+
+            $existingStems = array_map(fn ($q) => (string) ($q['question'] ?? ''), $allGeneratedQuestions);
+            $avoidList = implode("\n", array_map(fn ($s) => '- '.trim($s), array_slice($existingStems, -35)));
+            $avoidBlock = "CRITICAL: Avoid Duplicates. Do NOT repeat or closely rephrase any of these existing questions:\n{$avoidList}\n\n";
+
+            $topUpPrompt = "Generate EXACTLY {$bufferedTopUp} unique multiple-choice questions based ONLY on the text below.\n"
+                ."Each question must have EXACTLY {$choiceCount} answer choices ({$letterList}).\n"
+                ."Source file: {$topUpFileName}\n\n"
+                .$avoidBlock
+                ."Requirements:\n"
+                ."- Generate unique questions testing distinct concepts from the provided text.\n"
+                ."- Format: Return ONLY a valid JSON array of {$bufferedTopUp} objects.\n"
+                ."- Format: [{\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"Easy|Average|Difficult\",\"question_type\":\"what|why|how\",\"evidence\":\"...\"}]\n"
+                ."- Spread correct answers across {$letterList}.\n"
+                ."- No markdown, no extra text.\n\n"
+                ."Content:\n{$topUpChunkText}";
+
+            try {
+                $topUpPayload = [
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => "You generate board-exam MCQs. Output ONLY a JSON array of {$bufferedTopUp} distinct objects. No markdown.",
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $topUpPrompt,
+                        ],
+                    ],
+                    'max_tokens' => min(320 * $bufferedTopUp, 1500),
+                    'temperature' => 0.4,
+                    'response_format' => [
+                        'type' => 'json_schema',
+                        'json_schema' => [
+                            'type' => 'array',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'question' => ['type' => 'string'],
+                                    'options' => [
+                                        'type' => 'object',
+                                        'properties' => array_fill_keys($choiceLetters, ['type' => 'string']),
+                                        'required' => $choiceLetters,
+                                    ],
+                                    'correct' => [
+                                        'type' => 'string',
+                                        'enum' => $choiceLetters,
+                                    ],
+                                    'difficulty' => [
+                                        'type' => 'string',
+                                        'enum' => $allowedDifficulties,
+                                    ],
+                                    'question_type' => [
+                                        'type' => 'string',
+                                        'enum' => ['what', 'why', 'how'],
+                                    ],
+                                    'evidence' => ['type' => 'string'],
+                                ],
+                                'required' => ['question', 'options', 'correct', 'difficulty', 'question_type', 'evidence'],
+                            ],
+                        ],
+                    ],
+                ];
+
+                $topUpResult = $ai->run($settingsResolver->getModel(), $topUpPayload);
+                if (isset($topUpResult['usage'])) {
+                    $totalTokenUsage['prompt_tokens'] += (int) ($topUpResult['usage']['prompt_tokens'] ?? 0);
+                    $totalTokenUsage['completion_tokens'] += (int) ($topUpResult['usage']['completion_tokens'] ?? 0);
+                    $totalTokenUsage['total_tokens'] += (int) ($topUpResult['usage']['total_tokens'] ?? 0);
+                }
+                $rawTopUp = $topUpResult['response'] ?? '';
+                $topUpBatch = is_array($rawTopUp) ? $rawTopUp : null;
+
+                if (! is_array($topUpBatch)) {
+                    $cleaned = trim((string) $rawTopUp);
+                    $cleaned = preg_replace('/^[\s\r\n]*```json\s*/i', '', $cleaned);
+                    $cleaned = preg_replace('/\s*```[\s\r\n]*$/i', '', $cleaned);
+                    $cleaned = preg_replace('/^[\s\r\n]*```[\s\r\n]*/i', '', $cleaned);
+                    preg_match('/\[.*\]/s', $cleaned, $m);
+                    $topUpBatch = json_decode($m[0] ?? $cleaned, true);
+                }
+
+                if (is_array($topUpBatch)) {
+                    $validTopUp = [];
+                    foreach ($topUpBatch as $candidate) {
+                        $qType = (string) ($candidate['question_type'] ?? 'what');
+                        if ($this->isCleanAiQuestion($candidate, $choiceLetters, $qType, $fullDocText)) {
+                            $options = $candidate['options'];
+                            $correctLetter = strtoupper((string) $candidate['correct']);
+                            $correctText = $options[$correctLetter] ?? reset($options);
+
+                            $texts = array_values($options);
+                            for ($i = count($texts) - 1; $i > 0; $i--) {
+                                $j = random_int(0, $i);
+                                [$texts[$i], $texts[$j]] = [$texts[$j], $texts[$i]];
+                            }
+
+                            $newOptions = [];
+                            $newCorrect = $choiceLetters[0];
+                            foreach ($choiceLetters as $idx => $letter) {
+                                $newOptions[$letter] = $texts[$idx] ?? '';
+                                if (($texts[$idx] ?? null) === $correctText) {
+                                    $newCorrect = $letter;
+                                }
+                            }
+
+                            $candidate['options'] = $newOptions;
+                            $candidate['correct'] = $newCorrect;
+                            $validTopUp[] = $candidate;
+                        }
+                    }
+
+                    $combined = array_merge($allGeneratedQuestions, $validTopUp);
+                    $dedupResult = $this->deduplicateQuestionBatch($combined);
+                    $allGeneratedQuestions = $dedupResult['questions'];
+                }
+            } catch (\Exception $topUpEx) {
+                Log::warning('AI quiz micro-batch top-up failed: '.$topUpEx->getMessage());
+            }
+        }
+
+        // Cap to exact requested count if we reached or exceeded it
+        if (count($allGeneratedQuestions) > $requestedQuestionCount) {
+            $allGeneratedQuestions = array_slice($allGeneratedQuestions, 0, $requestedQuestionCount);
+        }
+
+        $answerDistribution = ['A' => 0, 'B' => 0, 'C' => 0, 'D' => 0, 'E' => 0, 'F' => 0, 'G' => 0, 'H' => 0, 'I' => 0, 'J' => 0];
+        foreach ($allGeneratedQuestions as $question) {
+            $correctLetter = strtoupper((string) ($question['correct'] ?? ''));
+            if (isset($answerDistribution[$correctLetter])) {
+                $answerDistribution[$correctLetter]++;
+            }
+        }
+        Log::info('AI quiz answer letter distribution', [
+            'distribution' => $answerDistribution,
+            'generated' => count($allGeneratedQuestions),
+        ]);
+
+        if (empty($allGeneratedQuestions)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No valid questions could be generated from any of the uploaded documents.',
+                'requested' => $requestedQuestionCount,
+                'generated' => 0,
+                'shortfall' => $requestedQuestionCount,
+                'questions' => [],
+            ], 422);
+        }
+
+        $generatedQuestionCount = count($allGeneratedQuestions);
+        $quizStage = $validated['quiz_stage'] ?? null;
+
+        DB::transaction(function () use ($module, $allGeneratedQuestions, $allowedDifficulties, $quizStage) {
+            QuizQuestion::query()
+                ->where('module_id', $module->id)
+                ->where('quiz_stage', $quizStage)
+                ->delete();
+
+            foreach ($allGeneratedQuestions as $index => $q) {
+                $questionDifficulty = ucfirst(strtolower((string) ($q['difficulty'] ?? '')));
+                if (! in_array($questionDifficulty, $allowedDifficulties, true)) {
+                    $questionDifficulty = 'Average';
+                }
+
+                QuizQuestion::create([
+                    'module_id' => $module->id,
+                    'quiz_stage' => $quizStage,
+                    'question_text' => trim((string) $q['question']),
+                    'options' => $q['options'],
+                    'correct_option' => strtoupper((string) $q['correct']),
+                    'points' => 1,
+                    'order' => $index + 1,
+                    'difficulty' => $questionDifficulty,
+                ]);
+            }
+        });
+
+        Log::info('AI quiz generation complete', [
+            'requested' => $requestedQuestionCount,
+            'generated' => $generatedQuestionCount,
+            'token_usage' => $totalTokenUsage,
+        ]);
+
+        $tokensFormatted = number_format($totalTokenUsage['total_tokens']);
+        $successMessage = ($generatedQuestionCount === $requestedQuestionCount)
+            ? $generatedQuestionCount.' of '.$requestedQuestionCount.' requested questions generated and saved ('.$tokensFormatted.' tokens used).'
+            : $generatedQuestionCount.' questions generated and saved into the quiz module ('.$tokensFormatted.' tokens used).';
+
+        return response()->json([
+            'success' => true,
+            'message' => $successMessage,
+            'requested' => $requestedQuestionCount,
+            'generated' => $generatedQuestionCount,
+            'shortfall' => max(0, $requestedQuestionCount - $generatedQuestionCount),
+            'tokens' => $totalTokenUsage,
+            'questions' => $allGeneratedQuestions,
+        ]);
+    }
+
     /**
      * Helper to truncate text cleanly at sentence boundaries
      */
@@ -1843,6 +2462,10 @@ public function generateQuizAi(Request $request, Module $module, AiSettingsResol
             'questions.*.domain' => 'nullable|string|max:150',
             'questions.*.explanation' => 'nullable|string',
             'shuffle_questions' => 'nullable|boolean',
+            // NULL = ordinary standalone quiz (unchanged behavior). Set to
+            // 'pre_test' or 'post_test' only when saving one stage of a
+            // lecture module's quiz.
+            'quiz_stage' => 'nullable|in:pre_test,post_test',
         ]);
 
         // Tiyakin na ang 'correct' letter ay talagang isa sa mga key na binigay sa 'options'
@@ -1870,12 +2493,21 @@ public function generateQuizAi(Request $request, Module $module, AiSettingsResol
             shuffle($questions);
         }
 
-        DB::transaction(function () use ($questions, $module) {
-            QuizQuestion::query()->where('module_id', $module->id)->delete();
+        $quizStage = $validated['quiz_stage'] ?? null;
+
+        DB::transaction(function () use ($questions, $module, $quizStage) {
+            // Scoped by quiz_stage: saving a post-test must not touch the
+            // pre-test's questions (or a standalone quiz's, since those stay
+            // quiz_stage = null and this query would leave them alone too).
+            QuizQuestion::query()
+                ->where('module_id', $module->id)
+                ->where('quiz_stage', $quizStage)
+                ->delete();
 
             foreach (array_values($questions) as $index => $q) {
                 QuizQuestion::create([
                     'module_id' => $module->id,
+                    'quiz_stage' => $quizStage,
                     'question_text' => $q['text'],
                     'options' => $q['options'], // dynamic na array, hindi na fixed A-D
                     'correct_option' => $q['correct'],
@@ -1901,6 +2533,8 @@ public function generateQuizAi(Request $request, Module $module, AiSettingsResol
         $validated = $request->validate([
             'title' => 'required|string|max:150',
             'description' => 'nullable|string',
+            'quiz_stage' => 'nullable|in:pre_test,post_test',
+            'is_formal_assessment' => 'nullable|boolean',
             // allow null, but ensure numeric when present
             'time_limit' => 'nullable',
             'due_date' => 'nullable|date',
@@ -1939,6 +2573,9 @@ public function generateQuizAi(Request $request, Module $module, AiSettingsResol
             'file_type' => null,
             'is_quiz' => true,
             'is_assignment' => false,
+            'is_formal_assessment' => $request->boolean('is_formal_assessment'),
+            'quiz_stage' => $validated['quiz_stage']
+                ?? ($request->boolean('is_formal_assessment') ? null : 'pre_test'),
         ]);
 
         return redirect()->route('quiz.create', $module);
@@ -2045,6 +2682,37 @@ public function generateQuizAi(Request $request, Module $module, AiSettingsResol
             'questions' => $module->questions, // assuming relation exists
             'timeLimitMinutes' => $timeLimitMinutes,
         ]);
+    }
+
+    /**
+     * Return Lecture-style modules for a class (has sub-parts and/or an
+     * existing pre-test/post-test) so the "Assessment" tab in manageclass
+     * can list them with Edit Pre-Test / Edit Post-Test links. Plain
+     * standalone quizzes and document modules are excluded.
+     */
+    public function listLectureModulesJson(ClassModel $class)
+    {
+        if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
+            abort(403);
+        }
+
+        $modules = $class->modules()
+            ->where('is_lecture', true)
+            ->with('subparts:id,module_id')
+            ->get()
+            ->values()
+            ->map(function (Module $module) {
+                return [
+                    'id' => $module->id,
+                    'title' => $module->title,
+                    'has_pre_test' => $module->hasPreTest(),
+                    'has_post_test' => $module->hasPostTest(),
+                    'pre_test_url' => route('quiz.create', $module).'?stage=pre_test',
+                    'post_test_url' => route('quiz.create', $module).'?stage=post_test',
+                ];
+            });
+
+        return response()->json(['modules' => $modules]);
     }
 
     /**

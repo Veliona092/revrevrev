@@ -13,6 +13,7 @@ class MockBoardAttempt extends Model
     protected $fillable = [
         'user_id',
         'mock_board_id',
+        'mock_board_phase_id',
         'phase_type',
         'quiz_attempt_id',
         'score',
@@ -47,6 +48,17 @@ class MockBoardAttempt extends Model
     public function mockBoard(): BelongsTo
     {
         return $this->belongsTo(MockBoard::class);
+    }
+
+    /**
+     * The specific phase this attempt belongs to. This is the correct key to
+     * scope by when a mock board can have multiple phases of the same
+     * phase_type (e.g. several post-tests) — phase_type alone is no longer
+     * unique per board.
+     */
+    public function phase(): BelongsTo
+    {
+        return $this->belongsTo(MockBoardPhase::class, 'mock_board_phase_id');
     }
 
     /**
