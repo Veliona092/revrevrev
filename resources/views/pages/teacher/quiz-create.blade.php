@@ -914,26 +914,32 @@ selectedFiles.forEach((file, index) => {
     },
     body: formData,
 })
-            .then(r => r.json())
+            .then(async r => {
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || data.success === false) {
+                    throw new Error(data.message || ('Server error (HTTP ' + r.status + ')'));
+                }
+                return data;
+            })
             .then(response => {
                 if (response.success && response.questions) {
                     document.getElementById('questionsContainer').innerHTML = '';
                     questionCount = 0;
                     loadedTestBankIds.clear();
-response.questions.forEach(q =>
-    addQuestionBlock(
-        q.question_text || q.question || '',
-        q.options || { A: '', B: '', C: '', D: '' },
-        q.correct || q.correct_option || 'A'
-    )
-);
+                    response.questions.forEach(q =>
+                        addQuestionBlock(
+                            q.question_text || q.question || '',
+                            q.options || { A: '', B: '', C: '', D: '' },
+                            q.correct || q.correct_option || 'A'
+                        )
+                    );
                     document.querySelector('[data-panel="manual"]').click();
-                    showQuizCreateToast(response.message, 'success');
+                    showQuizCreateToast(response.message || 'Questions generated successfully!', 'success');
                 } else {
                     showQuizCreateToast(response.message || 'No questions returned.', 'error');
                 }
             })
-            .catch(() => showQuizCreateToast('Failed to generate questions. Verify files are readable text content.', 'error'))
+            .catch(err => showQuizCreateToast(err.message || 'Failed to generate questions. Verify files are readable text content.', 'error'))
             .finally(() => {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-robot"></i> Generate with AI';

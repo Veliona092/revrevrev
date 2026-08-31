@@ -1862,208 +1862,403 @@ POWERSHELL;
         }
         set_time_limit(max(120, $totalQuestionsToGenerate * 10));
 
-        $allGeneratedQuestions = [];
-        $allExtractedTexts = [];
-        $totalTokenUsage = [
-            'prompt_tokens' => 0,
-            'completion_tokens' => 0,
-            'total_tokens' => 0,
-        ];
-        $ai = app(CloudflareAI::class);
+        try {
+            $allGeneratedQuestions = [];
+            $allExtractedTexts = [];
+            $totalTokenUsage = [
+                'prompt_tokens' => 0,
+                'completion_tokens' => 0,
+                'total_tokens' => 0,
+            ];
+            $ai = app(CloudflareAI::class);
 
-        $choiceCount = (int) ($validated['choice_count'] ?? 4);
-        $choiceLetters = array_slice(range('A', 'J'), 0, $choiceCount);
+            $choiceCount = (int) ($validated['choice_count'] ?? 4);
+            $choiceLetters = array_slice(range('A', 'J'), 0, $choiceCount);
 
-        $typePatterns = [
-            // what, why, how  (base = 5)
-            'Easy' => [3, 1, 1],
-            'Average' => [1, 2, 2],
-            'Difficult' => [0, 2, 3],
-        ];
-
-        foreach ($request->file('context_files') as $index => $file) {
-            $fileTiers = $difficultyCounts[$index] ?? [];
-
-            $fileTotalRequested = 0;
-            foreach ($allowedDifficulties as $tier) {
-                $fileTotalRequested += (int) ($fileTiers[$tier] ?? 0);
-            }
-
-            if ($fileTotalRequested === 0 || ! $file->isValid()) {
-                continue;
-            }
-
-            $storedPath = $file->storeAs(
-                'temp_context',
-                uniqid('ctx_').'.'.$file->getClientOriginalExtension(),
-                'local'
-            );
-            $fullPath = Storage::disk('local')->path($storedPath);
-
-            try {
-                $parser = new Parser;
-                $pdf = $parser->parseFile($fullPath);
-                $rawText = $pdf->getText();
-                $cleanedText = $this->cleanExtractedPdfText($rawText);
-                $text = $this->truncateAtSentenceBoundary($cleanedText, 25000);
-            } catch (\Exception $e) {
-                Log::warning('PDF parse failed for file '.$file->getClientOriginalName().' - '.$e->getMessage());
-                @unlink($fullPath);
-
-                continue;
-            }
-            @unlink($fullPath);
-
-            if ($text === '') {
-                Log::warning('Empty text after parse: '.$file->getClientOriginalName());
-
-                continue;
-            }
-
-            $allExtractedTexts[$index] = [
-                'name' => $file->getClientOriginalName(),
-                'text' => $text,
+            $typePatterns = [
+                // what, why, how  (base = 5)
+                'Easy' => [3, 1, 1],
+                'Average' => [1, 2, 2],
+                'Difficult' => [0, 2, 3],
             ];
 
-            // Slice document into distinct coherent sections so different batches read different parts of the PDF
-            $desiredSections = max(5, min(40, (int) ceil($fileTotalRequested / 2)));
-            $sections = $this->sliceDocumentIntoSections($text, $desiredSections);
-            $sectionCount = count($sections);
+            foreach ($request->file('context_files') as $index => $file) {
+                $fileTiers = $difficultyCounts[$index] ?? [];
 
-            $extraInstructions = trim($validated['extra_instructions'] ?? '');
-            $extraInstructionsBlock = $extraInstructions !== ''
-                ? "Additional Teacher Instructions: {$extraInstructions}\n\n"
-                : '';
+                $fileTotalRequested = 0;
+                foreach ($allowedDifficulties as $tier) {
+                    $fileTotalRequested += (int) ($fileTiers[$tier] ?? 0);
+                }
 
-            $optionsExample = '{'.implode(',', array_map(fn ($l) => "\"{$l}\":\"...\"", $choiceLetters)).'}';
-            $letterList = implode('|', $choiceLetters);
-
-            // Build task queue of micro-jobs (1 to 2 questions per job) for this file
-            $tasks = [];
-            foreach ($allowedDifficulties as $targetDifficulty) {
-                $requestedCount = (int) ($fileTiers[$targetDifficulty] ?? 0);
-                if ($requestedCount <= 0) {
+                if ($fileTotalRequested === 0 || ! $file->isValid()) {
                     continue;
                 }
 
-                $pattern = $typePatterns[$targetDifficulty] ?? $typePatterns['Normal'];
-                $base = array_sum($pattern);
+                $storedPath = $file->storeAs(
+                    'temp_context',
+                    uniqid('ctx_').'.'.$file->getClientOriginalExtension(),
+                    'local'
+                );
+                $fullPath = Storage::disk('local')->path($storedPath);
 
-                $targetWhat = (int) round($requestedCount * ($pattern[0] / $base));
-                $targetWhy = (int) round($requestedCount * ($pattern[1] / $base));
-                $targetHow = (int) round($requestedCount * ($pattern[2] / $base));
+                $ext = strtolower($file->getClientOriginalExtension());
+                $text = '';
 
-                $sum = $targetWhat + $targetWhy + $targetHow;
-                if ($sum < $requestedCount) {
-                    if ($targetDifficulty === 'Average') {
-                        $targetWhat += ($requestedCount - $sum);
-                    } else {
-                        $targetHow += ($requestedCount - $sum);
+                if ($ext === 'txt') {
+                    $rawText = file_get_contents($fullPath) ?: '';
+                    $cleanedText = $this->cleanExtractedPdfText($rawText);
+                    $text = $this->truncateAtSentenceBoundary($cleanedText, 25000);
+                } else {
+                    try {
+                        $parser = new Parser;
+                        $pdf = $parser->parseFile($fullPath);
+                        $rawText = $pdf->getText();
+                        $cleanedText = $this->cleanExtractedPdfText($rawText);
+                        $text = $this->truncateAtSentenceBoundary($cleanedText, 25000);
+                    } catch (\Exception $e) {
+                        Log::warning('Document parse failed for file '.$file->getClientOriginalName().' - '.$e->getMessage());
+                        @unlink($fullPath);
+
+                        continue;
                     }
-                } elseif ($sum > $requestedCount) {
-                    $overflow = $sum - $requestedCount;
-                    if ($targetWhat >= $overflow) {
-                        $targetWhat -= $overflow;
-                    } else {
-                        $overflow -= $targetWhat;
-                        $targetWhat = 0;
-                        if ($targetWhy >= $overflow) {
-                            $targetWhy -= $overflow;
+                }
+                @unlink($fullPath);
+
+                if ($text === '') {
+                    Log::warning('Empty text after parse: '.$file->getClientOriginalName());
+
+                    continue;
+                }
+
+                $allExtractedTexts[$index] = [
+                    'name' => $file->getClientOriginalName(),
+                    'text' => $text,
+                ];
+
+                // Slice document into distinct coherent sections so different batches read different parts of the PDF
+                $desiredSections = max(5, min(40, (int) ceil($fileTotalRequested / 2)));
+                $sections = $this->sliceDocumentIntoSections($text, $desiredSections);
+                $sectionCount = count($sections);
+
+                $extraInstructions = trim($validated['extra_instructions'] ?? '');
+                $extraInstructionsBlock = $extraInstructions !== ''
+                    ? "Additional Teacher Instructions: {$extraInstructions}\n\n"
+                    : '';
+
+                $optionsExample = '{'.implode(',', array_map(fn ($l) => "\"{$l}\":\"...\"", $choiceLetters)).'}';
+                $letterList = implode('|', $choiceLetters);
+
+                // Build task queue of micro-jobs (1 to 2 questions per job) for this file
+                $tasks = [];
+                foreach ($allowedDifficulties as $targetDifficulty) {
+                    $requestedCount = (int) ($fileTiers[$targetDifficulty] ?? 0);
+                    if ($requestedCount <= 0) {
+                        continue;
+                    }
+
+                    $pattern = $typePatterns[$targetDifficulty] ?? $typePatterns['Normal'];
+                    $base = array_sum($pattern);
+
+                    $targetWhat = (int) round($requestedCount * ($pattern[0] / $base));
+                    $targetWhy = (int) round($requestedCount * ($pattern[1] / $base));
+                    $targetHow = (int) round($requestedCount * ($pattern[2] / $base));
+
+                    $sum = $targetWhat + $targetWhy + $targetHow;
+                    if ($sum < $requestedCount) {
+                        if ($targetDifficulty === 'Average') {
+                            $targetWhat += ($requestedCount - $sum);
                         } else {
-                            $overflow -= $targetWhy;
-                            $targetWhy = 0;
-                            $targetHow = max(0, $targetHow - $overflow);
+                            $targetHow += ($requestedCount - $sum);
+                        }
+                    } elseif ($sum > $requestedCount) {
+                        $overflow = $sum - $requestedCount;
+                        if ($targetWhat >= $overflow) {
+                            $targetWhat -= $overflow;
+                        } else {
+                            $overflow -= $targetWhat;
+                            $targetWhat = 0;
+                            if ($targetWhy >= $overflow) {
+                                $targetWhy -= $overflow;
+                            } else {
+                                $overflow -= $targetWhy;
+                                $targetWhy = 0;
+                                $targetHow = max(0, $targetHow - $overflow);
+                            }
+                        }
+                    }
+
+                    foreach (['what' => $targetWhat, 'why' => $targetWhy, 'how' => $targetHow] as $qType => $count) {
+                        while ($count > 0) {
+                            $batchSize = min(2, $count);
+                            $tasks[] = [
+                                'difficulty' => $targetDifficulty,
+                                'type' => $qType,
+                                'count' => $batchSize,
+                            ];
+                            $count -= $batchSize;
                         }
                     }
                 }
 
-                foreach (['what' => $targetWhat, 'why' => $targetWhy, 'how' => $targetHow] as $qType => $count) {
-                    while ($count > 0) {
-                        $batchSize = min(2, $count);
-                        $tasks[] = [
-                            'difficulty' => $targetDifficulty,
-                            'type' => $qType,
-                            'count' => $batchSize,
-                        ];
-                        $count -= $batchSize;
+                $fileQuestions = [];
+
+                // Process each micro-task targeting its own distinct document section
+                foreach ($tasks as $tIdx => $task) {
+                    $targetDifficulty = $task['difficulty'];
+                    $questionType = $task['type'];
+                    $typeCount = $task['count'];
+                    $bufferedCount = $typeCount + 1; // +1 buffer candidate
+
+                    $pass = (int) floor($tIdx / max(1, $sectionCount));
+                    $assignedSection = $sections[$tIdx % $sectionCount];
+
+                    $angleDirective = match ($pass % 4) {
+                        1 => "FOCUS ANGLE: Focus specifically on implementation details, practical steps, or rule constraints found in this text.\n",
+                        2 => "FOCUS ANGLE: Focus specifically on challenges, limitations, exceptions, or rationale behind rules found in this text.\n",
+                        3 => "FOCUS ANGLE: Focus specifically on outcomes, benefits, evaluation methods, or comparative points found in this text.\n",
+                        default => "FOCUS ANGLE: Focus specifically on definitions, key components, concepts, or primary facts found in this text.\n",
+                    };
+
+                    $typeInstructions = match ($questionType) {
+                        'why' => "ALL {$bufferedCount} questions MUST be WHY questions.\n"
+                            ."- Ask for reasoning, justification, purpose, or rationale behind a rule, principle, or outcome.\n"
+                            ."- Set question_type to \"why\" on every object.\n"
+                            ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
+                        'how' => "ALL {$bufferedCount} questions MUST be HOW questions.\n"
+                            ."- Ask for process, method, computation, application steps, or procedure.\n"
+                            ."- Set question_type to \"how\" on every object.\n"
+                            ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
+                        default => "ALL {$bufferedCount} questions MUST be WHAT questions.\n"
+                            ."- Identify specific concepts, components, definitions, rules, or scenarios.\n"
+                            ."- Set question_type to \"what\" on every object.\n"
+                            ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
+                    };
+
+                    $existingStems = array_map(fn ($q) => (string) ($q['question'] ?? ''), array_merge($allGeneratedQuestions, $fileQuestions));
+                    $avoidBlock = '';
+                    if (! empty($existingStems)) {
+                        $sampled = array_slice($existingStems, -35);
+                        $avoidList = implode("\n", array_map(fn ($s) => '- '.trim($s), $sampled));
+                        $avoidBlock = "CRITICAL: Avoid Duplicates. Do NOT generate questions that repeat or closely resemble any of these already created questions:\n{$avoidList}\n\n";
                     }
+
+                    $prompt = "Generate EXACTLY {$bufferedCount} unique multiple-choice questions based ONLY on the text below.\n"
+                        ."Each question must have EXACTLY {$choiceCount} answer choices ({$letterList}).\n"
+                        ."Difficulty: {$targetDifficulty}.\n"
+                        ."Source file: {$file->getClientOriginalName()}\n\n"
+                        .$avoidBlock
+                        ."════════════════════════════════════════\n"
+                        .$angleDirective
+                        .$typeInstructions
+                        ."════════════════════════════════════════\n\n"
+                        ."Requirements:\n"
+                        ."- Formulate questions specifically testing concepts, rules, facts, or scenarios found in the content below.\n"
+                        ."- Return ONLY a valid JSON array of {$bufferedCount} objects.\n"
+                        ."- Format: {\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"{$targetDifficulty}\",\"question_type\":\"{$questionType}\",\"evidence\":\"...\"}\n"
+                        ."- Spread correct answers across {$letterList}.\n\n"
+                        .$extraInstructionsBlock
+                        ."Content:\n{$assignedSection}\n\n"
+                        .'Rules: Return valid JSON array only. No markdown, no extra text.';
+
+                    try {
+                        $payload = [
+                            'messages' => [
+                                [
+                                    'role' => 'system',
+                                    'content' => "You generate board-exam MCQs. Output ONLY a JSON array of {$bufferedCount} objects. Every question must be distinct and non-duplicative. No markdown.",
+                                ],
+                                [
+                                    'role' => 'user',
+                                    'content' => $prompt,
+                                ],
+                            ],
+                            'max_tokens' => min(320 * $bufferedCount, 1500),
+                            'temperature' => 0.35,
+                            'response_format' => [
+                                'type' => 'json_schema',
+                                'json_schema' => [
+                                    'type' => 'array',
+                                    'items' => [
+                                        'type' => 'object',
+                                        'properties' => [
+                                            'question' => ['type' => 'string'],
+                                            'options' => [
+                                                'type' => 'object',
+                                                'properties' => array_fill_keys($choiceLetters, ['type' => 'string']),
+                                                'required' => $choiceLetters,
+                                            ],
+                                            'correct' => [
+                                                'type' => 'string',
+                                                'enum' => $choiceLetters,
+                                            ],
+                                            'difficulty' => [
+                                                'type' => 'string',
+                                                'enum' => $allowedDifficulties,
+                                            ],
+                                            'question_type' => [
+                                                'type' => 'string',
+                                                'enum' => ['what', 'why', 'how'],
+                                            ],
+                                            'evidence' => ['type' => 'string'],
+                                        ],
+                                        'required' => ['question', 'options', 'correct', 'difficulty', 'question_type', 'evidence'],
+                                    ],
+                                ],
+                            ],
+                        ];
+
+                        $result = $ai->run($settingsResolver->getModel(), $payload);
+                        if (isset($result['usage'])) {
+                            $totalTokenUsage['prompt_tokens'] += (int) ($result['usage']['prompt_tokens'] ?? 0);
+                            $totalTokenUsage['completion_tokens'] += (int) ($result['usage']['completion_tokens'] ?? 0);
+                            $totalTokenUsage['total_tokens'] += (int) ($result['usage']['total_tokens'] ?? 0);
+                        }
+                        $aiResponse = $result['response'] ?? '';
+
+                        if (is_array($aiResponse)) {
+                            $batch = $aiResponse;
+                        } else {
+                            $raw = trim((string) $aiResponse);
+                            $raw = preg_replace('/^[\s\r\n]*```json\s*/i', '', $raw);
+                            $raw = preg_replace('/\s*```[\s\r\n]*$/i', '', $raw);
+                            $raw = preg_replace('/^[\s\r\n]*```[\s\r\n]*/i', '', $raw);
+                            $raw = preg_replace('/,\s*([}\]])/u', '$1', $raw);
+                            $raw = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw);
+                            $raw = trim($raw);
+                            preg_match('/\[.*\]/s', $raw, $matches);
+                            $jsonBlock = $matches[0] ?? $raw;
+                            if (! str_starts_with($jsonBlock, '[')) {
+                                $jsonBlock = '['.$jsonBlock;
+                            }
+                            if (! str_ends_with($jsonBlock, ']')) {
+                                $jsonBlock .= ']';
+                            }
+                            $batch = json_decode($jsonBlock, true);
+                            if (! is_array($batch)) {
+                                $batch = [];
+                            }
+                        }
+
+                        $cleanBatch = [];
+                        foreach ($batch as $candidateIndex => $candidate) {
+                            $rejectionReason = $this->aiQuestionRejectionReason($candidate, $choiceLetters, $questionType, $text);
+                            if ($rejectionReason !== null) {
+                                continue;
+                            }
+
+                            $cleanBatch[] = $candidate;
+                        }
+                        $batch = $cleanBatch;
+
+                        // Force question_type + difficulty, then shuffle options so correct is not always A
+                        foreach ($batch as &$q) {
+                            $q['question_type'] = $questionType;
+                            $q['difficulty'] = $targetDifficulty;
+
+                            $options = $q['options'];
+                            $correctLetter = strtoupper((string) $q['correct']);
+                            $correctText = $options[$correctLetter] ?? reset($options);
+
+                            $texts = array_values($options);
+                            for ($i = count($texts) - 1; $i > 0; $i--) {
+                                $j = random_int(0, $i);
+                                [$texts[$i], $texts[$j]] = [$texts[$j], $texts[$i]];
+                            }
+
+                            $newOptions = [];
+                            $newCorrect = $choiceLetters[0];
+                            foreach ($choiceLetters as $idx => $letter) {
+                                $newOptions[$letter] = $texts[$idx] ?? '';
+                                if (($texts[$idx] ?? null) === $correctText) {
+                                    $newCorrect = $letter;
+                                }
+                            }
+
+                            $q['options'] = $newOptions;
+                            $q['correct'] = $newCorrect;
+                        }
+                        unset($q);
+
+                        foreach (array_slice($batch, 0, $typeCount) as $q) {
+                            $fileQuestions[] = $q;
+                        }
+                    } catch (\Exception $typeEx) {
+                        Log::error("AI section task generation failed [{$targetDifficulty}/{$questionType}] {$file->getClientOriginalName()}: ".$typeEx->getMessage());
+                    }
+                }
+
+                // Optional light shuffle so tiers/types are naturally distributed
+                shuffle($fileQuestions);
+
+                foreach ($fileQuestions as $q) {
+                    $allGeneratedQuestions[] = $q;
                 }
             }
 
-            $fileQuestions = [];
+            $deduplication = $this->deduplicateQuestionBatch($allGeneratedQuestions);
+            $allGeneratedQuestions = $deduplication['questions'];
 
-            // Process each micro-task targeting its own distinct document section
-            foreach ($tasks as $tIdx => $task) {
-                $targetDifficulty = $task['difficulty'];
-                $questionType = $task['type'];
-                $typeCount = $task['count'];
-                $bufferedCount = $typeCount + 1; // +1 buffer candidate
+            if (! empty($deduplication['duplicates'])) {
+                Log::warning('AI quiz cross-batch duplicates removed', [
+                    'removed' => count($deduplication['duplicates']),
+                    'duplicates' => $deduplication['duplicates'],
+                ]);
+            }
 
-                $pass = (int) floor($tIdx / max(1, $sectionCount));
-                $assignedSection = $sections[$tIdx % $sectionCount];
+            // SMART MICRO-BATCH TOP-UP: Top up in fast micro-batches targeting rotating sections
+            $missingInitial = max(0, $requestedQuestionCount - count($allGeneratedQuestions));
+            $maxMicroBatches = max(20, (int) ceil($missingInitial / 2) + 12);
+            $microBatchCount = 0;
 
-                $angleDirective = match ($pass % 4) {
-                    1 => "FOCUS ANGLE: Focus specifically on implementation details, practical steps, or rule constraints found in this text.\n",
-                    2 => "FOCUS ANGLE: Focus specifically on challenges, limitations, exceptions, or rationale behind rules found in this text.\n",
-                    3 => "FOCUS ANGLE: Focus specifically on outcomes, benefits, evaluation methods, or comparative points found in this text.\n",
-                    default => "FOCUS ANGLE: Focus specifically on definitions, key components, concepts, or primary facts found in this text.\n",
-                };
+            while (count($allGeneratedQuestions) < $requestedQuestionCount && $microBatchCount < $maxMicroBatches && ! empty($allExtractedTexts)) {
+                $microBatchCount++;
+                $missingCount = $requestedQuestionCount - count($allGeneratedQuestions);
+                $batchTarget = min($missingCount, 3);
+                $bufferedTopUp = $batchTarget + 2;
 
-                $typeInstructions = match ($questionType) {
-                    'why' => "ALL {$bufferedCount} questions MUST be WHY questions.\n"
-                        ."- Ask for reasoning, justification, purpose, or rationale behind a rule, principle, or outcome.\n"
-                        ."- Set question_type to \"why\" on every object.\n"
-                        ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
-                    'how' => "ALL {$bufferedCount} questions MUST be HOW questions.\n"
-                        ."- Ask for process, method, computation, application steps, or procedure.\n"
-                        ."- Set question_type to \"how\" on every object.\n"
-                        ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
-                    default => "ALL {$bufferedCount} questions MUST be WHAT questions.\n"
-                        ."- Identify specific concepts, components, definitions, rules, or scenarios.\n"
-                        ."- Set question_type to \"what\" on every object.\n"
-                        ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
-                };
+                $fileKeys = array_keys($allExtractedTexts);
+                $selectedKey = $fileKeys[$microBatchCount % count($fileKeys)];
+                $topUpFile = $allExtractedTexts[$selectedKey];
+                $fullDocText = $topUpFile['text'] ?? '';
+                $topUpFileName = $topUpFile['name'] ?? 'context_file';
 
-                $existingStems = array_map(fn ($q) => (string) ($q['question'] ?? ''), array_merge($allGeneratedQuestions, $fileQuestions));
-                $avoidBlock = '';
-                if (! empty($existingStems)) {
-                    $sampled = array_slice($existingStems, -35);
-                    $avoidList = implode("\n", array_map(fn ($s) => '- '.trim($s), $sampled));
-                    $avoidBlock = "CRITICAL: Avoid Duplicates. Do NOT generate questions that repeat or closely resemble any of these already created questions:\n{$avoidList}\n\n";
+                if ($fullDocText === '') {
+                    break;
                 }
 
-                $prompt = "Generate EXACTLY {$bufferedCount} unique multiple-choice questions based ONLY on the text below.\n"
+                $topUpSections = $this->sliceDocumentIntoSections($fullDocText, 30);
+                $topUpChunkText = $topUpSections[$microBatchCount % count($topUpSections)];
+
+                $existingStems = array_map(fn ($q) => (string) ($q['question'] ?? ''), $allGeneratedQuestions);
+                $avoidList = implode("\n", array_map(fn ($s) => '- '.trim($s), array_slice($existingStems, -35)));
+                $avoidBlock = "CRITICAL: Avoid Duplicates. Do NOT repeat or closely rephrase any of these existing questions:\n{$avoidList}\n\n";
+
+                $topUpPrompt = "Generate EXACTLY {$bufferedTopUp} unique multiple-choice questions based ONLY on the text below.\n"
                     ."Each question must have EXACTLY {$choiceCount} answer choices ({$letterList}).\n"
-                    ."Difficulty: {$targetDifficulty}.\n"
-                    ."Source file: {$file->getClientOriginalName()}\n\n"
+                    ."Source file: {$topUpFileName}\n\n"
                     .$avoidBlock
-                    ."════════════════════════════════════════\n"
-                    .$angleDirective
-                    .$typeInstructions
-                    ."════════════════════════════════════════\n\n"
                     ."Requirements:\n"
-                    ."- Formulate questions specifically testing concepts, rules, facts, or scenarios found in the content below.\n"
-                    ."- Return ONLY a valid JSON array of {$bufferedCount} objects.\n"
-                    ."- Format: {\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"{$targetDifficulty}\",\"question_type\":\"{$questionType}\",\"evidence\":\"...\"}\n"
-                    ."- Spread correct answers across {$letterList}.\n\n"
-                    .$extraInstructionsBlock
-                    ."Content:\n{$assignedSection}\n\n"
-                    .'Rules: Return valid JSON array only. No markdown, no extra text.';
+                    ."- Generate unique questions testing distinct concepts from the provided text.\n"
+                    ."- Format: Return ONLY a valid JSON array of {$bufferedTopUp} objects.\n"
+                    ."- Format: [{\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"Easy|Average|Difficult\",\"question_type\":\"what|why|how\",\"evidence\":\"...\"}]\n"
+                    ."- Spread correct answers across {$letterList}.\n"
+                    ."- No markdown, no extra text.\n\n"
+                    ."Content:\n{$topUpChunkText}";
 
                 try {
-                    $payload = [
+                    $topUpPayload = [
                         'messages' => [
                             [
                                 'role' => 'system',
-                                'content' => "You generate board-exam MCQs. Output ONLY a JSON array of {$bufferedCount} objects. Every question must be distinct and non-duplicative. No markdown.",
+                                'content' => "You generate board-exam MCQs. Output ONLY a JSON array of {$bufferedTopUp} distinct objects. No markdown.",
                             ],
                             [
                                 'role' => 'user',
-                                'content' => $prompt,
+                                'content' => $topUpPrompt,
                             ],
                         ],
-                        'max_tokens' => min(320 * $bufferedCount, 1500),
-                        'temperature' => 0.35,
+                        'max_tokens' => min(320 * $bufferedTopUp, 1500),
+                        'temperature' => 0.4,
                         'response_format' => [
                             'type' => 'json_schema',
                             'json_schema' => [
@@ -2097,324 +2292,150 @@ POWERSHELL;
                         ],
                     ];
 
-                    $result = $ai->run($settingsResolver->getModel(), $payload);
-                    if (isset($result['usage'])) {
-                        $totalTokenUsage['prompt_tokens'] += (int) ($result['usage']['prompt_tokens'] ?? 0);
-                        $totalTokenUsage['completion_tokens'] += (int) ($result['usage']['completion_tokens'] ?? 0);
-                        $totalTokenUsage['total_tokens'] += (int) ($result['usage']['total_tokens'] ?? 0);
+                    $topUpResult = $ai->run($settingsResolver->getModel(), $topUpPayload);
+                    if (isset($topUpResult['usage'])) {
+                        $totalTokenUsage['prompt_tokens'] += (int) ($topUpResult['usage']['prompt_tokens'] ?? 0);
+                        $totalTokenUsage['completion_tokens'] += (int) ($topUpResult['usage']['completion_tokens'] ?? 0);
+                        $totalTokenUsage['total_tokens'] += (int) ($topUpResult['usage']['total_tokens'] ?? 0);
                     }
-                    $aiResponse = $result['response'] ?? '';
+                    $rawTopUp = $topUpResult['response'] ?? '';
+                    $topUpBatch = is_array($rawTopUp) ? $rawTopUp : null;
 
-                    if (is_array($aiResponse)) {
-                        $batch = $aiResponse;
-                    } else {
-                        $raw = trim((string) $aiResponse);
-                        $raw = preg_replace('/^[\s\r\n]*```json\s*/i', '', $raw);
-                        $raw = preg_replace('/\s*```[\s\r\n]*$/i', '', $raw);
-                        $raw = preg_replace('/^[\s\r\n]*```[\s\r\n]*/i', '', $raw);
-                        $raw = preg_replace('/,\s*([}\]])/u', '$1', $raw);
-                        $raw = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw);
-                        $raw = trim($raw);
-                        preg_match('/\[.*\]/s', $raw, $matches);
-                        $jsonBlock = $matches[0] ?? $raw;
-                        if (! str_starts_with($jsonBlock, '[')) {
-                            $jsonBlock = '['.$jsonBlock;
-                        }
-                        if (! str_ends_with($jsonBlock, ']')) {
-                            $jsonBlock .= ']';
-                        }
-                        $batch = json_decode($jsonBlock, true);
-                        if (! is_array($batch)) {
-                            $batch = [];
-                        }
+                    if (! is_array($topUpBatch)) {
+                        $cleaned = trim((string) $rawTopUp);
+                        $cleaned = preg_replace('/^[\s\r\n]*```json\s*/i', '', $cleaned);
+                        $cleaned = preg_replace('/\s*```[\s\r\n]*$/i', '', $cleaned);
+                        $cleaned = preg_replace('/^[\s\r\n]*```[\s\r\n]*/i', '', $cleaned);
+                        preg_match('/\[.*\]/s', $cleaned, $m);
+                        $topUpBatch = json_decode($m[0] ?? $cleaned, true);
                     }
 
-                    $cleanBatch = [];
-                    foreach ($batch as $candidateIndex => $candidate) {
-                        $rejectionReason = $this->aiQuestionRejectionReason($candidate, $choiceLetters, $questionType, $text);
-                        if ($rejectionReason !== null) {
-                            continue;
-                        }
+                    if (is_array($topUpBatch)) {
+                        $validTopUp = [];
+                        foreach ($topUpBatch as $candidate) {
+                            $qType = (string) ($candidate['question_type'] ?? 'what');
+                            if ($this->isCleanAiQuestion($candidate, $choiceLetters, $qType, $fullDocText)) {
+                                $options = $candidate['options'];
+                                $correctLetter = strtoupper((string) $candidate['correct']);
+                                $correctText = $options[$correctLetter] ?? reset($options);
 
-                        $cleanBatch[] = $candidate;
-                    }
-                    $batch = $cleanBatch;
-
-                    // Force question_type + difficulty, then shuffle options so correct is not always A
-                    foreach ($batch as &$q) {
-                        $q['question_type'] = $questionType;
-                        $q['difficulty'] = $targetDifficulty;
-
-                        $options = $q['options'];
-                        $correctLetter = strtoupper((string) $q['correct']);
-                        $correctText = $options[$correctLetter] ?? reset($options);
-
-                        $texts = array_values($options);
-                        for ($i = count($texts) - 1; $i > 0; $i--) {
-                            $j = random_int(0, $i);
-                            [$texts[$i], $texts[$j]] = [$texts[$j], $texts[$i]];
-                        }
-
-                        $newOptions = [];
-                        $newCorrect = $choiceLetters[0];
-                        foreach ($choiceLetters as $idx => $letter) {
-                            $newOptions[$letter] = $texts[$idx] ?? '';
-                            if (($texts[$idx] ?? null) === $correctText) {
-                                $newCorrect = $letter;
-                            }
-                        }
-
-                        $q['options'] = $newOptions;
-                        $q['correct'] = $newCorrect;
-                    }
-                    unset($q);
-
-                    foreach (array_slice($batch, 0, $typeCount) as $q) {
-                        $fileQuestions[] = $q;
-                    }
-                } catch (\Exception $typeEx) {
-                    Log::error("AI section task generation failed [{$targetDifficulty}/{$questionType}] {$file->getClientOriginalName()}: ".$typeEx->getMessage());
-                }
-            }
-
-            // Optional light shuffle so tiers/types are naturally distributed
-            shuffle($fileQuestions);
-
-            foreach ($fileQuestions as $q) {
-                $allGeneratedQuestions[] = $q;
-            }
-        }
-
-        $deduplication = $this->deduplicateQuestionBatch($allGeneratedQuestions);
-        $allGeneratedQuestions = $deduplication['questions'];
-
-        if (! empty($deduplication['duplicates'])) {
-            Log::warning('AI quiz cross-batch duplicates removed', [
-                'removed' => count($deduplication['duplicates']),
-                'duplicates' => $deduplication['duplicates'],
-            ]);
-        }
-
-        // SMART MICRO-BATCH TOP-UP: Top up in fast micro-batches targeting rotating sections
-        $missingInitial = max(0, $requestedQuestionCount - count($allGeneratedQuestions));
-        $maxMicroBatches = max(20, (int) ceil($missingInitial / 2) + 12);
-        $microBatchCount = 0;
-
-        while (count($allGeneratedQuestions) < $requestedQuestionCount && $microBatchCount < $maxMicroBatches && ! empty($allExtractedTexts)) {
-            $microBatchCount++;
-            $missingCount = $requestedQuestionCount - count($allGeneratedQuestions);
-            $batchTarget = min($missingCount, 3);
-            $bufferedTopUp = $batchTarget + 2;
-
-            $fileKeys = array_keys($allExtractedTexts);
-            $selectedKey = $fileKeys[$microBatchCount % count($fileKeys)];
-            $topUpFile = $allExtractedTexts[$selectedKey];
-            $fullDocText = $topUpFile['text'] ?? '';
-            $topUpFileName = $topUpFile['name'] ?? 'context_file';
-
-            if ($fullDocText === '') {
-                break;
-            }
-
-            $topUpSections = $this->sliceDocumentIntoSections($fullDocText, 30);
-            $topUpChunkText = $topUpSections[$microBatchCount % count($topUpSections)];
-
-            $existingStems = array_map(fn ($q) => (string) ($q['question'] ?? ''), $allGeneratedQuestions);
-            $avoidList = implode("\n", array_map(fn ($s) => '- '.trim($s), array_slice($existingStems, -35)));
-            $avoidBlock = "CRITICAL: Avoid Duplicates. Do NOT repeat or closely rephrase any of these existing questions:\n{$avoidList}\n\n";
-
-            $topUpPrompt = "Generate EXACTLY {$bufferedTopUp} unique multiple-choice questions based ONLY on the text below.\n"
-                ."Each question must have EXACTLY {$choiceCount} answer choices ({$letterList}).\n"
-                ."Source file: {$topUpFileName}\n\n"
-                .$avoidBlock
-                ."Requirements:\n"
-                ."- Generate unique questions testing distinct concepts from the provided text.\n"
-                ."- Format: Return ONLY a valid JSON array of {$bufferedTopUp} objects.\n"
-                ."- Format: [{\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"Easy|Average|Difficult\",\"question_type\":\"what|why|how\",\"evidence\":\"...\"}]\n"
-                ."- Spread correct answers across {$letterList}.\n"
-                ."- No markdown, no extra text.\n\n"
-                ."Content:\n{$topUpChunkText}";
-
-            try {
-                $topUpPayload = [
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' => "You generate board-exam MCQs. Output ONLY a JSON array of {$bufferedTopUp} distinct objects. No markdown.",
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => $topUpPrompt,
-                        ],
-                    ],
-                    'max_tokens' => min(320 * $bufferedTopUp, 1500),
-                    'temperature' => 0.4,
-                    'response_format' => [
-                        'type' => 'json_schema',
-                        'json_schema' => [
-                            'type' => 'array',
-                            'items' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'question' => ['type' => 'string'],
-                                    'options' => [
-                                        'type' => 'object',
-                                        'properties' => array_fill_keys($choiceLetters, ['type' => 'string']),
-                                        'required' => $choiceLetters,
-                                    ],
-                                    'correct' => [
-                                        'type' => 'string',
-                                        'enum' => $choiceLetters,
-                                    ],
-                                    'difficulty' => [
-                                        'type' => 'string',
-                                        'enum' => $allowedDifficulties,
-                                    ],
-                                    'question_type' => [
-                                        'type' => 'string',
-                                        'enum' => ['what', 'why', 'how'],
-                                    ],
-                                    'evidence' => ['type' => 'string'],
-                                ],
-                                'required' => ['question', 'options', 'correct', 'difficulty', 'question_type', 'evidence'],
-                            ],
-                        ],
-                    ],
-                ];
-
-                $topUpResult = $ai->run($settingsResolver->getModel(), $topUpPayload);
-                if (isset($topUpResult['usage'])) {
-                    $totalTokenUsage['prompt_tokens'] += (int) ($topUpResult['usage']['prompt_tokens'] ?? 0);
-                    $totalTokenUsage['completion_tokens'] += (int) ($topUpResult['usage']['completion_tokens'] ?? 0);
-                    $totalTokenUsage['total_tokens'] += (int) ($topUpResult['usage']['total_tokens'] ?? 0);
-                }
-                $rawTopUp = $topUpResult['response'] ?? '';
-                $topUpBatch = is_array($rawTopUp) ? $rawTopUp : null;
-
-                if (! is_array($topUpBatch)) {
-                    $cleaned = trim((string) $rawTopUp);
-                    $cleaned = preg_replace('/^[\s\r\n]*```json\s*/i', '', $cleaned);
-                    $cleaned = preg_replace('/\s*```[\s\r\n]*$/i', '', $cleaned);
-                    $cleaned = preg_replace('/^[\s\r\n]*```[\s\r\n]*/i', '', $cleaned);
-                    preg_match('/\[.*\]/s', $cleaned, $m);
-                    $topUpBatch = json_decode($m[0] ?? $cleaned, true);
-                }
-
-                if (is_array($topUpBatch)) {
-                    $validTopUp = [];
-                    foreach ($topUpBatch as $candidate) {
-                        $qType = (string) ($candidate['question_type'] ?? 'what');
-                        if ($this->isCleanAiQuestion($candidate, $choiceLetters, $qType, $fullDocText)) {
-                            $options = $candidate['options'];
-                            $correctLetter = strtoupper((string) $candidate['correct']);
-                            $correctText = $options[$correctLetter] ?? reset($options);
-
-                            $texts = array_values($options);
-                            for ($i = count($texts) - 1; $i > 0; $i--) {
-                                $j = random_int(0, $i);
-                                [$texts[$i], $texts[$j]] = [$texts[$j], $texts[$i]];
-                            }
-
-                            $newOptions = [];
-                            $newCorrect = $choiceLetters[0];
-                            foreach ($choiceLetters as $idx => $letter) {
-                                $newOptions[$letter] = $texts[$idx] ?? '';
-                                if (($texts[$idx] ?? null) === $correctText) {
-                                    $newCorrect = $letter;
+                                $texts = array_values($options);
+                                for ($i = count($texts) - 1; $i > 0; $i--) {
+                                    $j = random_int(0, $i);
+                                    [$texts[$i], $texts[$j]] = [$texts[$j], $texts[$i]];
                                 }
-                            }
 
-                            $candidate['options'] = $newOptions;
-                            $candidate['correct'] = $newCorrect;
-                            $validTopUp[] = $candidate;
+                                $newOptions = [];
+                                $newCorrect = $choiceLetters[0];
+                                foreach ($choiceLetters as $idx => $letter) {
+                                    $newOptions[$letter] = $texts[$idx] ?? '';
+                                    if (($texts[$idx] ?? null) === $correctText) {
+                                        $newCorrect = $letter;
+                                    }
+                                }
+
+                                $candidate['options'] = $newOptions;
+                                $candidate['correct'] = $newCorrect;
+                                $validTopUp[] = $candidate;
+                            }
                         }
+
+                        $combined = array_merge($allGeneratedQuestions, $validTopUp);
+                        $dedupResult = $this->deduplicateQuestionBatch($combined);
+                        $allGeneratedQuestions = $dedupResult['questions'];
+                    }
+                } catch (\Exception $topUpEx) {
+                    Log::warning('AI quiz micro-batch top-up failed: '.$topUpEx->getMessage());
+                }
+            }
+
+            // Cap to exact requested count if we reached or exceeded it
+            if (count($allGeneratedQuestions) > $requestedQuestionCount) {
+                $allGeneratedQuestions = array_slice($allGeneratedQuestions, 0, $requestedQuestionCount);
+            }
+
+            $answerDistribution = ['A' => 0, 'B' => 0, 'C' => 0, 'D' => 0, 'E' => 0, 'F' => 0, 'G' => 0, 'H' => 0, 'I' => 0, 'J' => 0];
+            foreach ($allGeneratedQuestions as $question) {
+                $correctLetter = strtoupper((string) ($question['correct'] ?? ''));
+                if (isset($answerDistribution[$correctLetter])) {
+                    $answerDistribution[$correctLetter]++;
+                }
+            }
+            Log::info('AI quiz answer letter distribution', [
+                'distribution' => $answerDistribution,
+                'generated' => count($allGeneratedQuestions),
+            ]);
+
+            if (empty($allGeneratedQuestions)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No valid questions could be generated from any of the uploaded documents.',
+                    'requested' => $requestedQuestionCount,
+                    'generated' => 0,
+                    'shortfall' => $requestedQuestionCount,
+                    'questions' => [],
+                ], 422);
+            }
+
+            $generatedQuestionCount = count($allGeneratedQuestions);
+            $quizStage = $validated['quiz_stage'] ?? null;
+
+            DB::transaction(function () use ($module, $allGeneratedQuestions, $allowedDifficulties, $quizStage) {
+                QuizQuestion::query()
+                    ->where('module_id', $module->id)
+                    ->where('quiz_stage', $quizStage)
+                    ->delete();
+
+                foreach ($allGeneratedQuestions as $index => $q) {
+                    $questionDifficulty = ucfirst(strtolower((string) ($q['difficulty'] ?? '')));
+                    if (! in_array($questionDifficulty, $allowedDifficulties, true)) {
+                        $questionDifficulty = 'Average';
                     }
 
-                    $combined = array_merge($allGeneratedQuestions, $validTopUp);
-                    $dedupResult = $this->deduplicateQuestionBatch($combined);
-                    $allGeneratedQuestions = $dedupResult['questions'];
+                    QuizQuestion::create([
+                        'module_id' => $module->id,
+                        'quiz_stage' => $quizStage,
+                        'question_text' => trim((string) $q['question']),
+                        'options' => $q['options'],
+                        'correct_option' => strtoupper((string) $q['correct']),
+                        'points' => 1,
+                        'order' => $index + 1,
+                        'difficulty' => $questionDifficulty,
+                    ]);
                 }
-            } catch (\Exception $topUpEx) {
-                Log::warning('AI quiz micro-batch top-up failed: '.$topUpEx->getMessage());
-            }
-        }
+            });
 
-        // Cap to exact requested count if we reached or exceeded it
-        if (count($allGeneratedQuestions) > $requestedQuestionCount) {
-            $allGeneratedQuestions = array_slice($allGeneratedQuestions, 0, $requestedQuestionCount);
-        }
+            Log::info('AI quiz generation complete', [
+                'requested' => $requestedQuestionCount,
+                'generated' => $generatedQuestionCount,
+                'token_usage' => $totalTokenUsage,
+            ]);
 
-        $answerDistribution = ['A' => 0, 'B' => 0, 'C' => 0, 'D' => 0, 'E' => 0, 'F' => 0, 'G' => 0, 'H' => 0, 'I' => 0, 'J' => 0];
-        foreach ($allGeneratedQuestions as $question) {
-            $correctLetter = strtoupper((string) ($question['correct'] ?? ''));
-            if (isset($answerDistribution[$correctLetter])) {
-                $answerDistribution[$correctLetter]++;
-            }
-        }
-        Log::info('AI quiz answer letter distribution', [
-            'distribution' => $answerDistribution,
-            'generated' => count($allGeneratedQuestions),
-        ]);
+            $tokensFormatted = number_format($totalTokenUsage['total_tokens']);
+            $successMessage = ($generatedQuestionCount === $requestedQuestionCount)
+                ? $generatedQuestionCount.' of '.$requestedQuestionCount.' requested questions generated and saved ('.$tokensFormatted.' tokens used).'
+                : $generatedQuestionCount.' questions generated and saved into the quiz module ('.$tokensFormatted.' tokens used).';
 
-        if (empty($allGeneratedQuestions)) {
+            return response()->json([
+                'success' => true,
+                'message' => $successMessage,
+                'requested' => $requestedQuestionCount,
+                'generated' => $generatedQuestionCount,
+                'shortfall' => max(0, $requestedQuestionCount - $generatedQuestionCount),
+                'tokens' => $totalTokenUsage,
+                'questions' => $allGeneratedQuestions,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('AI Quiz Generation failed: '.$e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'No valid questions could be generated from any of the uploaded documents.',
-                'requested' => $requestedQuestionCount,
-                'generated' => 0,
-                'shortfall' => $requestedQuestionCount,
-                'questions' => [],
-            ], 422);
+                'message' => 'AI Generation failed: '.$e->getMessage(),
+            ], 500);
         }
-
-        $generatedQuestionCount = count($allGeneratedQuestions);
-        $quizStage = $validated['quiz_stage'] ?? null;
-
-        DB::transaction(function () use ($module, $allGeneratedQuestions, $allowedDifficulties, $quizStage) {
-            QuizQuestion::query()
-                ->where('module_id', $module->id)
-                ->where('quiz_stage', $quizStage)
-                ->delete();
-
-            foreach ($allGeneratedQuestions as $index => $q) {
-                $questionDifficulty = ucfirst(strtolower((string) ($q['difficulty'] ?? '')));
-                if (! in_array($questionDifficulty, $allowedDifficulties, true)) {
-                    $questionDifficulty = 'Average';
-                }
-
-                QuizQuestion::create([
-                    'module_id' => $module->id,
-                    'quiz_stage' => $quizStage,
-                    'question_text' => trim((string) $q['question']),
-                    'options' => $q['options'],
-                    'correct_option' => strtoupper((string) $q['correct']),
-                    'points' => 1,
-                    'order' => $index + 1,
-                    'difficulty' => $questionDifficulty,
-                ]);
-            }
-        });
-
-        Log::info('AI quiz generation complete', [
-            'requested' => $requestedQuestionCount,
-            'generated' => $generatedQuestionCount,
-            'token_usage' => $totalTokenUsage,
-        ]);
-
-        $tokensFormatted = number_format($totalTokenUsage['total_tokens']);
-        $successMessage = ($generatedQuestionCount === $requestedQuestionCount)
-            ? $generatedQuestionCount.' of '.$requestedQuestionCount.' requested questions generated and saved ('.$tokensFormatted.' tokens used).'
-            : $generatedQuestionCount.' questions generated and saved into the quiz module ('.$tokensFormatted.' tokens used).';
-
-        return response()->json([
-            'success' => true,
-            'message' => $successMessage,
-            'requested' => $requestedQuestionCount,
-            'generated' => $generatedQuestionCount,
-            'shortfall' => max(0, $requestedQuestionCount - $generatedQuestionCount),
-            'tokens' => $totalTokenUsage,
-            'questions' => $allGeneratedQuestions,
-        ]);
     }
 
     /**
