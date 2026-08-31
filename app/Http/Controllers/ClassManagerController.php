@@ -1086,6 +1086,9 @@ class ClassManagerController extends Controller
         ]);
 
         if ($validated['type'] === 'lecture') {
+            $firstFilePath = null;
+            $firstFileType = null;
+
             foreach ($request->file('files', []) as $index => $file) {
                 $extension = strtolower($file->extension());
                 $uniqueName = time().'_'.Str::random(8).'.'.$extension;
@@ -1099,12 +1102,29 @@ class ClassManagerController extends Controller
                     default => null,
                 };
 
+                if ($index === 0) {
+                    $firstFilePath = $filePath;
+                    $firstFileType = $fileType;
+                }
+
+                $rawTitle = trim($validated['subpart_titles'][$index]);
+                $formattedTitle = preg_match('/^\d+\.\d+/i', $rawTitle)
+                    ? $rawTitle
+                    : '1.'.($index + 1).' '.$rawTitle;
+
                 ModuleSubpart::create([
                     'module_id' => $module->id,
-                    'title' => '1.'.($index + 1).' '.$validated['subpart_titles'][$index],
+                    'title' => $formattedTitle,
                     'file_path' => $filePath,
                     'file_type' => $fileType,
                     'order' => $index + 1,
+                ]);
+            }
+
+            if ($firstFilePath && ! $module->file_path) {
+                $module->update([
+                    'file_path' => $firstFilePath,
+                    'file_type' => $firstFileType,
                 ]);
             }
         }

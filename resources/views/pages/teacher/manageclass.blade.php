@@ -112,6 +112,9 @@ window.openModulesDrawer = function(classId, className) {
     if (typeof onTestTypeChange === 'function') {
         onTestTypeChange('pre_test');
     }
+    if (typeof resetLectureUploadFields === 'function') {
+        resetLectureUploadFields();
+    }
     if (typeof switchTab === 'function') {
         switchTab('tabQuiz', document.querySelector('.rv-tab'));
     }
@@ -1682,21 +1685,44 @@ window.openModulesDrawer = function(classId, className) {
                 <form id="moduleUploadForm" enctype="multipart/form-data">
                     @csrf
                     <input type="hidden" name="class_id" id="moduleClassId">
-                    <input type="hidden" name="type" value="document">
+                    <input type="hidden" name="type" value="lecture">
 
                     <div class="rv-form-group">
                         <label class="rv-label">Module / Domain Title <span style="color:#e24b4a">*</span></label>
-                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Module 1: Introduction">
+                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Domain 1: Network Fundamentals">
                     </div>
 
                     <div class="rv-form-group">
                         <label class="rv-label">Description (optional)</label>
-                        <textarea name="description" class="rv-textarea" placeholder="Brief overview..."></textarea>
+                        <textarea name="description" class="rv-textarea" placeholder="Brief overview of this domain..."></textarea>
                     </div>
 
                     <div class="rv-form-group">
-                        <label class="rv-label">File (PDF, PPT, DOCX - max 50MB)</label>
-                        <input type="file" name="file" class="rv-input" accept=".pdf,.ppt,.pptx,.doc,.docx,.mov" required style="padding:7px 12px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                            <label class="rv-label" style="margin-bottom:0;">Subdomain Files & Topics (1.1, 1.2, 1.3...) <span style="color:#e24b4a">*</span></label>
+                            <button type="button" class="rv-btn rv-btn-secondary" style="height:30px;padding:0 10px;font-size:13px;" onclick="addLectureUploadField()">
+                                <i class="fas fa-plus"></i> Add Sub-lesson
+                            </button>
+                        </div>
+
+                        <div id="lectureContentUploadFields">
+                            <div class="lecture-content-upload-row" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-bottom:10px;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                    <span class="subpart-badge-num" style="font-size:13px;font-weight:700;color:#172b4d;background:#e2e8f0;padding:2px 8px;border-radius:6px;">1.1</span>
+                                    <button type="button" class="rv-btn rv-btn-danger lecture-remove-upload" style="height:26px;padding:0 8px;font-size:12px;display:none;" onclick="removeLectureUploadField(this)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                                <div class="rv-form-group" style="margin-bottom:8px;">
+                                    <label class="rv-label" style="font-size:13px;color:#555;">Topic / Subdomain Title <span style="color:#e24b4a">*</span></label>
+                                    <input type="text" name="subpart_titles[]" class="rv-input" required maxlength="150" placeholder="e.g. Introduction to IP Addressing">
+                                </div>
+                                <div class="rv-form-group" style="margin-bottom:0;">
+                                    <label class="rv-label" style="font-size:13px;color:#555;">File (PDF, PPT, DOCX - max 100MB) <span style="color:#e24b4a">*</span></label>
+                                    <input type="file" name="files[]" class="rv-input" accept=".pdf,.ppt,.pptx,.doc,.docx,.mov" required style="padding:7px 12px;background:#fff;">
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="rv-form-group">
@@ -1719,8 +1745,8 @@ window.openModulesDrawer = function(classId, className) {
                         </div>
                     </div>
 
-                    <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;">
-                        <i class="fas fa-upload"></i> Upload Document / Domain
+                    <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;margin-top:10px;">
+                        <i class="fas fa-upload"></i> Upload Domain & Subparts
                     </button>
                 </form>
 
@@ -2055,6 +2081,9 @@ function openModulesDrawer(classId, className) {
     var sel = document.getElementById('testTypeSelect');
     if (sel) sel.value = 'pre_test';
     onTestTypeChange('pre_test');
+    if (typeof resetLectureUploadFields === 'function') {
+        resetLectureUploadFields();
+    }
     switchTab('tabQuiz', document.querySelector('.rv-tab'));
     ['doc','quiz','assessment'].forEach(resetVisibilityPicker);
     document.getElementById('dialogModules').showModal();
@@ -2992,58 +3021,103 @@ $('#assessmentDraftForm').on('submit', function (e) {
 
 
 
-// -”€-”€ Upload module form -”€-”€
+// ── Dynamic Subpart Upload Helpers (1.1, 1.2, 1.3...) ──
+function updateSubpartNumbers() {
+    const container = document.getElementById('lectureContentUploadFields');
+    if (!container) return;
+    const rows = container.querySelectorAll('.lecture-content-upload-row');
+    rows.forEach(function (row, idx) {
+        const badge = row.querySelector('.subpart-badge-num');
+        if (badge) {
+            badge.textContent = '1.' + (idx + 1);
+        }
+        const removeBtn = row.querySelector('.lecture-remove-upload');
+        if (removeBtn) {
+            removeBtn.style.display = rows.length > 1 ? 'inline-flex' : 'none';
+        }
+    });
+}
 
+function addLectureUploadField() {
+    const container = document.getElementById('lectureContentUploadFields');
+    if (!container) return;
+    const count = container.querySelectorAll('.lecture-content-upload-row').length + 1;
+    const row = document.createElement('div');
+    row.className = 'lecture-content-upload-row';
+    row.style.cssText = 'background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-bottom:10px;';
+    row.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+            '<span class="subpart-badge-num" style="font-size:13px;font-weight:700;color:#172b4d;background:#e2e8f0;padding:2px 8px;border-radius:6px;">1.' + count + '</span>' +
+            '<button type="button" class="rv-btn rv-btn-danger lecture-remove-upload" style="height:26px;padding:0 8px;font-size:12px;" onclick="removeLectureUploadField(this)">' +
+                '<i class="fas fa-trash"></i>' +
+            '</button>' +
+        '</div>' +
+        '<div class="rv-form-group" style="margin-bottom:8px;">' +
+            '<label class="rv-label" style="font-size:13px;color:#555;">Topic / Subdomain Title <span style="color:#e24b4a">*</span></label>' +
+            '<input type="text" name="subpart_titles[]" class="rv-input" required maxlength="150" placeholder="e.g. Subtopic ' + count + '">' +
+        '</div>' +
+        '<div class="rv-form-group" style="margin-bottom:0;">' +
+            '<label class="rv-label" style="font-size:13px;color:#555;">File (PDF, PPT, DOCX - max 100MB) <span style="color:#e24b4a">*</span></label>' +
+            '<input type="file" name="files[]" class="rv-input" accept=".pdf,.ppt,.pptx,.doc,.docx,.mov" required style="padding:7px 12px;background:#fff;">' +
+        '</div>';
+    container.appendChild(row);
+    updateSubpartNumbers();
+}
+
+function removeLectureUploadField(btn) {
+    const row = btn.closest('.lecture-content-upload-row');
+    if (row) {
+        row.remove();
+        updateSubpartNumbers();
+    }
+}
+
+function resetLectureUploadFields() {
+    const container = document.getElementById('lectureContentUploadFields');
+    if (!container) return;
+    const rows = container.querySelectorAll('.lecture-content-upload-row');
+    rows.forEach(function (r, i) {
+        if (i > 0) r.remove();
+    });
+    const firstRow = container.querySelector('.lecture-content-upload-row');
+    if (firstRow) {
+        const titleInput = firstRow.querySelector('input[type="text"]');
+        const fileInput = firstRow.querySelector('input[type="file"]');
+        if (titleInput) titleInput.value = '';
+        if (fileInput) fileInput.value = '';
+    }
+    updateSubpartNumbers();
+}
+
+// ── Upload module form ──
 $('#moduleUploadForm').on('submit', function (e) {
-
     e.preventDefault();
 
-
-
     const visibility = document.getElementById('visInput_doc').value;
-
     if ((visibility === 'selected' || visibility === 'except') && Object.keys(visSelectedStudents['doc']).length === 0) {
-
         showUploadValidationToast('Please select at least one student.');
-
         return;
-
     }
 
-
-
     const formData = new FormData(this);
-
     injectVisUserIds('doc', formData);
 
-
-
     $.ajax({
-
         url: "{{ url('/classes') }}/" + currentClassId + "/modules",
-
         type: 'POST',
-
         data: formData,
-
         processData: false,
-
         contentType: false,
-
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
-
     }).done(function (res) {
-
-        showUploadValidationToast(res.success || 'Uploaded!', 'success');
-
+        showUploadValidationToast(res.success || 'Domain & Subparts Uploaded!', 'success');
         document.getElementById('moduleUploadForm').reset();
-
+        resetLectureUploadFields();
         resetVisibilityPicker('doc');
-
         loadModulesForTab(currentClassId, 'document', 'documentsList');
-
-    }).fail(xhr => showUploadValidationToast('Upload failed: ' + (xhr.responseJSON?.message || 'Unknown error'), 'error'));
-
+    }).fail(function (xhr) {
+        showUploadValidationToast('Upload failed: ' + (xhr.responseJSON?.message || 'Unknown error'), 'error');
+    });
 });
 
 
