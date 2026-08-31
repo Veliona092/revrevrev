@@ -1609,11 +1609,11 @@ window.openModulesDrawer = function(classId, className) {
                     <div class="rv-form-group">
                         <label class="rv-label">Test Type <span style="color:#e24b4a">*</span></label>
                         <select name="quiz_stage" id="testTypeSelect" class="rv-input" onchange="onTestTypeChange(this.value)" style="width:100%;height:42px;font-size:15px;font-weight:500;">
-                            <option value="pre_test" selected>Pre-Test (Diagnostic — Start of module / Unahan)</option>
-                            <option value="post_test">Post-Test (Evaluation — End of module / Dulo)</option>
+                            <option value="pre_test" selected>Pre-Test</option>
+                            <option value="post_test">Post-Test</option>
                         </select>
                         <p id="testTypeHint" style="font-size: 14px; color:#666; margin:6px 0 0 2px;">
-                            <i class="fas fa-info-circle"></i> <strong>Pre-Test:</strong> Diagnostic assessment taken at the start before lecture modules. Laging nasa unahan.
+                            <i class="fas fa-info-circle"></i> <strong>Pre-Test:</strong> Diagnostic assessment taken at the start before lecture modules. Always positioned at the beginning.
                         </p>
                     </div>
 
@@ -1951,12 +1951,12 @@ function onTestTypeChange(val) {
     const submitBtn = document.getElementById('quizSubmitBtn');
 
     if (isPre) {
-        if (hint) hint.innerHTML = '<i class="fas fa-info-circle"></i> <strong>Pre-Test:</strong> Diagnostic assessment taken at the start before lecture modules. Laging nasa unahan.';
+        if (hint) hint.innerHTML = '<i class="fas fa-info-circle"></i> <strong>Pre-Test:</strong> Diagnostic assessment taken at the start before lecture modules. Always positioned at the beginning.';
         if (titleLabel) titleLabel.innerHTML = 'Pre-Test Title <span style="color:#e24b4a">*</span>';
         if (titleInput) titleInput.placeholder = 'e.g. Pre-Test 1: Diagnostic Assessment';
         if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-brain"></i> Start Pre-Test Creation';
     } else {
-        if (hint) hint.innerHTML = '<i class="fas fa-info-circle"></i> <strong>Post-Test:</strong> Final evaluation assessment taken at the end of the module. Laging nasa dulo.';
+        if (hint) hint.innerHTML = '<i class="fas fa-info-circle"></i> <strong>Post-Test:</strong> Final evaluation assessment taken after completing lecture modules. Always positioned at the end.';
         if (titleLabel) titleLabel.innerHTML = 'Post-Test Title <span style="color:#e24b4a">*</span>';
         if (titleInput) titleInput.placeholder = 'e.g. Post-Test: Final Module Evaluation';
         if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-flag-checkered"></i> Start Post-Test Creation';
