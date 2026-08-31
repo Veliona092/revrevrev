@@ -191,6 +191,69 @@
     .ap-alert.success { background: #e1f5ee; color: #0f6e56; }
     .ap-alert.danger  { background: #fcebeb; color: #a32d2d; }
 
+    /* ── Floating Toast ── */
+    .ap-toast {
+        position: fixed;
+        bottom: 28px;
+        right: 28px;
+        background: #1e293b;
+        color: #fff;
+        padding: 14px 20px;
+        border-radius: 12px;
+        font-size: 15px;
+        font-weight: 500;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        z-index: 9999;
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+        pointer-events: none;
+        transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        max-width: 440px;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .ap-toast.show {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        pointer-events: auto;
+    }
+
+    .ap-toast.danger {
+        background: #991b1b;
+        color: #fff;
+        border-color: #f87171;
+    }
+
+    .ap-toast.warning {
+        background: #854f0b;
+        color: #fff;
+        border-color: #f59e0b;
+    }
+
+    .ap-toast.success {
+        background: #065f46;
+        color: #fff;
+        border-color: #34d399;
+    }
+
+    /* Red highlight on invalid unselected select elements */
+    .ap-role-select.input-error {
+        border-color: #e24b4a !important;
+        box-shadow: 0 0 0 2px rgba(226, 75, 74, 0.25) !important;
+        animation: apShake 0.35s ease-in-out;
+    }
+
+    @keyframes apShake {
+        0%, 100% { transform: translateX(0); }
+        20% { transform: translateX(-5px); }
+        40% { transform: translateX(5px); }
+        60% { transform: translateX(-3px); }
+        80% { transform: translateX(3px); }
+    }
+
     #selectAll { cursor: pointer; }
 </style>
 
@@ -521,13 +584,43 @@
         select.addEventListener('change', updateApproveSelected);
     });
 
+    function showApToast(message, type = 'warning') {
+        let toast = document.getElementById('apToastNotification');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'apToastNotification';
+            toast.className = 'ap-toast';
+            document.body.appendChild(toast);
+        }
+
+        const iconClass = type === 'success' 
+            ? 'fa-check-circle' 
+            : (type === 'danger' ? 'fa-exclamation-circle' : 'fa-exclamation-triangle');
+
+        toast.className = `ap-toast ${type} show`;
+        toast.innerHTML = `<i class="fas ${iconClass}" style="font-size:18px;flex-shrink:0;"></i> <span>${message}</span>`;
+
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => {
+            toast.classList.remove('show');
+        }, 4500);
+    }
+
+    document.querySelectorAll('.row-role, .row-program, #approveProgramSelect').forEach(el => {
+        el.addEventListener('change', function() {
+            this.classList.remove('input-error');
+        });
+    });
+
     document.getElementById('approveManyForm')?.addEventListener('submit', function (e) {
         const checked = [...document.querySelectorAll('.row-check:checked')];
         if (checked.length === 0) {
             e.preventDefault();
-            alert('Please select at least one user to approve.');
+            showApToast('Please select at least one account to approve.', 'warning');
             return;
         }
+
+        document.querySelectorAll('.ap-role-select.input-error').forEach(el => el.classList.remove('input-error'));
 
         for (const cb of checked) {
             const userId = cb.value;
@@ -535,8 +628,11 @@
             const role = roleSelect ? roleSelect.value : '';
             if (!role) {
                 e.preventDefault();
-                alert('Please select a role for all checked users before clicking Approve Selected.');
-                if (roleSelect) { roleSelect.focus(); }
+                if (roleSelect) {
+                    roleSelect.classList.add('input-error');
+                    roleSelect.focus();
+                }
+                showApToast('Please select a role for all checked accounts before clicking Approve Selected.', 'danger');
                 return;
             }
 
@@ -545,8 +641,11 @@
                 const prog = progSelect ? progSelect.value : '';
                 if (!prog) {
                     e.preventDefault();
-                    alert('Please select a program for all checked students and teachers before clicking Approve Selected.');
-                    if (progSelect) { progSelect.focus(); }
+                    if (progSelect) {
+                        progSelect.classList.add('input-error');
+                        progSelect.focus();
+                    }
+                    showApToast('Please select a program for all checked students and teachers before clicking Approve Selected.', 'danger');
                     return;
                 }
             }
@@ -606,14 +705,19 @@
         const role = document.getElementById('approveRoleInput').value;
         if (!role) {
             e.preventDefault();
-            alert('Please select a role before approving.');
+            showApToast('Please select a role before approving.', 'danger');
             return;
         }
         if (role === 'student' || role === 'teacher') {
             const program = document.getElementById('approveProgramInput').value;
             if (!program) {
                 e.preventDefault();
-                alert('Please select a course for the selected role.');
+                const progSelect = document.getElementById('approveProgramSelect');
+                if (progSelect) {
+                    progSelect.classList.add('input-error');
+                    progSelect.focus();
+                }
+                showApToast('Please select a program for the selected role.', 'danger');
                 return;
             }
         }
