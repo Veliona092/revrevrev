@@ -12,7 +12,7 @@
     <button class="rv-btn" id="deleteModeToggle" onclick="toggleDeleteMode()">
         <i class="fas fa-trash-alt"></i> Delete Classes
     </button>
-    <button class="rv-btn rv-btn-primary" onclick="document.getElementById('dialogCreate').showModal()">
+    <button class="rv-btn rv-btn-primary" onclick="openCreateDialog()">
         <i class="fas fa-plus"></i> New Class
     </button>
 @endsection
@@ -1173,15 +1173,13 @@
         </div>
 
     @empty
-
         <div class="mc-empty">
-
             <div class="mc-empty-icon"><i class="fas fa-chalkboard"></i></div>
-
-            No classes yet. Create your first class to get started.
-
+            <div style="font-size: 16px; color: #888; margin-bottom: 14px;">No classes yet. Create your first class to get started.</div>
+            <button type="button" class="rv-btn rv-btn-primary" onclick="openCreateDialog()">
+                <i class="fas fa-plus"></i> Create Class
+            </button>
         </div>
-
     @endforelse
 
 </div>
@@ -1288,13 +1286,7 @@
 
 
     /* ── Native dialog panels ── */
-    dialog.rv-dialog:not([open]) {
-        display: none !important;
-        pointer-events: none !important;
-    }
-
-    dialog.rv-dialog[open] {
-        display: block !important;
+    dialog.rv-dialog {
         padding: 0;
         border: none;
         border-radius: 0;
@@ -1306,11 +1298,6 @@
         background: transparent;
         outline: none;
         box-sizing: border-box;
-        position: fixed;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        z-index: 9999;
     }
 
     dialog.rv-dialog::backdrop {
@@ -1321,7 +1308,7 @@
     .rv-dialog-panel {
         display: flex;
         flex-direction: column;
-        height: 100vh;
+        height: 100%;
         max-height: 100vh;
         background: #FAF7F2;
         border-left: 1px solid #DDD8CF;
@@ -1340,7 +1327,7 @@
     }
 
     .rv-dialog-panel .rv-drawer-body {
-        flex: 1 1 auto;
+        flex: 1 1 0px;
         min-height: 0;
         overflow-y: auto;
         padding: 20px 24px;
@@ -1386,7 +1373,7 @@
                 <div class="rv-drawer-title">New Class</div>
                 <div class="rv-drawer-subtitle">Fill in the details below to create a class.</div>
             </div>
-            <button type="button" class="rv-drawer-close" onclick="document.getElementById('dialogCreate').close()">&#x2715;</button>
+            <button type="button" class="rv-drawer-close" onclick="closeCreateDialog()">&#x2715;</button>
         </div>
 
         <div class="rv-drawer-body">
@@ -1428,7 +1415,7 @@
         </div>
 
         <div class="rv-drawer-footer">
-            <button type="button" class="rv-btn rv-btn-secondary" onclick="document.getElementById('dialogCreate').close()" style="min-width: 90px;">Cancel</button>
+            <button type="button" class="rv-btn rv-btn-secondary" onclick="closeCreateDialog()" style="min-width: 90px;">Cancel</button>
             <button type="submit" form="createClassForm" class="rv-btn rv-btn-primary" style="min-width: 140px; display: inline-flex; align-items: center; gap: 8px; justify-content: center;">
                 <i class="fas fa-plus"></i> Create Class
             </button>
@@ -3576,17 +3563,33 @@ function copyJoinLink() {
         btn.innerHTML = '<i class="fas fa-check"></i>';
 
         setTimeout(() => {
-
             btn.classList.remove('copied');
-
             btn.innerHTML = '<i class="fas fa-copy"></i>';
-
         }, 2000);
-
     });
-
 }
 
+function openCreateDialog() {
+    const d = document.getElementById('dialogCreate');
+    if (d) {
+        if (typeof d.showModal === 'function') {
+            d.showModal();
+        } else {
+            d.setAttribute('open', '');
+        }
+    }
+}
+
+function closeCreateDialog() {
+    const d = document.getElementById('dialogCreate');
+    if (d) {
+        if (typeof d.close === 'function') {
+            d.close();
+        } else {
+            d.removeAttribute('open');
+        }
+    }
+}
 </script>
 
 @endsection
