@@ -245,7 +245,22 @@
     <div class="qc-meta">
         <div class="qc-meta-icon"><i class="fas fa-clipboard-list"></i></div>
       <div>
-            <div class="qc-meta-title">{{ $module->title }}</div>
+            @php
+                $stageName = match($module->quiz_stage) {
+                    'pre_test' => 'Pre-Test',
+                    'post_test' => 'Post-Test',
+                    default => ($module->is_formal_assessment ? 'Formal Assessment' : 'Quiz')
+                };
+                $stageColor = match($module->quiz_stage) {
+                    'pre_test' => '#1d9e75',
+                    'post_test' => '#7b1fa2',
+                    default => ($module->is_formal_assessment ? '#172b4d' : '#5e72e4')
+                };
+            @endphp
+            <div class="qc-meta-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <span>{{ $module->title }}</span>
+                <span style="font-size:12px; font-weight:700; text-transform:uppercase; padding:3px 10px; border-radius:99px; background:{{ $stageColor }}; color:#fff; letter-spacing:0.5px;">{{ $stageName }}</span>
+            </div>
             <div class="qc-meta-sub">
                 @if($class)
                     {{ $class->name }}
