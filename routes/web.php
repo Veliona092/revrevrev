@@ -307,7 +307,7 @@ Route::post('/signup', function (Request $request) {
     );
 
     try {
-        $gmailService = new GmailService;
+        $gmailService = app(GmailService::class);
         $gmailService->send(
             $validated['email'],
             'Verify Your Reviso Account',
@@ -317,8 +317,8 @@ Route::post('/signup', function (Request $request) {
             '<p>If you did not create an account, no further action is required.</p>'.
             '<p>Thanks,<br>Reviso Team</p>'
         );
-    } catch (Exception $e) {
-        Log::error('Gmail API send failed: '.$e->getMessage());
+    } catch (Throwable $e) {
+        Log::error('Verification email send failed: '.$e->getMessage());
 
         return back()->withErrors(['email' => 'Could not send verification email right now. Please try again later.']);
     }
@@ -346,7 +346,7 @@ Route::post('/email/resend', function (Request $request) {
     );
 
     try {
-        $gmailService = new GmailService;
+        $gmailService = app(GmailService::class);
         $gmailService->send(
             $signup->email,
             'Reviso Account Verification - Resent Link',
@@ -358,10 +358,10 @@ Route::post('/email/resend', function (Request $request) {
             '<p>If you did not request this, no further action is required.</p>'.
             '<p>Thanks,<br>Reviso Team</p>'
         );
-    } catch (Exception $e) {
-        Log::error('Resend verification failed: '.$e->getMessage());
+    } catch (Throwable $e) {
+        Log::error('Resend verification email failed: '.$e->getMessage());
 
-        return back()->withErrors(['email' => 'Could not resend verification email right now.']);
+        return back()->withErrors(['email' => 'Could not send verification email right now. Please try again later.']);
     }
 
     return back()->with('status', 'Verification link resent! Check your inbox and spam folder.');

@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use Google\Client;
-use Google\Service\Exception as GoogleServiceException;
 use Google\Service\Gmail;
 use Google\Service\Gmail\Message;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class GmailService
 {
@@ -16,77 +16,89 @@ class GmailService
 
     public function __construct()
     {
-        $this->client = new Client;
-        $this->client->setAuthConfig(storage_path('app/google/credentials.json'));
-
+        $credentialsPath = storage_path('app/google/credentials.json');
         $tokenPath = storage_path('app/google/tokens.json');
-        $tokens = file_exists($tokenPath)
-            ? json_decode((string) file_get_contents($tokenPath), true)
-            : null;
 
-        if (! is_array($tokens) || $tokens === []) {
-            throw new \RuntimeException('Gmail is not connected. Missing tokens.');
+        if (! file_exists($credentialsPath) || ! file_exists($tokenPath)) {
+            // Google OAuth token files not available, will use Laravel Mail (SMTP) fallback
+            return;
         }
 
-        $this->client->setAccessToken($tokens);
+        try {
+            $this->client = new Client;
+            $this->client->setAuthConfig($credentialsPath);
 
-        // Refresh if expired
-        if ($this->client->isAccessTokenExpired()) {
-            $refreshToken = $this->client->getRefreshToken() ?: ($tokens['refresh_token'] ?? null);
-
-            if (! $refreshToken) {
-                throw new \RuntimeException('Gmail token expired and no refresh token is available.');
+            $tokens = json_decode((string) file_get_contents($tokenPath), true);
+            if (! is_array($tokens) || $tokens === []) {
+                return;
             }
 
-            $newToken = $this->client->fetchAccessTokenWithRefreshToken($refreshToken);
+            $this->client->setAccessToken($tokens);
 
-            if (is_array($newToken) && isset($newToken['error'])) {
-                throw new \RuntimeException('Gmail authorization has expired or was revoked. Please reconnect Gmail.');
+            if ($this->client->isAccessTokenExpired()) {
+                $refreshToken = $this->client->getRefreshToken() ?: ($tokens['refresh_token'] ?? null);
+                if (! $refreshToken) {
+                    return;
+                }
+
+                $newToken = $this->client->fetchAccessTokenWithRefreshToken($refreshToken);
+                if (is_array($newToken) && isset($newToken['error'])) {
+                    return;
+                }
+
+                if (! isset($newToken['refresh_token'])) {
+                    $newToken['refresh_token'] = $refreshToken;
+                }
+
+                file_put_contents($tokenPath, json_encode($newToken, JSON_UNESCAPED_UNICODE));
+                $this->client->setAccessToken($newToken);
             }
 
-            if (! isset($newToken['refresh_token'])) {
-                $newToken['refresh_token'] = $refreshToken;
-            }
-
-            // Save updated tokens
-            file_put_contents($tokenPath, json_encode($newToken, JSON_UNESCAPED_UNICODE));
-            $this->client->setAccessToken($newToken);
+            $this->service = new Gmail($this->client);
+        } catch (\Throwable $e) {
+            Log::warning('GmailService OAuth init failed, will use SMTP fallback: '.$e->getMessage());
+            $this->service = null;
         }
-
-        $this->service = new Gmail($this->client);
     }
 
     public function send(string $to, string $subject, string $htmlBody): bool
     {
+        if ($this->service) {
+            try {
+                $rawMessage = "To: $to\r\n".
+                              'Subject: =?utf-8?B?'.base64_encode($subject)."?=\r\n".
+                              "MIME-Version: 1.0\r\n".
+                              "Content-Type: text/html; charset=utf-8\r\n\r\n".
+                              $htmlBody;
+
+                $raw = rtrim(strtr(base64_encode($rawMessage), '+/', '-_'), '=');
+
+                $message = new Message;
+                $message->setRaw($raw);
+
+                $this->service->users_messages->send('me', $message);
+
+                Log::info("Email sent to {$to} via Gmail API");
+
+                return true;
+            } catch (\Throwable $e) {
+                Log::warning('Gmail API send failed, falling back to SMTP: '.$e->getMessage());
+            }
+        }
+
+        // Fallback to Laravel Mail (SMTP / configured mailer)
         try {
-            $rawMessage = "To: $to\r\n".
-                          'Subject: =?utf-8?B?'.base64_encode($subject)."?=\r\n".
-                          "MIME-Version: 1.0\r\n".
-                          "Content-Type: text/html; charset=utf-8\r\n\r\n".
-                          $htmlBody;
+            Mail::html($htmlBody, function ($msg) use ($to, $subject) {
+                $msg->to($to)
+                    ->subject($subject);
+            });
 
-            $raw = rtrim(strtr(base64_encode($rawMessage), '+/', '-_'), '=');
-
-            $message = new Message;
-            $message->setRaw($raw);
-
-            $this->service->users_messages->send('me', $message);
-
-            Log::info("Email sent to {$to} via Gmail API");
+            Log::info("Email sent to {$to} via Laravel Mail");
 
             return true;
-        } catch (GoogleServiceException $e) {
-            $body = (string) $e->getMessage();
-            if (str_contains($body, 'invalid_grant')) {
-                Log::error('Gmail API token invalid_grant: '.$body);
-                throw new \RuntimeException('Gmail authorization expired or revoked. Please reconnect Gmail.');
-            }
-
-            Log::error('Gmail API send failed: '.$body);
-            throw $e;
-        } catch (\Exception $e) {
-            Log::error('Gmail API send failed: '.$e->getMessage());
-            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('Laravel Mail send failed: '.$e->getMessage());
+            throw new \RuntimeException('Failed to send email: '.$e->getMessage(), 0, $e);
         }
     }
 
