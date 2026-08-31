@@ -209,6 +209,10 @@
         <div class="ap-alert danger"><i class="fas fa-exclamation-circle"></i> {{ session('error') }}</div>
     @endif
 
+    @if($errors->any())
+        <div class="ap-alert danger"><i class="fas fa-exclamation-circle"></i> {{ $errors->first('error') ?: $errors->first() }}</div>
+    @endif
+
     {{-- Stats --}}
     <div class="ap-stats">
         <div class="ap-stat">
@@ -515,6 +519,38 @@
 
     document.querySelectorAll('.row-program').forEach(select => {
         select.addEventListener('change', updateApproveSelected);
+    });
+
+    document.getElementById('approveManyForm')?.addEventListener('submit', function (e) {
+        const checked = [...document.querySelectorAll('.row-check:checked')];
+        if (checked.length === 0) {
+            e.preventDefault();
+            alert('Please select at least one user to approve.');
+            return;
+        }
+
+        for (const cb of checked) {
+            const userId = cb.value;
+            const roleSelect = document.querySelector(`.row-role[data-user-id="${userId}"]`);
+            const role = roleSelect ? roleSelect.value : '';
+            if (!role) {
+                e.preventDefault();
+                alert('Please select a role for all checked users before clicking Approve Selected.');
+                if (roleSelect) { roleSelect.focus(); }
+                return;
+            }
+
+            if (role === 'student' || role === 'teacher') {
+                const progSelect = document.querySelector(`.row-program[data-user-id="${userId}"]`);
+                const prog = progSelect ? progSelect.value : '';
+                if (!prog) {
+                    e.preventDefault();
+                    alert('Please select a program for all checked students and teachers before clicking Approve Selected.');
+                    if (progSelect) { progSelect.focus(); }
+                    return;
+                }
+            }
+        }
     });
 
     // ── Approve modal ──
