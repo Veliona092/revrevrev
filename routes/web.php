@@ -23,15 +23,17 @@ use App\Http\Controllers\SubpartLessonController;
 use App\Http\Controllers\TeacherDashboardController;
 use App\Http\Controllers\TestAiController;
 use App\Http\Controllers\TestBankController;
+use App\Http\Middleware\VerifyCsrfToken;
 use App\Models\ClassModel;
 use App\Models\Module;
 use App\Models\Signup;
 use App\Models\User;
 use App\Services\GmailService;
-use Google\Service\Gmail\Message;
 use Illuminate\Auth\Passwords\PasswordBroker;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
@@ -40,8 +42,6 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
-
-
 
 $resolveStudentDashboardPath = function (?User $user): string {
     $track = $user?->program ?: $user?->role;
@@ -80,9 +80,9 @@ Route::get('/health', function () {
     $dbStatus = 'disconnected';
     $dbError = null;
     try {
-        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        DB::connection()->getPdo();
         $dbStatus = 'connected';
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         $dbError = $e->getMessage();
     }
 
@@ -100,8 +100,8 @@ Route::get('/health', function () {
         'session_driver' => config('session.driver'),
     ]);
 })->withoutMiddleware([
-    \Illuminate\Session\Middleware\StartSession::class,
-    \App\Http\Middleware\VerifyCsrfToken::class,
+    StartSession::class,
+    VerifyCsrfToken::class,
 ]);
 
 Route::get('/', function () {
@@ -678,18 +678,20 @@ Route::delete('/modules/{module}', [ClassManagerController::class, 'deleteModule
 Route::post('/modules/{module}/progress', [ClassManagerController::class, 'updateProgress'])->name('modules.progress.update');
 
 // ── Quiz ──
-Route::get('/modules/{module}/quiz/create', [ClassManagerController::class, 'createQuiz'])->name('quiz.create');
-Route::post('/modules/{module}/quiz/generate', [ClassManagerController::class, 'generateQuizAi'])->name('quiz.generate');
-Route::post('/modules/{module}/quiz/store', [ClassManagerController::class, 'storeQuizManual'])->name('quiz.store');
-Route::get('/modules/{module}/quiz/questions', [QuizController::class, 'getQuestions'])->name('quiz.get.questions');
-Route::post('/modules/{module}/quiz/submit', [QuizController::class, 'submitQuiz'])->name('quiz.submit');
-Route::post('/modules/{module}/quiz/insights', [QuizController::class, 'generateInsights'])->name('quiz.insights');
-Route::get('/modules/{module}/quiz/history', [QuizController::class, 'attemptHistory'])->name('quiz.history');
-Route::get('/quiz/attempts/{snapshot}/detail', [QuizController::class, 'attemptSnapshotDetail'])->name('quiz.attempt.detail');
-Route::post('/quiz/{module}/answer', [QuizController::class, 'submitAnswer'])->name('quiz.answer');
-Route::post('/quiz/create-draft/{class}', [QuizController::class, 'createQuizDraft'])->name('quiz.create.draft');
-Route::delete('/modules/{module}/quiz/attempts', [QuizController::class, 'resetAttempts'])->name('quiz.attempts.reset');
-Route::delete('/modules/{module}/quiz/my-attempt', [QuizController::class, 'resetMyAttempt'])->name('quiz.my.attempt.reset');
+Route::middleware('auth')->group(function () {
+    Route::get('/modules/{module}/quiz/create', [ClassManagerController::class, 'createQuiz'])->name('quiz.create');
+    Route::post('/modules/{module}/quiz/generate', [ClassManagerController::class, 'generateQuizAi'])->name('quiz.generate');
+    Route::post('/modules/{module}/quiz/store', [ClassManagerController::class, 'storeQuizManual'])->name('quiz.store');
+    Route::get('/modules/{module}/quiz/questions', [QuizController::class, 'getQuestions'])->name('quiz.get.questions');
+    Route::post('/modules/{module}/quiz/submit', [QuizController::class, 'submitQuiz'])->name('quiz.submit');
+    Route::post('/modules/{module}/quiz/insights', [QuizController::class, 'generateInsights'])->name('quiz.insights');
+    Route::get('/modules/{module}/quiz/history', [QuizController::class, 'attemptHistory'])->name('quiz.history');
+    Route::get('/quiz/attempts/{snapshot}/detail', [QuizController::class, 'attemptSnapshotDetail'])->name('quiz.attempt.detail');
+    Route::post('/quiz/{module}/answer', [QuizController::class, 'submitAnswer'])->name('quiz.answer');
+    Route::post('/quiz/create-draft/{class}', [QuizController::class, 'createQuizDraft'])->name('quiz.create.draft');
+    Route::delete('/modules/{module}/quiz/attempts', [QuizController::class, 'resetAttempts'])->name('quiz.attempts.reset');
+    Route::delete('/modules/{module}/quiz/my-attempt', [QuizController::class, 'resetMyAttempt'])->name('quiz.my.attempt.reset');
+});
 
 // ── Student Performance ──
 Route::get('/student-performance/{class}', [PerformanceController::class, 'studentPerformance'])->name('student.performance');
