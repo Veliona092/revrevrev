@@ -90,6 +90,30 @@ window.closeDeleteClassConfirm = function() {
     if (overlay) overlay.setAttribute('aria-hidden', 'true');
     currentDeleteForm = null;
 };
+
+window.switchTab = function(panelId, btn) {
+    if (typeof window.doSwitchTab === 'function') {
+        window.doSwitchTab(panelId, btn);
+    } else {
+        document.querySelectorAll('.rv-tab-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.rv-tab').forEach(b => b.classList.remove('active'));
+        const panel = document.getElementById(panelId);
+        if (panel) panel.classList.add('active');
+        if (btn) btn.classList.add('active');
+    }
+};
+
+window.generateJoinLink = function() {
+    if (typeof window.doGenerateJoinLink === 'function') {
+        window.doGenerateJoinLink();
+    }
+};
+
+window.copyJoinLink = function() {
+    if (typeof window.doCopyJoinLink === 'function') {
+        window.doCopyJoinLink();
+    }
+};
 </script>
 @endsection
 
@@ -2082,7 +2106,7 @@ window.resetVisibilityPicker = function(form) {
 };
 
 // ── Tab switcher ──
-window.switchTab = function(panelId, btn) {
+window.doSwitchTab = window.switchTab = function(panelId, btn) {
     if (typeof closeManageConfirm === 'function') {
         closeManageConfirm();
     }
@@ -3346,69 +3370,45 @@ $('#moduleUploadForm').on('submit', function (e) {
 
 
 
-// -"€-"€ Join Link functionality -"€-"€
-
-function generateJoinLink() {
-
+// ── Join Link functionality ──
+window.doGenerateJoinLink = window.generateJoinLink = function() {
     const genBtn = document.getElementById('joinLinkGenerateBtn');
-
     const copyBtn = document.getElementById('joinLinkCopyBtn');
-
     const input = document.getElementById('joinLinkInput');
 
-
-
-    genBtn.classList.add('generating');
-
-    genBtn.disabled = true;
-
-
+    if (genBtn) {
+        genBtn.classList.add('generating');
+        genBtn.disabled = true;
+    }
 
     fetch(`/classes/${currentClassId}/join-link`, {
-
         method: 'POST',
-
         headers: {
-
             'X-CSRF-TOKEN': '{{ csrf_token() }}',
-
             'Accept': 'application/json'
-
         }
-
     })
-
     .then(r => r.json())
-
     .then(data => {
-
         if (data.success) {
-
-            input.value = data.url;
-
-            copyBtn.disabled = false;
-
+            if (input) input.value = data.url;
+            if (copyBtn) copyBtn.disabled = false;
         } else {
-
-            input.value = 'Error: ' + (data.message || 'Failed to generate');
-
+            if (input) input.value = 'Error: ' + (data.message || 'Failed to generate');
         }
-
     })
-
     .catch(() => {
-
-        input.value = 'Error generating link';
-
+        if (input) input.value = 'Error generating link';
     })
-
     .finally(() => {
-        genBtn.classList.remove('generating');
-        genBtn.disabled = false;
+        if (genBtn) {
+            genBtn.classList.remove('generating');
+            genBtn.disabled = false;
+        }
     });
-}
+};
 
-window.copyJoinLink = function() {
+window.doCopyJoinLink = window.copyJoinLink = function() {
     const input = document.getElementById('joinLinkInput');
     const btn = document.getElementById('joinLinkCopyBtn');
     if (!input || !input.value) return;
