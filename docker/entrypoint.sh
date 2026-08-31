@@ -23,7 +23,7 @@ chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Populate .env from runtime environment variables so PHP-FPM and CLI have all DB and App configs
 rm -f /var/www/html/.env
-printenv | grep -E '^(APP_|DB_|DATABASE_|MYSQL|SESSION_|CACHE_|MAIL_|QUEUE_|LOG_|CLOUDFLARE_|PORT)' > /var/www/html/.env || true
+php /var/www/html/docker/generate-env.php || true
 chmod 666 /var/www/html/.env
 
 # Create storage symlink
