@@ -529,32 +529,38 @@ class ClassManagerController extends Controller
                         $isContained = true;
                     }
                 }
-
                 $maxStemSim = max($similarity, $stemSimilarity);
+                $conditionFired = null;
 
                 // Condition 1: Nearly exact question stem (>= 88%)
                 if ($maxStemSim >= 88.0) {
                     $isDuplicate = true;
+                    $conditionFired = 1;
                 }
                 // Condition 2: Highly similar question stem (>= 75%) AND similar answer or options (>= 40%)
                 elseif ($maxStemSim >= 75.0 && (! $hasAnswer || $ansSimilarity >= 40.0)) {
                     $isDuplicate = true;
+                    $conditionFired = 2;
                 }
                 // Condition 3: Same or near-identical correct answer (>= 80%) with phrase length >= 12 chars or topic overlap
                 elseif ($ansSimilarity >= 80.0 && (mb_strlen($ans1) >= 12 || $maxStemSim >= 25.0 || $jaccard >= 20.0)) {
                     $isDuplicate = true;
+                    $conditionFired = 3;
                 }
                 // Condition 4: High options pool overlap (3 or more options are identical)
                 elseif ($sharedOptions >= 3) {
                     $isDuplicate = true;
+                    $conditionFired = 4;
                 }
-                // Condition 5: Rephrased question on same topic (>= 45% stem similarity or shared keywords) AND matching correct answer (>= 60%)
-                elseif ($ansSimilarity >= 60.0 && ($maxStemSim >= 40.0 || $jaccard >= 30.0)) {
+                // Condition 5: Rephrased question on same topic (both stem similarity and jaccard) AND matching correct answer (>= 75%)
+                elseif ($ansSimilarity >= 75.0 && $maxStemSim >= 45.0 && $jaccard >= 30.0) {
                     $isDuplicate = true;
+                    $conditionFired = 5;
                 }
                 // Condition 6: Stem containment / subset
                 elseif ($isContained) {
                     $isDuplicate = true;
+                    $conditionFired = 6;
                 }
 
                 if ($isDuplicate) {
@@ -567,6 +573,7 @@ class ClassManagerController extends Controller
                         'jaccard' => round($jaccard, 2),
                         'ans_similarity' => round($ansSimilarity, 2),
                         'question_type' => $questionType,
+                        'condition_fired' => $conditionFired,
                     ];
                     break;
                 }
@@ -2061,7 +2068,7 @@ POWERSHELL;
                     $targetDifficulty = $task['difficulty'];
                     $questionType = $task['type'];
                     $typeCount = $task['count'];
-                    $bufferedCount = $typeCount + 1; // +1 buffer candidate
+                    $bufferedCount = (int) ceil($typeCount * 1.4) + 1; // +40% buffer candidate margin
 
                     $pass = (int) floor($tIdx / max(1, $sectionCount));
                     $assignedSection = $sections[$tIdx % $sectionCount];
@@ -2195,13 +2202,30 @@ POWERSHELL;
                         }
 
                         $cleanBatch = [];
+                        $rejections = [
+                            'invalid_structure' => 0,
+                            'empty_question_or_option' => 0,
+                            'duplicate_options' => 0,
+                            'ungrounded' => 0,
+                            'stem_echo' => 0,
+                        ];
                         foreach ($batch as $candidateIndex => $candidate) {
                             $rejectionReason = $this->aiQuestionRejectionReason($candidate, $choiceLetters, $questionType, $text);
                             if ($rejectionReason !== null) {
+                                $rejections[$rejectionReason] = ($rejections[$rejectionReason] ?? 0) + 1;
+
                                 continue;
                             }
 
                             $cleanBatch[] = $candidate;
+                        }
+                        if (array_sum($rejections) > 0) {
+                            Log::info('AI quiz task rejections', [
+                                'file' => $file->getClientOriginalName(),
+                                'difficulty' => $targetDifficulty,
+                                'type' => $questionType,
+                                'rejections' => $rejections,
+                            ]);
                         }
                         $batch = $cleanBatch;
 
@@ -2262,14 +2286,14 @@ POWERSHELL;
 
             // SMART MICRO-BATCH TOP-UP: Top up in fast micro-batches targeting rotating sections
             $missingInitial = max(0, $requestedQuestionCount - count($allGeneratedQuestions));
-            $maxMicroBatches = max(20, (int) ceil($missingInitial / 2) + 12);
+            $maxMicroBatches = max(30, $missingInitial * 3);
             $microBatchCount = 0;
 
             while (count($allGeneratedQuestions) < $requestedQuestionCount && $microBatchCount < $maxMicroBatches && ! empty($allExtractedTexts)) {
                 $microBatchCount++;
                 $missingCount = $requestedQuestionCount - count($allGeneratedQuestions);
-                $batchTarget = min($missingCount, 3);
-                $bufferedTopUp = $batchTarget + 2;
+                $batchTarget = min($missingCount, $missingCount > 20 ? 6 : 3);
+                $bufferedTopUp = (int) ceil($batchTarget * 1.4) + 1;
 
                 $fileKeys = array_keys($allExtractedTexts);
                 $selectedKey = $fileKeys[$microBatchCount % count($fileKeys)];
@@ -2312,7 +2336,7 @@ POWERSHELL;
                                 'content' => $topUpPrompt,
                             ],
                         ],
-                        'max_tokens' => min(320 * $bufferedTopUp, 1500),
+                        'max_tokens' => min(380 * $bufferedTopUp, 4000),
                         'temperature' => 0.4,
                         'response_format' => [
                             'type' => 'json_schema',
@@ -2367,32 +2391,52 @@ POWERSHELL;
 
                     if (is_array($topUpBatch)) {
                         $validTopUp = [];
+                        $topUpRejections = [
+                            'invalid_structure' => 0,
+                            'empty_question_or_option' => 0,
+                            'duplicate_options' => 0,
+                            'ungrounded' => 0,
+                            'stem_echo' => 0,
+                        ];
                         foreach ($topUpBatch as $candidate) {
                             $qType = (string) ($candidate['question_type'] ?? 'what');
-                            if ($this->isCleanAiQuestion($candidate, $choiceLetters, $qType, $fullDocText)) {
-                                $options = $candidate['options'];
-                                $correctLetter = strtoupper((string) $candidate['correct']);
-                                $correctText = $options[$correctLetter] ?? reset($options);
+                            $reason = $this->aiQuestionRejectionReason($candidate, $choiceLetters, $qType, $fullDocText);
+                            if ($reason !== null) {
+                                $topUpRejections[$reason] = ($topUpRejections[$reason] ?? 0) + 1;
 
-                                $texts = array_values($options);
-                                for ($i = count($texts) - 1; $i > 0; $i--) {
-                                    $j = random_int(0, $i);
-                                    [$texts[$i], $texts[$j]] = [$texts[$j], $texts[$i]];
-                                }
-
-                                $newOptions = [];
-                                $newCorrect = $choiceLetters[0];
-                                foreach ($choiceLetters as $idx => $letter) {
-                                    $newOptions[$letter] = $texts[$idx] ?? '';
-                                    if (($texts[$idx] ?? null) === $correctText) {
-                                        $newCorrect = $letter;
-                                    }
-                                }
-
-                                $candidate['options'] = $newOptions;
-                                $candidate['correct'] = $newCorrect;
-                                $validTopUp[] = $candidate;
+                                continue;
                             }
+
+                            $options = $candidate['options'];
+                            $correctLetter = strtoupper((string) $candidate['correct']);
+                            $correctText = $options[$correctLetter] ?? reset($options);
+
+                            $texts = array_values($options);
+                            for ($i = count($texts) - 1; $i > 0; $i--) {
+                                $j = random_int(0, $i);
+                                [$texts[$i], $texts[$j]] = [$texts[$j], $texts[$i]];
+                            }
+
+                            $newOptions = [];
+                            $newCorrect = $choiceLetters[0];
+                            foreach ($choiceLetters as $idx => $letter) {
+                                $newOptions[$letter] = $texts[$idx] ?? '';
+                                if (($texts[$idx] ?? null) === $correctText) {
+                                    $newCorrect = $letter;
+                                }
+                            }
+
+                            $candidate['options'] = $newOptions;
+                            $candidate['correct'] = $newCorrect;
+                            $validTopUp[] = $candidate;
+                        }
+
+                        if (array_sum($topUpRejections) > 0) {
+                            Log::info('AI quiz top-up rejections', [
+                                'file' => $topUpFileName,
+                                'iteration' => $microBatchCount,
+                                'rejections' => $topUpRejections,
+                            ]);
                         }
 
                         $combined = array_merge($allGeneratedQuestions, $validTopUp);
