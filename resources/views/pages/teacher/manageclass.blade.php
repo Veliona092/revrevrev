@@ -53,6 +53,43 @@ window.openModulesDrawer = function(classId, className) {
         window.safeOpenDialog('dialogModules');
     }
 };
+
+let deleteModeActive = false;
+window.toggleDeleteMode = function() {
+    deleteModeActive = !deleteModeActive;
+    const toggleBtn = document.getElementById('deleteModeToggle');
+    const deleteActions = document.querySelectorAll('.class-delete-action');
+
+    if (deleteModeActive) {
+        if (toggleBtn) {
+            toggleBtn.classList.add('active');
+            toggleBtn.innerHTML = '<i class="fas fa-times"></i> Cancel Delete';
+        }
+        deleteActions.forEach(el => el.style.display = 'block');
+    } else {
+        if (toggleBtn) {
+            toggleBtn.classList.remove('active');
+            toggleBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Delete Classes';
+        }
+        deleteActions.forEach(el => el.style.display = 'none');
+    }
+};
+
+let currentDeleteForm = null;
+window.openDeleteClassConfirm = function(btn) {
+    currentDeleteForm = btn.closest('.delete-class-form');
+    const className = currentDeleteForm ? currentDeleteForm.dataset.className : '';
+    const msg = document.getElementById('deleteClassConfirmMessage');
+    if (msg) msg.textContent = 'Delete class "' + className + '"? This cannot be undone.';
+    const overlay = document.getElementById('deleteClassConfirmOverlay');
+    if (overlay) overlay.setAttribute('aria-hidden', 'false');
+};
+
+window.closeDeleteClassConfirm = function() {
+    const overlay = document.getElementById('deleteClassConfirmOverlay');
+    if (overlay) overlay.setAttribute('aria-hidden', 'true');
+    currentDeleteForm = null;
+};
 </script>
 @endsection
 
