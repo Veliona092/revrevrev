@@ -28,7 +28,7 @@ class ClassModel extends Model
         'program',
         'code',
         'school_year',
-        "year_level",
+        'year_level',
         'description',
         'created_by',
         'ai_summary',

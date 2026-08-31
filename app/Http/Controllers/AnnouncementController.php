@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Announcement;
+use App\Models\AnnouncementComment;
 use App\Models\ClassModel;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -210,13 +211,13 @@ class AnnouncementController extends Controller
      * List comments (nested replies) for an announcement.
      * Access: enrolled students of the class, the class's owning teacher, or admin.
      */
-    public function comments(\App\Models\Announcement $announcement)
+    public function comments(Announcement $announcement)
     {
         $user = auth()->user();
         abort_unless($user !== null, 403);
         abort_unless($this->canAccessAnnouncementThread($user, $announcement), 403);
 
-        $comments = \App\Models\AnnouncementComment::query()
+        $comments = AnnouncementComment::query()
             ->where('announcement_id', $announcement->id)
             ->whereNull('parent_id')
             ->with(['user:id,name', 'replies'])
@@ -231,7 +232,7 @@ class AnnouncementController extends Controller
     /**
      * Post a comment or nested reply on an announcement.
      */
-    public function storeComment(Request $request, \App\Models\Announcement $announcement)
+    public function storeComment(Request $request, Announcement $announcement)
     {
         $user = auth()->user();
         abort_unless($user !== null, 403);
@@ -243,17 +244,17 @@ class AnnouncementController extends Controller
         ]);
 
         // Siguraduhing ang parent comment ay kabilang sa parehong announcement
-        if (!empty($validated['parent_id'])) {
-            $parentBelongs = \App\Models\AnnouncementComment::where('id', $validated['parent_id'])
+        if (! empty($validated['parent_id'])) {
+            $parentBelongs = AnnouncementComment::where('id', $validated['parent_id'])
                 ->where('announcement_id', $announcement->id)
                 ->exists();
 
-            if (!$parentBelongs) {
+            if (! $parentBelongs) {
                 abort(422, 'Invalid parent comment.');
             }
         }
 
-        $comment = \App\Models\AnnouncementComment::create([
+        $comment = AnnouncementComment::create([
             'announcement_id' => $announcement->id,
             'user_id' => $user->id,
             'parent_id' => $validated['parent_id'] ?? null,
@@ -274,7 +275,7 @@ class AnnouncementController extends Controller
         ]);
     }
 
-    private function canAccessAnnouncementThread($user, \App\Models\Announcement $announcement): bool
+    private function canAccessAnnouncementThread($user, Announcement $announcement): bool
     {
         $isAdmin = in_array($user->role, ['admin', 'superadmin'], true);
         $isOwningTeacher = (int) ($announcement->class?->created_by ?? 0) === (int) $user->id;
@@ -287,7 +288,7 @@ class AnnouncementController extends Controller
 
     private function formatCommentTree($comments): array
     {
-        return $comments->map(function (\App\Models\AnnouncementComment $comment) {
+        return $comments->map(function (AnnouncementComment $comment) {
             return [
                 'id' => $comment->id,
                 'parent_id' => $comment->parent_id,

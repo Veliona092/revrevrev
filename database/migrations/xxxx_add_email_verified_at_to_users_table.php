@@ -10,12 +10,12 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             // Add email first (if it doesn't exist)
-            if (!Schema::hasColumn('users', 'email')) {
+            if (! Schema::hasColumn('users', 'email')) {
                 $table->string('email')->unique()->nullable();
             }
 
             // Then add email_verified_at (if it doesn't exist)
-            if (!Schema::hasColumn('users', 'email_verified_at')) {
+            if (! Schema::hasColumn('users', 'email_verified_at')) {
                 // Place it after email ONLY if email now exists (safe fallback)
                 if (Schema::hasColumn('users', 'email')) {
                     $table->timestamp('email_verified_at')->nullable()->after('email');

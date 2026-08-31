@@ -10,14 +10,14 @@ return new class extends Migration
     {
         Schema::create('quiz_attempts', function (Blueprint $table) {
             $table->id();
-            
+
             $table->foreignId('user_id')
-                  ->constrained('users')
-                  ->onDelete('cascade');
+                ->constrained('users')
+                ->onDelete('cascade');
 
             $table->foreignId('module_id')
-                  ->constrained('modules')
-                  ->onDelete('cascade');
+                ->constrained('modules')
+                ->onDelete('cascade');
 
             $table->integer('score');           // number of correct answers
             $table->integer('total');           // total questions

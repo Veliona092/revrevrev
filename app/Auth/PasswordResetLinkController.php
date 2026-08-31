@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;           // adjust if your model is different
 use Illuminate\Support\Str;
-use App\Models\User;           // adjust if your model is different
-use Illuminate\Support\Facades\Password;
 
 class PasswordResetLinkController extends Controller
 {
@@ -42,7 +42,7 @@ class PasswordResetLinkController extends Controller
         // Password::createToken($user);
 
         return view('auth.show-new-password', [
-            'email'       => $user->email,
+            'email' => $user->email,
             'newPassword' => $plainPassword,
         ]);
     }

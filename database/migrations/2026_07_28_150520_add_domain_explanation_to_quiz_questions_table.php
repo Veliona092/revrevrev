@@ -6,18 +6,18 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-public function up(): void
-{
-    Schema::table('quiz_questions', function (Blueprint $table) {
-        $table->string('domain')->nullable()->after('difficulty');
-        $table->text('explanation')->nullable()->after('domain');
-    });
-}
+    public function up(): void
+    {
+        Schema::table('quiz_questions', function (Blueprint $table) {
+            $table->string('domain')->nullable()->after('difficulty');
+            $table->text('explanation')->nullable()->after('domain');
+        });
+    }
 
-public function down(): void
-{
-    Schema::table('quiz_questions', function (Blueprint $table) {
-        $table->dropColumn(['domain', 'explanation']);
-    });
-}
+    public function down(): void
+    {
+        Schema::table('quiz_questions', function (Blueprint $table) {
+            $table->dropColumn(['domain', 'explanation']);
+        });
+    }
 };

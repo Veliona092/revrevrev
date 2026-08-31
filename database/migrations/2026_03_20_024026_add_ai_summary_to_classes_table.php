@@ -9,18 +9,17 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-public function up(): void
-{
-    Schema::table('classes', function (Blueprint $table) {
-        $table->text('ai_summary')->nullable()->after('description');
-    });
-}
+    public function up(): void
+    {
+        Schema::table('classes', function (Blueprint $table) {
+            $table->text('ai_summary')->nullable()->after('description');
+        });
+    }
 
-public function down(): void
-{
-    Schema::table('classes', function (Blueprint $table) {
-        $table->dropColumn('ai_summary');
-    });
-}
-
+    public function down(): void
+    {
+        Schema::table('classes', function (Blueprint $table) {
+            $table->dropColumn('ai_summary');
+        });
+    }
 };

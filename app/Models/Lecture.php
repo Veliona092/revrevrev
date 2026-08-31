@@ -34,8 +34,8 @@ class Lecture extends Model
      */
     protected $casts = [
         'uploaded_at' => 'datetime',
-        'updated_at'  => 'datetime',
-        'file_size'   => 'integer',
+        'updated_at' => 'datetime',
+        'file_size' => 'integer',
     ];
 
     /**
@@ -68,7 +68,7 @@ class Lecture extends Model
             $bytes /= 1024;
         }
 
-        return round($bytes, 1) . ' ' . $units[$i];
+        return round($bytes, 1).' '.$units[$i];
     }
 
     /**

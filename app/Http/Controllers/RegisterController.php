@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\VerifyEmail;
 use App\Models\Signup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\VerifyEmail;           // we'll create this next
-use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\URL;           // we'll create this next
+use Illuminate\Support\Str;
 
 class RegisterController extends Controller
 {
@@ -21,20 +21,20 @@ class RegisterController extends Controller
     public function register(Request $request)
     {
         $validated = $request->validate([
-            'email'                 => ['required', 'email', 'max:255', 'unique:users,email', 'unique:signups,email'],
-            'idnumber'              => ['required', 'string', 'max:50', 'unique:users,idnumber', 'unique:signups,idnumber'],
-            'password'              => ['required', 'string', 'min:8', 'confirmed'],
-            'role'                  => ['required', 'in:psych,educ,accountancy,teacher,admin'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email', 'unique:signups,email'],
+            'idnumber' => ['required', 'string', 'max:50', 'unique:users,idnumber', 'unique:signups,idnumber'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'role' => ['required', 'in:psych,educ,accountancy,teacher,admin'],
         ]);
 
         $token = Str::random(60);   // secure random token
 
         $signup = Signup::create([
-            'email'                 => $validated['email'],
-            'idnumber'              => $validated['idnumber'],
-            'password'              => Hash::make($validated['password']),
-            'role'                  => $validated['role'],
-            'verification_token'    => $token,
+            'email' => $validated['email'],
+            'idnumber' => $validated['idnumber'],
+            'password' => Hash::make($validated['password']),
+            'role' => $validated['role'],
+            'verification_token' => $token,
         ]);
 
         // Send verification email

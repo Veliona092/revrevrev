@@ -25,7 +25,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        \Illuminate\Support\Facades\URL::forceScheme('https');
+        URL::forceScheme('https');
 
         Gate::define('view-batch-analytics', function ($user): bool {
             return in_array($user->role, ['teacher', 'admin', 'superadmin'], true);
