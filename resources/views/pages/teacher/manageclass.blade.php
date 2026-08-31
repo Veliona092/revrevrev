@@ -2315,18 +2315,11 @@ function loadModulesForTab(classId, type, containerId) {
 
         const all = data.modules || [];
 
-
-
         const filtered = all.filter(m => {
-
-            if (type === 'document')         return !m.is_quiz && !m.is_formal_assessment;
-
-            if (type === 'pre_assessment')   return m.type === 'Quiz' && !m.is_formal_assessment;
-
-            if (type === 'formal_assessment') return m.is_formal_assessment;
-
+            if (type === 'document')          return !m.is_quiz && m.type !== 'Quiz' && !m.is_formal_assessment;
+            if (type === 'pre_assessment')    return (m.is_quiz || m.type === 'Quiz') && !m.is_formal_assessment;
+            if (type === 'formal_assessment') return (m.is_quiz || m.type === 'Quiz') && m.is_formal_assessment;
             return false;
-
         });
 
 
