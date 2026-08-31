@@ -55,6 +55,7 @@ RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/fra
     && chmod -R 777 storage bootstrap/cache
 
 # Copy server configs
+COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
