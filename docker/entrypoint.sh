@@ -7,7 +7,7 @@ if [ "$PORT_NUM" != "8080" ] && [ "$PORT_NUM" != "80" ] && [ "$PORT_NUM" != "300
     sed -i "s/listen 8080 default_server;/listen ${PORT_NUM} default_server;/g" /etc/nginx/nginx.conf
 fi
 
-# Ensure Nginx directories
+# Ensure Nginx runtime and log directories
 mkdir -p /run/nginx /var/log/nginx /var/lib/nginx/tmp /var/lib/nginx/logs
 chown -R www-data:www-data /run/nginx /var/log/nginx /var/lib/nginx
 
@@ -21,21 +21,15 @@ mkdir -p /var/www/html/storage/framework/cache/data \
 touch /var/www/html/storage/logs/laravel.log
 chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Write .env file from environment variables so Artisan and PHP-FPM always have access
+# Remove any corrupt .env file and ensure a clean empty .env exists
+rm -f /var/www/html/.env
 touch /var/www/html/.env
-env > /var/www/html/.env
 chmod 666 /var/www/html/.env
 
 # Create storage symlink
 php artisan storage:link || true
 
-# Check APP_KEY
-if [ -z "$APP_KEY" ]; then
-    echo "APP_KEY is missing in env, generating..."
-    php artisan key:generate --force || true
-fi
-
-# Clear old cache
+# Clear cache
 php artisan config:clear || true
 php artisan cache:clear || true
 
