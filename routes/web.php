@@ -320,7 +320,11 @@ Route::post('/signup', function (Request $request) {
     } catch (Throwable $e) {
         Log::error('Verification email send failed: '.$e->getMessage());
 
-        return back()->withErrors(['email' => 'Could not send verification email right now. Please try again later.']);
+        if (isset($signup)) {
+            $signup->delete();
+        }
+
+        return back()->withInput()->withErrors(['email' => 'Could not send verification email right now. Please try again later.']);
     }
 
     return redirect()->route('login')
