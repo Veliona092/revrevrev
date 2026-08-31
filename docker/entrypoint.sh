@@ -21,9 +21,16 @@ mkdir -p /var/www/html/storage/framework/cache/data \
 touch /var/www/html/storage/logs/laravel.log
 chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Remove any corrupt .env file and ensure a clean empty .env exists
+# Populate .env from runtime environment variables so PHP-FPM and CLI have all DB and App configs
 rm -f /var/www/html/.env
-touch /var/www/html/.env
+printenv | while IFS='=' read -r key val; do
+    # Skip multi-line, functions, or empty keys
+    case "$key" in
+        APP_*|DB_*|DATABASE_*|MYSQL*|SESSION_*|CACHE_*|MAIL_*|QUEUE_*|LOG_*|CLOUDFLARE_*|PORT)
+            echo "${key}=${val}" >> /var/www/html/.env
+            ;;
+    esac
+done
 chmod 666 /var/www/html/.env
 
 # Create storage symlink
