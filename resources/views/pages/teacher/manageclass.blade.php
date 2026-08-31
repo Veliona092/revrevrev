@@ -1420,8 +1420,7 @@
 
             </div>
 
-            <button class="rv-drawer-close" onclick="document.getElementById('dialogStudents').close()">&#x2715;</button>
-
+            <button class="rv-drawer-close" onclick="safeCloseDialog('dialogStudents')">&#x2715;</button>
         </div>
 
         <div class="rv-drawer-body">
@@ -1518,8 +1517,7 @@
 
             </div>
 
-            <button class="rv-drawer-close" onclick="document.getElementById('dialogModules').close()">&#x2715;</button>
-
+            <button class="rv-drawer-close" onclick="safeCloseDialog('dialogModules')">&#x2715;</button>
         </div>
 
         {{-- Fixed Tab Bar (outside scrollable body so no content can peek through) --}}
@@ -1967,7 +1965,7 @@
                 <div class="rv-drawer-title">Module Content</div>
                 <div class="rv-drawer-subtitle" id="lectureContentSubtitle">Manage Domains and Lessons.</div>
             </div>
-            <button class="rv-drawer-close" onclick="document.getElementById('dialogLectureContent').close()">&#x2715;</button>
+            <button class="rv-drawer-close" onclick="safeCloseDialog('dialogLectureContent')">&#x2715;</button>
         </div>
         <div class="rv-drawer-body">
             <form id="lectureContentForm" enctype="multipart/form-data">
@@ -2061,95 +2059,50 @@ function switchTab(panelId, btn) {
 // -”€-”€ Open Students dialog -”€-”€
 
 function openStudentsDrawer(classId, className) {
-
     currentClassId = classId;
-
     document.getElementById('studentsDrawerSubtitle').textContent = className;
-
-    document.getElementById('dialogStudents').showModal();
-
-
+    safeOpenDialog('dialogStudents');
 
     // Reset join link section
-
     document.getElementById('joinLinkInput').value = '';
-
     document.getElementById('joinLinkCopyBtn').disabled = true;
-
-
 
     loadCurrentStudents();
 
-
-
     if (!$('#studentSelect').hasClass('select2-hidden-accessible')) {
-
         $('#studentSelect').select2({
-
             placeholder: 'Search by name or ID...',
-
             allowClear: true,
-
             multiple: true,
-
             minimumInputLength: 1,
-
             dropdownParent: $('#dialogStudents'),
-
             ajax: {
-
                 url: "{{ route('students.search') }}",
-
                 dataType: 'json',
-
                 delay: 200,
-
                 data: params => ({ q: params.term }),
-
                 processResults: data => ({ results: data.results }),
-
                 cache: true
-
             }
-
         });
-
     }
-
 }
 
-
-
-// -”€-”€ Open Modules dialog -”€-”€
-
+// ── Open Modules dialog ──
 function openModulesDrawer(classId, className) {
-
     currentClassId = classId;
-
     document.getElementById('modulesDrawerSubtitle').textContent = className;
-
     document.getElementById('moduleClassId').value = classId;
-
     document.getElementById('quizClassId').value = classId;
-
     document.getElementById('quizDraftForm').action = "{{ url('/quiz/create-draft') }}/" + classId;
-
     document.getElementById('assessmentClassId').value = classId;
-
     document.getElementById('assessmentDraftForm').action = "{{ url('/quiz/create-draft') }}/" + classId;
-
     document.getElementById('announcementForm').action = "{{ url('/classes') }}/" + classId + "/announcements";
 
-
-
     // Reset to upload tab
-
     switchTab('tabUpload', document.querySelector('.rv-tab'));
-
     ['doc','quiz','assessment'].forEach(resetVisibilityPicker);
-
-    document.getElementById('dialogModules').showModal();
-
+    safeOpenDialog('dialogModules');
 }
 
 
@@ -2433,7 +2386,7 @@ function openLectureContent(moduleId, title) {
     $('#lectureSubpartModuleId').val(moduleId);
     $('#lectureContentModuleId').val(moduleId);
     $('#lectureContentList').html('<p style="font-size:16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p>');
-    document.getElementById('dialogLectureContent').showModal();
+    safeOpenDialog('dialogLectureContent');
     loadLectureSubparts(moduleId);
 }
 
@@ -3544,31 +3497,58 @@ function copyJoinLink() {
     });
 }
 
-function openCreateDialog() {
-    const d = document.getElementById('dialogCreate');
-    if (d) {
+function safeOpenDialog(dialogId) {
+    const d = document.getElementById(dialogId);
+    if (!d) return;
+    try {
+        if (d.open) {
+            d.close();
+        }
         if (typeof d.showModal === 'function') {
             d.showModal();
         } else {
             d.setAttribute('open', '');
         }
+    } catch (e) {
+        d.setAttribute('open', '');
     }
+}
+
+function safeCloseDialog(dialogId) {
+    const d = document.getElementById(dialogId);
+    if (!d) return;
+    try {
+        if (typeof d.close === 'function') {
+            d.close();
+        }
+    } catch (e) {}
+    d.removeAttribute('open');
+}
+
+function openCreateDialog() {
+    safeOpenDialog('dialogCreate');
 }
 
 function closeCreateDialog() {
-    const d = document.getElementById('dialogCreate');
-    if (d) {
-        if (typeof d.close === 'function') {
-            d.close();
-        } else {
-            d.removeAttribute('open');
-        }
-    }
+    safeCloseDialog('dialogCreate');
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('dialog.rv-dialog').forEach(d => {
+        d.addEventListener('click', function (e) {
+            const rect = d.getBoundingClientRect();
+            const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height
+                && rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+            if (!isInDialog || e.target === d) {
+                safeCloseDialog(d.id);
+            }
+        });
+    });
+});
 
 @if ($errors->any())
 document.addEventListener('DOMContentLoaded', function () {
-    openCreateDialog();
+    safeOpenDialog('dialogCreate');
 });
 @endif
 </script>
