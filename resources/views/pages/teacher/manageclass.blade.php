@@ -33,6 +33,26 @@ window.openCreateDialog = function() {
 window.closeCreateDialog = function() {
     window.safeCloseDialog('dialogCreate');
 };
+
+window.openStudentsDrawer = function(classId, className) {
+    if (typeof window.initStudentsDrawer === 'function') {
+        window.initStudentsDrawer(classId, className);
+    } else {
+        const sub = document.getElementById('studentsDrawerSubtitle');
+        if (sub) sub.textContent = className;
+        window.safeOpenDialog('dialogStudents');
+    }
+};
+
+window.openModulesDrawer = function(classId, className) {
+    if (typeof window.initModulesDrawer === 'function') {
+        window.initModulesDrawer(classId, className);
+    } else {
+        const sub = document.getElementById('modulesDrawerSubtitle');
+        if (sub) sub.textContent = className;
+        window.safeOpenDialog('dialogModules');
+    }
+};
 </script>
 @endsection
 
@@ -1985,84 +2005,124 @@ window.closeDeleteClassConfirm = function() {
 
 let currentClassId = null;
 
+// ── Visibility State & Reset (initialized early) ──
+const visDebounceTimers = {};
+const visSelectedStudents = { doc: {}, quiz: {}, assessment: {} };
 
+window.resetVisibilityPicker = function(form) {
+    if (visSelectedStudents[form]) {
+        visSelectedStudents[form] = {};
+    }
+    const picker = document.getElementById('visPicker_' + form);
+    if (picker) {
+        picker.style.display = 'none';
+        const searchEl = document.getElementById('visSearch_' + form);
+        if (searchEl) searchEl.value = '';
+        const resultsEl = document.getElementById('visResults_' + form);
+        if (resultsEl) {
+            resultsEl.innerHTML = '';
+            resultsEl.style.display = 'none';
+        }
+        const chipsEl = document.getElementById('visChips_' + form);
+        if (chipsEl) chipsEl.innerHTML = '';
+        const hintEl = document.getElementById('visHint_' + form);
+        if (hintEl) hintEl.textContent = 'Search and select students above.';
+    }
+    const visInput = document.getElementById('visInput_' + form);
+    if (visInput) visInput.value = 'all';
 
-// -”€-”€ Tab switcher -”€-”€
-
-function switchTab(panelId, btn) {
-
-    closeManageConfirm();
-
-    document.querySelectorAll('.rv-tab-panel').forEach(p => p.classList.remove('active'));
-
-    document.querySelectorAll('.rv-tab').forEach(b => b.classList.remove('active'));
-
-    document.getElementById(panelId).classList.add('active');
-
-    btn.classList.add('active');
-
-
-
-    if (panelId === 'tabUpload' && currentClassId) loadModulesForTab(currentClassId, 'document', 'documentsList');
-
-    if (panelId === 'tabQuiz' && currentClassId) loadModulesForTab(currentClassId, 'pre_assessment', 'preAssessmentsList');
-
-    if (panelId === 'tabAssessment' && currentClassId) loadModulesForTab(currentClassId, 'formal_assessment', 'formalAssessmentsList');
-
-    if (panelId === 'tabAnnouncements' && currentClassId) loadClassAnnouncements(currentClassId);
-
-}
-
-
-
-// -”€-”€ Open Students dialog -”€-”€
-
-function openStudentsDrawer(classId, className) {
-    currentClassId = classId;
-    document.getElementById('studentsDrawerSubtitle').textContent = className;
-    safeOpenDialog('dialogStudents');
-
-    // Reset join link section
-    document.getElementById('joinLinkInput').value = '';
-    document.getElementById('joinLinkCopyBtn').disabled = true;
-
-    loadCurrentStudents();
-
-    if (!$('#studentSelect').hasClass('select2-hidden-accessible')) {
-        $('#studentSelect').select2({
-            placeholder: 'Search by name or ID...',
-            allowClear: true,
-            multiple: true,
-            minimumInputLength: 1,
-            dropdownParent: $('#dialogStudents'),
-            ajax: {
-                url: "{{ route('students.search') }}",
-                dataType: 'json',
-                delay: 200,
-                data: params => ({ q: params.term }),
-                processResults: data => ({ results: data.results }),
-                cache: true
+    const formKeyToTab = { doc: 'tabUpload', quiz: 'tabQuiz', assessment: 'tabAssessment' };
+    const panel = document.getElementById(formKeyToTab[form]);
+    if (panel) {
+        panel.querySelectorAll('.vis-opt').forEach(b => {
+            if (b.textContent.trim() === 'All Students') {
+                b.classList.add('active');
+            } else {
+                b.classList.remove('active');
             }
         });
     }
-}
+};
 
-// ── Open Modules dialog ──
-function openModulesDrawer(classId, className) {
+// ── Tab switcher ──
+window.switchTab = function(panelId, btn) {
+    if (typeof closeManageConfirm === 'function') {
+        closeManageConfirm();
+    }
+    document.querySelectorAll('.rv-tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.rv-tab').forEach(b => b.classList.remove('active'));
+
+    const panel = document.getElementById(panelId);
+    if (panel) panel.classList.add('active');
+    if (btn) btn.classList.add('active');
+
+    if (panelId === 'tabUpload' && currentClassId && typeof loadModulesForTab === 'function') loadModulesForTab(currentClassId, 'document', 'documentsList');
+    if (panelId === 'tabQuiz' && currentClassId && typeof loadModulesForTab === 'function') loadModulesForTab(currentClassId, 'pre_assessment', 'preAssessmentsList');
+    if (panelId === 'tabAssessment' && currentClassId && typeof loadModulesForTab === 'function') loadModulesForTab(currentClassId, 'formal_assessment', 'formalAssessmentsList');
+    if (panelId === 'tabAnnouncements' && currentClassId && typeof loadClassAnnouncements === 'function') loadClassAnnouncements(currentClassId);
+};
+
+// ── Open Students drawer ──
+window.initStudentsDrawer = window.openStudentsDrawer = function(classId, className) {
     currentClassId = classId;
-    document.getElementById('modulesDrawerSubtitle').textContent = className;
-    document.getElementById('moduleClassId').value = classId;
-    document.getElementById('quizClassId').value = classId;
-    document.getElementById('quizDraftForm').action = "{{ url('/quiz/create-draft') }}/" + classId;
-    document.getElementById('assessmentClassId').value = classId;
-    document.getElementById('assessmentDraftForm').action = "{{ url('/quiz/create-draft') }}/" + classId;
-    document.getElementById('announcementForm').action = "{{ url('/classes') }}/" + classId + "/announcements";
+    const sub = document.getElementById('studentsDrawerSubtitle');
+    if (sub) sub.textContent = className;
+    window.safeOpenDialog('dialogStudents');
 
-    // Reset to upload tab
-    switchTab('tabUpload', document.querySelector('.rv-tab'));
-    ['doc','quiz','assessment'].forEach(resetVisibilityPicker);
-    safeOpenDialog('dialogModules');
-}
+    const joinInput = document.getElementById('joinLinkInput');
+    if (joinInput) joinInput.value = '';
+    const joinCopy = document.getElementById('joinLinkCopyBtn');
+    if (joinCopy) joinCopy.disabled = true;
+
+    if (typeof loadCurrentStudents === 'function') {
+        loadCurrentStudents();
+    }
+
+    if (typeof $.fn.select2 === 'function' && !$('#studentSelect').hasClass('select2-hidden-accessible')) {
+        try {
+            $('#studentSelect').select2({
+                placeholder: 'Search by name or ID...',
+                allowClear: true,
+                multiple: true,
+                minimumInputLength: 1,
+                dropdownParent: $('#dialogStudents'),
+                ajax: {
+                    url: "{{ route('students.search') }}",
+                    dataType: 'json',
+                    delay: 200,
+                    data: params => ({ q: params.term }),
+                    processResults: data => ({ results: data.results }),
+                    cache: true
+                }
+            });
+        } catch (e) {
+            console.warn('Select2 init warning:', e);
+        }
+    }
+};
+
+// ── Open Modules drawer ──
+window.initModulesDrawer = window.openModulesDrawer = function(classId, className) {
+    currentClassId = classId;
+    const sub = document.getElementById('modulesDrawerSubtitle');
+    if (sub) sub.textContent = className;
+    const modId = document.getElementById('moduleClassId');
+    if (modId) modId.value = classId;
+    const quizId = document.getElementById('quizClassId');
+    if (quizId) quizId.value = classId;
+    const quizForm = document.getElementById('quizDraftForm');
+    if (quizForm) quizForm.action = "{{ url('/quiz/create-draft') }}/" + classId;
+    const assessId = document.getElementById('assessmentClassId');
+    if (assessId) assessId.value = classId;
+    const assessForm = document.getElementById('assessmentDraftForm');
+    if (assessForm) assessForm.action = "{{ url('/quiz/create-draft') }}/" + classId;
+    const annForm = document.getElementById('announcementForm');
+    if (annForm) annForm.action = "{{ url('/classes') }}/" + classId + "/announcements";
+
+    window.switchTab('tabUpload', document.querySelector('#dialogModules .rv-tab'));
+    ['doc','quiz','assessment'].forEach(window.resetVisibilityPicker);
+    window.safeOpenDialog('dialogModules');
+};
 
 
 
@@ -2787,99 +2847,30 @@ $('#announcementForm').on('submit', function (e) {
 
 
 
-// -”€-”€ Visibility helpers -”€-”€
-
-const visDebounceTimers = {};
-
-const visSelectedStudents = { doc: {}, quiz: {}, assessment: {} };
-
-
-
-function setVisibility(btn, form) {
-
+// ── Visibility helpers ──
+window.setVisibility = function(btn, form) {
     btn.closest('.vis-toggle').querySelectorAll('.vis-opt').forEach(b => b.classList.remove('active'));
-
     btn.classList.add('active');
 
-
-
     const label = btn.textContent.trim();
-
     const map = { 'All Students': 'all', 'Selected Students': 'selected', 'Except Students': 'except' };
-
     const val = map[label] || 'all';
-
     document.getElementById('visInput_' + form).value = val;
 
-
-
     const picker = document.getElementById('visPicker_' + form);
-
     const hint = document.getElementById('visHint_' + form);
 
-
-
     if (val === 'all') {
-
-        picker.style.display = 'none';
-
+        if (picker) picker.style.display = 'none';
     } else {
-
-        picker.style.display = 'block';
-
-        hint.textContent = val === 'selected'
-
-            ? 'Only these students will see this content.'
-
-            : 'Everyone EXCEPT these students will see this content.';
-
+        if (picker) picker.style.display = 'block';
+        if (hint) {
+            hint.textContent = val === 'selected'
+                ? 'Only these students will see this content.'
+                : 'Everyone EXCEPT these students will see this content.';
+        }
     }
-
-}
-
-
-
-function resetVisibilityPicker(form) {
-
-    visSelectedStudents[form] = {};
-
-    const picker = document.getElementById('visPicker_' + form);
-
-    if (picker) {
-
-        picker.style.display = 'none';
-
-        document.getElementById('visSearch_' + form).value = '';
-
-        document.getElementById('visResults_' + form).innerHTML = '';
-
-        document.getElementById('visResults_' + form).style.display = 'none';
-
-        document.getElementById('visChips_' + form).innerHTML = '';
-
-        document.getElementById('visHint_' + form).textContent = 'Search and select students above.';
-
-    }
-
-    document.getElementById('visInput_' + form).value = 'all';
-
-
-
-    const formKeyToTab = { doc: 'tabUpload', quiz: 'tabQuiz', assessment: 'tabAssessment' };
-
-    const panel = document.getElementById(formKeyToTab[form]);
-
-    if (panel) {
-
-        panel.querySelectorAll('.vis-opt').forEach((b, i) => {
-
-            b.classList.toggle('active', i === 0);
-
-        });
-
-    }
-
-}
+};
 
 
 

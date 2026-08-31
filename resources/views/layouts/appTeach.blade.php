@@ -214,9 +214,11 @@
             background: rgba(0, 0, 0, 0.45);
             z-index: 99998;
             backdrop-filter: blur(2px);
+            pointer-events: none;
         }
         .rv-overlay.open {
-            display: block;
+            display: block !important;
+            pointer-events: auto !important;
         }
 
         .rv-drawer {
@@ -232,11 +234,15 @@
             display: flex;
             flex-direction: column;
             transform: translateX(100%);
-            transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
-            box-shadow: -8px 0 36px rgba(0,0,0,0.18);
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.25s;
+            box-shadow: -8px 0 36px rgba(0, 0, 0, 0.18);
+            visibility: hidden;
+            pointer-events: none;
         }
         .rv-drawer.open {
             transform: translateX(0) !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
         }
 
         .rv-drawer-head {
@@ -389,10 +395,7 @@
 
     @yield('drawers')
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ asset('assets/js/plugins/jquery/dist/jquery.min.js') }}"></script>
-    <script src="{{ asset('assets/js/plugins/bootstrap/dist/js/bootstrap.bundle.min.js') }}"></script>
     @yield('scripts-before-argon')
     @yield('scripts')
 
