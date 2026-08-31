@@ -23,14 +23,7 @@ chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Populate .env from runtime environment variables so PHP-FPM and CLI have all DB and App configs
 rm -f /var/www/html/.env
-printenv | while IFS='=' read -r key val; do
-    # Skip multi-line, functions, or empty keys
-    case "$key" in
-        APP_*|DB_*|DATABASE_*|MYSQL*|SESSION_*|CACHE_*|MAIL_*|QUEUE_*|LOG_*|CLOUDFLARE_*|PORT)
-            echo "${key}=${val}" >> /var/www/html/.env
-            ;;
-    esac
-done
+printenv | grep -E '^(APP_|DB_|DATABASE_|MYSQL|SESSION_|CACHE_|MAIL_|QUEUE_|LOG_|CLOUDFLARE_|PORT)' > /var/www/html/.env || true
 chmod 666 /var/www/html/.env
 
 # Create storage symlink

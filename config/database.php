@@ -47,7 +47,7 @@ return [
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL') ?: env('DATABASE_URL') ?: env('MYSQL_URL') ?: null,
-            'host' => env('DB_HOST') ?: env('MYSQLHOST') ?: env('MYSQL_HOST') ?: '127.0.0.1',
+            'host' => env('DB_HOST') ?: env('MYSQLHOST') ?: env('MYSQL_HOST') ?: 'mysql.railway.internal',
             'port' => env('DB_PORT') ?: env('MYSQLPORT') ?: env('MYSQL_PORT') ?: '3306',
             'database' => env('DB_DATABASE') ?: env('MYSQLDATABASE') ?: env('MYSQL_DATABASE') ?: 'railway',
             'username' => env('DB_USERNAME') ?: env('MYSQLUSER') ?: env('MYSQL_USER') ?: 'root',
