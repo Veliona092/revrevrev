@@ -1,13 +1,13 @@
 #!/bin/sh
 set -e
 
-# If a custom dynamic PORT is provided by Railway (and not 8080/80/3000), update config
-if [ -n "$PORT" ] && [ "$PORT" != "8080" ] && [ "$PORT" != "80" ] && [ "$PORT" != "3000" ]; then
-    echo "Updating Nginx for custom Railway PORT ${PORT}..."
-    sed -i "s/listen 8080 default_server;/listen ${PORT} default_server;/g" /etc/nginx/nginx.conf
+PORT_NUM="${PORT:-8080}"
+echo "Configuring Nginx for port ${PORT_NUM}..."
+if [ "$PORT_NUM" != "8080" ] && [ "$PORT_NUM" != "80" ] && [ "$PORT_NUM" != "3000" ]; then
+    sed -i "s/listen 8080 default_server;/listen ${PORT_NUM} default_server;/g" /etc/nginx/nginx.conf
 fi
 
-# Ensure Nginx runtime and log directories exist
+# Ensure Nginx directories
 mkdir -p /run/nginx /var/log/nginx /var/lib/nginx/tmp /var/lib/nginx/logs
 chown -R www-data:www-data /run/nginx /var/log/nginx /var/lib/nginx
 
@@ -17,29 +17,38 @@ touch /var/www/html/storage/logs/laravel.log
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Create storage symlink
 php artisan storage:link || true
 
-# Generate APP_KEY if not set
+# Check APP_KEY
 if [ -z "$APP_KEY" ]; then
-    echo "Generating application encryption key..."
+    echo "APP_KEY is missing, generating one..."
     php artisan key:generate --force || true
 fi
 
-# Clear old cached config before running migrations
+# Clear stale cache before database connection
 php artisan config:clear || true
+php artisan cache:clear || true
 
-# Run database migrations
-echo "Running database migrations..."
-php artisan migrate --force || echo "Database migration skipped or connection pending."
+# Run database migrations with retry
+echo "Attempting database migration..."
+MAX_TRIES=5
+COUNT=0
+while [ $COUNT -lt $MAX_TRIES ]; do
+    if php artisan migrate --force --no-interaction; then
+        echo "Database migration completed successfully."
+        break
+    else
+        COUNT=$((COUNT + 1))
+        echo "Database not ready yet (attempt $COUNT/$MAX_TRIES), waiting 3 seconds..."
+        sleep 3
+    fi
+done
 
-# Cache config, routes, views
+# Cache optimizations for production
 php artisan config:cache || true
 php artisan route:cache || true
 php artisan view:cache || true
 
-# Validate Nginx configuration
-echo "Testing Nginx configuration..."
 nginx -t
 
 echo "Starting Supervisor (Nginx + PHP-FPM)..."
