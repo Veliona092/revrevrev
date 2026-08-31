@@ -11,13 +11,18 @@
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 
-    <!-- Argon Dashboard CSS -->
+    <!-- Bootstrap & Argon Dashboard CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
     <link type="text/css" href="{{ asset('assets/css/argon-dashboard.css?v=1.1.2') }}" rel="stylesheet">
 
     <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link href="{{ asset('assets/js/plugins/@fortawesome/fontawesome-free/css/all.min.css') }}" rel="stylesheet">
 
     <style>
+        .modal:not(.show) {
+            display: none !important;
+        }
         :root {
             --auth-bg: #eef3fb;
             --auth-bg-2: #dde8f7;
@@ -384,6 +389,8 @@
     </div>
 
     <!-- Core JS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ asset('assets/js/plugins/jquery/dist/jquery.min.js') }}"></script>
     <script src="{{ asset('assets/js/plugins/bootstrap/dist/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('assets/js/argon-dashboard.min.js?v=1.1.2') }}"></script>
