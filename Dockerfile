@@ -26,6 +26,10 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         bcmath \
         opcache
 
+# Pre-create Nginx runtime directories
+RUN mkdir -p /run/nginx /var/log/nginx /var/lib/nginx/tmp /var/lib/nginx/logs \
+    && chown -R www-data:www-data /run/nginx /var/log/nginx /var/lib/nginx
+
 # Copy Composer binary
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
