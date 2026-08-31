@@ -459,10 +459,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         status.style.display = 'inline';
                         setTimeout(() => { status.style.display = 'none'; }, 2000);
                     } else {
-                        alert(data.message || 'Hindi na-save ang max attempts.');
+                        alert(data.message || 'Failed to save max attempts.');
                     }
                 })
-                .catch(() => alert('May error habang nagse-save ng max attempts.'))
+                .catch(() => alert('An error occurred while saving max attempts.'))
                 .finally(() => { saveMaxAttemptsBtn.disabled = false; });
         });
     }
@@ -639,7 +639,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const currentCount = optionsList.querySelectorAll('.qb-option').length;
 
         if (currentCount >= 10) {
-            alert('Maximum na 10 choices lang ang pwede bawat tanong.');
+            alert('A maximum of 10 choices is allowed per question.');
             return;
         }
 
@@ -668,7 +668,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.removeOption = function (qn, btn) {
         const optionsList = document.getElementById(`options-${qn}`);
         if (optionsList.querySelectorAll('.qb-option').length <= 2) {
-            alert('Kailangan ng minimum na 2 choices bawat tanong.');
+            alert('A minimum of 2 choices is required per question.');
             return;
         }
         const wasChecked = btn.closest('.qb-option').querySelector('input[type="radio"]').checked;

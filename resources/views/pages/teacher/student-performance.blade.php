@@ -1732,7 +1732,7 @@ function toggleGrantForm() {
 
 async function submitGrant() {
     if (!currentGrantContext.moduleId || !currentGrantContext.studentId) {
-        alert('Walang napiling module/student. Subukan ulit buksan ang analysis.');
+        alert('No module or student selected. Please reopen the analysis.');
         return;
     }
 
@@ -1755,18 +1755,18 @@ async function submitGrant() {
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-            alert(data.message || 'Hindi ma-grant ang extra attempt.');
+            alert(data.message || 'Failed to grant extra attempt.');
             return;
         }
 
         alert(data.message);
         document.getElementById('iaGrantForm').style.display = 'none';
 
-        // I-refresh ang dialog para makita ang updated na attempts_allowed
+        // Refresh dialog to reflect updated attempts_allowed
         var isAssessment = true; // grant is only for formal assessments
         openItemAnalysis(currentGrantContext.studentId, document.getElementById('iaStudentName').textContent, isAssessment);
     } catch (err) {
-        alert('May nangyaring error habang nagbibigay ng extra attempt.');
+        alert('An error occurred while granting an extra attempt.');
     }
 }
 
@@ -1777,7 +1777,7 @@ function toggleMaxAttemptsForm() {
 
 async function submitMaxAttempts() {
     if (!currentGrantContext.moduleId) {
-        alert('Walang napiling module. Subukan ulit buksan ang analysis.');
+        alert('No module selected. Please reopen the analysis.');
         return;
     }
 
@@ -1798,7 +1798,7 @@ async function submitMaxAttempts() {
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-            alert(data.message || 'Hindi na-save ang max attempts.');
+            alert(data.message || 'Failed to save max attempts.');
             return;
         }
 
@@ -1807,7 +1807,7 @@ async function submitMaxAttempts() {
 
         openItemAnalysis(currentGrantContext.studentId, document.getElementById('iaStudentName').textContent, true);
     } catch (err) {
-        alert('May error habang nagse-save ng max attempts.');
+        alert('An error occurred while saving max attempts.');
     }
 }
 </script>

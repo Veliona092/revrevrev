@@ -304,8 +304,8 @@ class QuizController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' => $treatAsFreshStart
-                            ? 'Nag-timeout ang naunang pagsubok mo (lumagpas sa 1 minuto bago bumalik) at nabigyan ng markang 0. Naubos na rin ang iyong mga pinapayagang pagsubok. Makipag-ugnayan sa iyong guro kung kailangan mo ng karagdagang pagkakataon.'
-                            : 'Naubos na ang mga pinapayagang pagsubok mo para sa assessment na ito. Makipag-ugnayan sa iyong guro kung kailangan mo ng karagdagang pagkakataon.',
+                            ? 'Your previous attempt timed out (exceeded 1 minute before resuming) and was marked with a score of 0. You have reached your maximum allowed attempts. Please contact your instructor if you need an additional attempt.'
+                            : 'You have reached the maximum allowed attempts for this assessment. Please contact your instructor if you need an additional attempt.',
                         'attempts_used' => $used,
                         'attempts_allowed' => $allowed,
                         'timed_out' => $treatAsFreshStart,
@@ -702,7 +702,7 @@ class QuizController extends Controller
         if ($module->is_formal_assessment) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hindi maaaring i-reset ang sariling attempt sa formal assessment na ito. Makipag-ugnayan sa iyong guro para humingi ng karagdagang pagkakataon.',
+                'message' => 'Self-reset is not allowed for this formal assessment. Please contact your instructor to request an additional attempt.',
             ], 403);
         }
 

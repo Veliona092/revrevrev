@@ -1564,7 +1564,7 @@
                 });
             })
             .fail(function (xhr) {
-                const message = xhr?.responseJSON?.message || 'Hindi ka makapagsimula ng bagong attempt ngayon.';
+                const message = xhr?.responseJSON?.message || 'You cannot start a new attempt right now.';
                 $(quizRenderTarget).html(`
                     <div class="mod-placeholder">
                         <i class="fas fa-lock" style="font-size:2rem;color:#e24b4a;"></i>

@@ -1,4 +1,4 @@
-﻿@extends('layouts.app')
+@extends('layouts.app')
 
 @section('content')
 <div class="container py-4">
@@ -87,7 +87,7 @@
             const currentCount = container.find('.option-row').length;
 
             if (currentCount >= OPTION_LETTERS.length) {
-                alert('Maximum na ng options.');
+                alert('Maximum number of options reached.');
                 return;
             }
 
@@ -215,8 +215,8 @@
                     </div>
 
                     <div class="mt-3">
-                        <label class="form-label fw-medium">Explanation / Rationale <span class="text-muted small">(optional, lalabas pagkatapos sumagot)</span></label>
-                        <textarea name="questions[${qid}][explanation]" class="form-control" rows="2" placeholder="Bakit tama ang sagot na ito..."></textarea>
+                        <label class="form-label fw-medium">Explanation / Rationale <span class="text-muted small">(optional, shown after answering)</span></label>
+                        <textarea name="questions[${qid}][explanation]" class="form-control" rows="2" placeholder="Explain why this is the correct answer..."></textarea>
                     </div>
                 </div>
             `;
@@ -249,7 +249,7 @@
             const optionRows = questionBlock.find('.option-row');
 
             if (optionRows.length <= 2) {
-                alert('Kailangan ng hindi bababa sa 2 options.');
+                alert('A minimum of 2 options is required.');
                 return;
             }
 
