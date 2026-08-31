@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\HistoricalBoardExamResult;
 use App\Models\MockBoard;
+use App\Services\MockBoardStatisticsService;
 use Illuminate\Http\Request;
 
 /**
@@ -50,8 +51,49 @@ class HistoricalBoardExamController extends Controller
             return response()->json(['results' => $results]);
         }
 
+        $statsService = app(MockBoardStatisticsService::class);
+        $mockBoardsQuery = MockBoard::with(['phases', 'historicalBoardExamResult']);
+        if ($program) {
+            $mockBoardsQuery->where('program', $program);
+        }
+        $mockBoards = $mockBoardsQuery->orderBy('created_at', 'desc')->get();
+
+        $comparisons = [];
+        foreach ($mockBoards as $mb) {
+            $postTestStats = $statsService->computeOverallPostTestPassingRate($mb);
+            $postTestPhases = $mb->phases->where('phase_type', '!=', 'pre_test');
+            $phaseNames = $postTestPhases->pluck('title')->filter()->implode(', ') ?: 'Post-Test / Pre-Boards';
+
+            $historical = $mb->historicalBoardExamResult;
+            $histRate = $historical ? (float) $historical->passing_rate : null;
+            $revisoRate = (float) ($postTestStats['overall_passing_rate'] ?? 0);
+            $delta = $histRate !== null ? round($revisoRate - $histRate, 2) : null;
+
+            $comparisons[] = [
+                'mock_board_id' => $mb->id,
+                'mock_board_title' => $mb->title,
+                'program' => $mb->program,
+                'phase_names' => $phaseNames,
+                'students_attempted' => $postTestStats['students_attempted'] ?? 0,
+                'students_passed' => $postTestStats['students_passed'] ?? 0,
+                'reviso_passing_rate' => $revisoRate,
+                'historical_id' => $historical?->id,
+                'historical_label' => $historical ? "{$historical->exam_label} ({$historical->exam_period_or_year})" : null,
+                'historical_passing_rate' => $histRate,
+                'delta' => $delta,
+            ];
+        }
+
+        $rawHistoricalResults = HistoricalBoardExamResult::query()
+            ->orderBy('exam_period_or_year', 'desc')
+            ->get();
+
         return view('pages.admin.historical-board-exams.index', [
             'results' => $results,
+            'comparisons' => $comparisons,
+            'mockBoards' => $mockBoards,
+            'historicalOptions' => $rawHistoricalResults,
+            'selectedProgram' => $program,
         ]);
     }
 
