@@ -21,8 +21,17 @@ class StudentMockBoardController extends Controller
      */
     private array $programMap = [
         'psych' => 'psychology',
+        'psychology' => 'psychology',
         'educ' => 'education',
+        'education' => 'education',
         'accountancy' => 'accountancy',
+        'acc' => 'accountancy',
+        'bsa' => 'accountancy',
+        'nursing' => 'nursing',
+        'bsn' => 'nursing',
+        'crim' => 'criminology',
+        'criminology' => 'criminology',
+        'bscrim' => 'criminology',
     ];
 
     public function __construct(
@@ -56,11 +65,15 @@ class StudentMockBoardController extends Controller
         $user = auth()->user();
 
         if (in_array($user->role, ['teacher', 'admin'], true)) {
-            $normalizedProgram = strtolower(trim($user->program ?? ''));
+            $normalizedProgram = $this->normalizeProgram($user->program);
+            $rawProgram = strtolower(trim($user->program ?? ''));
 
             $mockBoards = MockBoard::where('teacher_id', $user->id)
-                ->when($normalizedProgram !== '', function ($q) use ($normalizedProgram) {
-                    $q->whereRaw('LOWER(program) = ?', [$normalizedProgram]);
+                ->when($normalizedProgram !== '', function ($q) use ($normalizedProgram, $rawProgram) {
+                    $q->where(function ($sq) use ($normalizedProgram, $rawProgram) {
+                        $sq->whereRaw('LOWER(program) = ?', [$normalizedProgram])
+                            ->orWhereRaw('LOWER(program) = ?', [$rawProgram]);
+                    });
                 })
                 ->with(['phases.module.quizQuestions'])
                 ->withCount('attempts')
@@ -122,7 +135,7 @@ class StudentMockBoardController extends Controller
 
         // Ang program ay palaging kinukuha mula sa account ng teacher, hindi user input —
         // iniiwasan ang pag-upload ng mock board sa maling program.
-        $program = strtolower(trim($user->program ?? ''));
+        $program = $this->normalizeProgram($user->program);
 
         if ($program === '') {
             return redirect()->back()->with('error', 'Your account has no assigned program. Contact an admin.');
