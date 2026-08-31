@@ -2,8 +2,13 @@
 set -e
 
 PORT_NUM="${PORT:-8080}"
-echo "Configuring Nginx for port ${PORT_NUM}..."
-sed -i "s/__PORT__/${PORT_NUM}/g" /etc/nginx/nginx.conf
+echo "Configuring Nginx for port ${PORT_NUM} and 80..."
+
+if [ "$PORT_NUM" != "80" ]; then
+    sed -i "s/__PORT__/${PORT_NUM};\n        listen 80/g" /etc/nginx/nginx.conf
+else
+    sed -i "s/__PORT__/${PORT_NUM}/g" /etc/nginx/nginx.conf
+fi
 
 # Ensure Nginx runtime and log directories exist
 mkdir -p /run/nginx /var/log/nginx /var/lib/nginx/tmp /var/lib/nginx/logs
