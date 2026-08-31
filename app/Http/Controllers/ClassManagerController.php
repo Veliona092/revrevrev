@@ -2043,7 +2043,7 @@ POWERSHELL;
 
                     foreach (['what' => $targetWhat, 'why' => $targetWhy, 'how' => $targetHow] as $qType => $count) {
                         while ($count > 0) {
-                            $batchSize = min(10, $count);
+                            $batchSize = min(5, $count);
                             $tasks[] = [
                                 'difficulty' => $targetDifficulty,
                                 'type' => $qType,
