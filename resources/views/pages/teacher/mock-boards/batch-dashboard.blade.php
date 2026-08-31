@@ -203,13 +203,17 @@
                             </button>
                         </form>
 
+                        @php
+                            $boardAttempts = $board->phases->first()?->module?->max_attempts ?? 1;
+                        @endphp
                         <button class="rv-btn rv-btn-secondary" onclick="editBoard(this)"
                             data-id="{{ $board->id }}"
                             data-title="{{ $board->title }}"
                             data-description="{{ $board->description ?? '' }}"
                             data-start="{{ optional($board->review_period_start)->toDateString() }}"
                             data-end="{{ optional($board->review_period_end)->toDateString() }}"
-                            data-passing="{{ $board->passing_percentage }}">
+                            data-passing="{{ $board->passing_percentage }}"
+                            data-attempts="{{ $boardAttempts }}">
                             <i class="fas fa-cog"></i> Settings
                         </button>
 
@@ -244,9 +248,15 @@
                 <input type="text" name="title" class="modal-input" placeholder="e.g., Comprehensive Accountancy Mock Exam" required>
             </div>
 
-            <div class="modal-form-group">
-                <label class="modal-label">Passing Rate (%)</label>
-                <input type="number" name="passing_percentage" class="modal-input" min="0" max="100" value="75" required>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="modal-form-group">
+                    <label class="modal-label">Passing Rate (%)</label>
+                    <input type="number" name="passing_percentage" class="modal-input" min="0" max="100" value="75" required>
+                </div>
+                <div class="modal-form-group">
+                    <label class="modal-label">Max Attempts for Students</label>
+                    <input type="number" name="max_attempts" class="modal-input" min="1" max="20" value="1" placeholder="e.g. 1" required>
+                </div>
             </div>
 
             <div class="modal-form-group">
@@ -316,7 +326,10 @@
             <div class="modal-form-group"><label class="modal-label">Description</label><textarea id="editDescription" name="description" class="modal-input"></textarea></div>
             <div class="modal-form-group"><label class="modal-label">Start Date</label><input type="date" id="editStart" name="review_period_start" class="modal-input" required></div>
             <div class="modal-form-group"><label class="modal-label">End Date</label><input type="date" id="editEnd" name="review_period_end" class="modal-input" required></div>
-            <div class="modal-form-group"><label class="modal-label">Passing Rate (%)</label><input type="number" id="editPassing" name="passing_percentage" class="modal-input" required></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="modal-form-group"><label class="modal-label">Passing Rate (%)</label><input type="number" id="editPassing" name="passing_percentage" class="modal-input" required></div>
+                <div class="modal-form-group"><label class="modal-label">Max Attempts for Students</label><input type="number" id="editMaxAttempts" name="max_attempts" class="modal-input" min="1" max="20" required></div>
+            </div>
             <p style="font-size:12px; color:#8a8580; margin-top:-8px;">Note: editing will resubmit this Mock Board for admin approval.</p>
             <div style="margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px;">
                 <button type="button" class="rv-btn rv-btn-secondary" onclick="closeEditModal()">Cancel</button>
@@ -416,6 +429,7 @@
         document.getElementById('editStart').value = button.dataset.start || '';
         document.getElementById('editEnd').value = button.dataset.end || '';
         document.getElementById('editPassing').value = button.dataset.passing || '';
+        document.getElementById('editMaxAttempts').value = button.dataset.attempts || '1';
 
         document.getElementById('editModal').style.display = 'flex';
     }

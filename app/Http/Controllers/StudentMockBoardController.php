@@ -127,6 +127,7 @@ class StudentMockBoardController extends Controller
             'review_period_start' => 'required|date',
             'review_period_end' => 'required|date|after_or_equal:review_period_start',
             'passing_percentage' => 'required|integer|min:0|max:100',
+            'max_attempts' => 'nullable|integer|min:1|max:20',
             'selected_phase' => 'required|in:pre_test,pre_boards',
             'pre_test_title' => 'nullable|string|max:255',
             'pre_boards_title' => 'nullable|string|max:255',
@@ -166,7 +167,7 @@ class StudentMockBoardController extends Controller
                 'class_id' => null,
                 'passing_percentage' => $validated['passing_percentage'],
                 'time_limit' => $validated['time_limit'] ?? 0,
-                'max_attempts' => 1,   // ← ito
+                'max_attempts' => ! empty($validated['max_attempts']) ? (int) $validated['max_attempts'] : 1,
                 'created_by' => $user->id,
             ]);
 
@@ -202,6 +203,7 @@ class StudentMockBoardController extends Controller
             'review_period_start' => 'sometimes|date',
             'review_period_end' => 'sometimes|date|after_or_equal:review_period_start',
             'passing_percentage' => 'sometimes|integer|min:0|max:100',
+            'max_attempts' => 'sometimes|integer|min:1|max:20',
         ]);
 
         $mockBoard->update($validated);
@@ -209,12 +211,17 @@ class StudentMockBoardController extends Controller
         // Anumang pagbabago sa laman ay kailangang muling i-review ng admin
         $mockBoard->resetToPending();
 
-        if (isset($validated['passing_percentage'])) {
+        if (isset($validated['passing_percentage']) || isset($validated['max_attempts'])) {
             foreach ($mockBoard->phases as $phase) {
                 if ($phase->module) {
-                    $phase->module->update([
-                        'passing_percentage' => $validated['passing_percentage'],
-                    ]);
+                    $updateFields = [];
+                    if (isset($validated['passing_percentage'])) {
+                        $updateFields['passing_percentage'] = $validated['passing_percentage'];
+                    }
+                    if (isset($validated['max_attempts'])) {
+                        $updateFields['max_attempts'] = (int) $validated['max_attempts'];
+                    }
+                    $phase->module->update($updateFields);
                 }
             }
         }
@@ -281,6 +288,7 @@ class StudentMockBoardController extends Controller
             'phase_type' => 'required|in:pre_test,pre_boards',
             'title' => 'nullable|string|max:255',
             'label' => 'nullable|string|max:255',
+            'max_attempts' => 'nullable|integer|min:1|max:20',
         ]);
 
         $phaseType = $validated['phase_type'];
@@ -300,6 +308,9 @@ class StudentMockBoardController extends Controller
         $phaseLabel = $validated['label'] ?? $defaultLabel;
         $phaseTitle = $validated['title'] ?? ($mockBoard->title.' - '.$phaseLabel);
 
+        $inheritedAttempts = $mockBoard->phases->first()?->module?->max_attempts ?? 1;
+        $maxAttempts = ! empty($validated['max_attempts']) ? (int) $validated['max_attempts'] : $inheritedAttempts;
+
         $phaseModule = Module::create([
             'title' => $phaseTitle,
             'is_quiz' => true,
@@ -308,6 +319,7 @@ class StudentMockBoardController extends Controller
             'class_id' => null,
             'passing_percentage' => $mockBoard->passing_percentage,
             'time_limit' => 0,
+            'max_attempts' => $maxAttempts,
             'created_by' => $user->id,
         ]);
 
