@@ -12,7 +12,7 @@
     <button class="rv-btn" id="deleteModeToggle" onclick="toggleDeleteMode()">
         <i class="fas fa-trash-alt"></i> Delete Classes
     </button>
-    <button class="rv-btn rv-btn-primary" onclick="document.getElementById('dialogCreate').showModal()">
+    <button class="rv-btn rv-btn-primary" onclick="openCreateDialog()">
         <i class="fas fa-plus"></i> New Class
     </button>
 @endsection
@@ -1925,7 +1925,7 @@ let currentClassId = null;
 
 // -”€-”€ Tab switcher -”€-”€
 
-function switchTab(panelId, btn) {
+window.switchTab = function(panelId, btn) {
 
     closeManageConfirm();
 
@@ -1953,7 +1953,7 @@ function switchTab(panelId, btn) {
 
 // -”€-”€ Open Students dialog -”€-”€
 
-function openStudentsDrawer(classId, className) {
+window.openStudentsDrawer = function(classId, className) {
 
     currentClassId = classId;
 
@@ -2015,7 +2015,7 @@ function openStudentsDrawer(classId, className) {
 
 // -”€-”€ Open Modules dialog -”€-”€
 
-function openModulesDrawer(classId, className) {
+window.openModulesDrawer = function(classId, className) {
 
     currentClassId = classId;
 
@@ -3205,7 +3205,7 @@ function closeDeleteClassConfirm() {
     currentDeleteForm = null;
 }
 
-document.getElementById('deleteClassConfirmProceedBtn').addEventListener('click', function() {
+document.getElementById('deleteClassConfirmProceedBtn')?.addEventListener('click', function() {
     if (currentDeleteForm) {
         currentDeleteForm.submit();
     }
