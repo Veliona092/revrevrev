@@ -1646,6 +1646,7 @@ POWERSHELL;
                     'title' => $module->title,
                     'description' => $module->description ?? 'No description',
                     'type' => $module->is_quiz ? 'Quiz' : ($module->is_assignment ? 'Assignment' : ($module->is_lecture ? 'Lecture' : 'Document')),
+                    'is_quiz' => (bool) $module->is_quiz,
                     'is_lecture' => (bool) $module->is_lecture,
                     'is_formal_assessment' => (bool) $module->is_formal_assessment,
                     'edit_url' => $module->is_quiz ? route('quiz.create', $module) : null,
