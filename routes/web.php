@@ -99,7 +99,10 @@ Route::get('/health', function () {
         'app_debug' => config('app.debug'),
         'session_driver' => config('session.driver'),
     ]);
-});
+})->withoutMiddleware([
+    \Illuminate\Session\Middleware\StartSession::class,
+    \App\Http\Middleware\VerifyCsrfToken::class,
+]);
 
 Route::get('/', function () {
     if (Auth::check()) {
