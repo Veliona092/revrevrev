@@ -1932,6 +1932,8 @@ window.openModulesDrawer = function(classId, className) {
 <script>
 
 let currentClassId = null;
+let manageConfirmAction = null;
+let uploadToastTimer = null;
 
 
 
@@ -2595,7 +2597,7 @@ $('#announcementForm').on('submit', function (e) {
 // -”€-”€ Visibility helpers -”€-”€
 
 const visDebounceTimers = {};
-const visSelectedStudents = { doc: {}, quiz: {}, assessment: {}, posttest: {} };
+const visSelectedStudents = { doc: {}, quiz: {}, assessment: {} };
 
 function setVisibility(btn, form) {
     btn.closest('.vis-toggle').querySelectorAll('.vis-opt').forEach(b => b.classList.remove('active'));
@@ -2683,11 +2685,12 @@ function removeVisChip(btn, form, id) {
 
 
 
-['doc', 'quiz', 'assessment', 'posttest'].forEach(function (form) {
+['doc', 'quiz', 'assessment'].forEach(function (form) {
 
     const input = document.getElementById('visSearch_' + form);
 
     const resultsDiv = document.getElementById('visResults_' + form);
+    if (!input || !resultsDiv) return;
 
 
 
@@ -2811,9 +2814,7 @@ function injectVisHiddenInputs(form, formEl) {
 
 
 
-let uploadToastTimer = null;
 
-let manageConfirmAction = null;
 
 
 
