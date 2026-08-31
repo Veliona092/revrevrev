@@ -745,6 +745,7 @@ class QuizController extends Controller
             'is_formal_assessment' => (bool) $request->is_formal_assessment,
             'assessment_purpose' => $request->input('assessment_purpose'),
             'visibility' => $request->input('visibility', 'all'),
+            'created_by' => Auth::id(),
         ]);
 
         if (in_array($request->input('visibility'), ['selected', 'except']) && $request->has('visible_user_ids')) {
