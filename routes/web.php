@@ -76,6 +76,27 @@ Route::get('/signup', function () {
 // Public routes (no authentication required)
 // ──────────────────────────────────────────────────
 
+Route::get('/health', function () {
+    $dbStatus = 'disconnected';
+    $dbError = null;
+    try {
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        $dbStatus = 'connected';
+    } catch (\Throwable $e) {
+        $dbError = $e->getMessage();
+    }
+
+    return response()->json([
+        'status' => 'online',
+        'database' => $dbStatus,
+        'database_error' => $dbError,
+        'app_key_set' => ! empty(config('app.key')),
+        'app_env' => config('app.env'),
+        'app_debug' => config('app.debug'),
+        'session_driver' => config('session.driver'),
+    ]);
+});
+
 Route::get('/', function () {
     if (Auth::check()) {
         return redirect()->route('dashboard');
