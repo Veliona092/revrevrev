@@ -41,9 +41,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 
-$client = new Google_Client;
-$client->addScope(Google_Service_Gmail::GMAIL_SEND);
-$message = new Message;
+
 
 $resolveStudentDashboardPath = function (?User $user): string {
     $track = $user?->program ?: $user?->role;

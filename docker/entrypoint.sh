@@ -31,12 +31,16 @@ php artisan config:clear || true
 
 # Run database migrations
 echo "Running database migrations..."
-php artisan migrate --force || echo "Database migration failed or database not reachable yet."
+php artisan migrate --force || echo "Database migration skipped or connection pending."
 
 # Cache config, routes, views
 php artisan config:cache || true
 php artisan route:cache || true
 php artisan view:cache || true
+
+# Validate Nginx configuration
+echo "Testing Nginx configuration..."
+nginx -t
 
 echo "Starting Supervisor (Nginx + PHP-FPM)..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
