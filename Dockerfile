@@ -45,7 +45,7 @@ COPY . .
 # Generate optimized autoloader from vendored dependencies (zero network required)
 RUN rm -rf bootstrap/cache/*.php \
     && if [ -d "vendor" ]; then \
-        composer dump-autoload --optimize --no-dev --no-interaction; \
+        composer dump-autoload --optimize --no-interaction --no-scripts; \
     else \
         composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress; \
     fi
