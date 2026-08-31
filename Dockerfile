@@ -42,9 +42,12 @@ WORKDIR /var/www/html
 # Copy application files
 COPY . .
 
-# Install PHP dependencies without dev packages
-RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress \
-    || composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress
+# Generate optimized autoloader from vendored dependencies (zero network required)
+RUN if [ -d "vendor" ]; then \
+        composer dump-autoload --optimize --no-dev --no-interaction; \
+    else \
+        composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress; \
+    fi
 
 # Set full permissions on storage and bootstrap cache
 RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
