@@ -1,11 +1,129 @@
-﻿@extends('layouts.appTeach')
-
-
+@extends('layouts.appTeach')
 
 @section('title', 'Class Management')
-
 @section('page-heading', 'Class Management')
 
+@section('head')
+<script>
+window.currentClassId = null;
+window.deleteModeActive = false;
+window.currentDeleteForm = null;
+
+window.openCreateDialog = function() {
+    var d = document.getElementById('dialogCreate');
+    if (d) {
+        if (typeof d.showModal === 'function') {
+            d.showModal();
+        } else {
+            d.setAttribute('open', '');
+        }
+    }
+};
+
+window.closeCreateDialog = function() {
+    var d = document.getElementById('dialogCreate');
+    if (d) {
+        if (typeof d.close === 'function') {
+            d.close();
+        } else {
+            d.removeAttribute('open');
+        }
+    }
+};
+
+window.toggleDeleteMode = function() {
+    window.deleteModeActive = !window.deleteModeActive;
+    var toggleBtn = document.getElementById('deleteModeToggle');
+    var deleteActions = document.querySelectorAll('.class-delete-action');
+    if (window.deleteModeActive) {
+        if (toggleBtn) {
+            toggleBtn.classList.add('active');
+            toggleBtn.innerHTML = '<i class="fas fa-times"></i> Cancel Delete';
+        }
+        deleteActions.forEach(function(el) { el.style.display = 'block'; });
+    } else {
+        if (toggleBtn) {
+            toggleBtn.classList.remove('active');
+            toggleBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Delete Classes';
+        }
+        deleteActions.forEach(function(el) { el.style.display = 'none'; });
+    }
+};
+
+window.openDeleteClassConfirm = function(btn) {
+    window.currentDeleteForm = btn.closest('.delete-class-form');
+    var className = window.currentDeleteForm ? window.currentDeleteForm.dataset.className : '';
+    var msg = document.getElementById('deleteClassConfirmMessage');
+    if (msg) msg.textContent = 'Delete class "' + className + '"? This cannot be undone.';
+    var overlay = document.getElementById('deleteClassConfirmOverlay');
+    if (overlay) overlay.setAttribute('aria-hidden', 'false');
+};
+
+window.closeDeleteClassConfirm = function() {
+    var overlay = document.getElementById('deleteClassConfirmOverlay');
+    if (overlay) overlay.setAttribute('aria-hidden', 'true');
+    window.currentDeleteForm = null;
+};
+
+window.openStudentsDrawer = function(classId, className) {
+    window.currentClassId = classId;
+    var sub = document.getElementById('studentsDrawerSubtitle');
+    if (sub) sub.textContent = className;
+    var d = document.getElementById('dialogStudents');
+    if (d) {
+        if (typeof d.showModal === 'function') {
+            d.showModal();
+        } else {
+            d.setAttribute('open', '');
+        }
+    }
+    var joinInput = document.getElementById('joinLinkInput');
+    if (joinInput) joinInput.value = '';
+    var joinCopy = document.getElementById('joinLinkCopyBtn');
+    if (joinCopy) joinCopy.disabled = true;
+
+    if (typeof loadCurrentStudents === 'function') {
+        loadCurrentStudents();
+    }
+    if (typeof initStudentSelect2 === 'function') {
+        initStudentSelect2();
+    }
+};
+
+window.openModulesDrawer = function(classId, className) {
+    window.currentClassId = classId;
+    var sub = document.getElementById('modulesDrawerSubtitle');
+    if (sub) sub.textContent = className;
+    var mId = document.getElementById('moduleClassId');
+    if (mId) mId.value = classId;
+    var qId = document.getElementById('quizClassId');
+    if (qId) qId.value = classId;
+    var qForm = document.getElementById('quizDraftForm');
+    if (qForm) qForm.action = "{{ url('/quiz/create-draft') }}/" + classId;
+    var aId = document.getElementById('assessmentClassId');
+    if (aId) aId.value = classId;
+    var aForm = document.getElementById('assessmentDraftForm');
+    if (aForm) aForm.action = "{{ url('/quiz/create-draft') }}/" + classId;
+    var annForm = document.getElementById('announcementForm');
+    if (annForm) annForm.action = "{{ url('/classes') }}/" + classId + "/announcements";
+
+    if (typeof switchTab === 'function') {
+        switchTab('tabUpload', document.querySelector('.rv-tab'));
+    }
+    if (typeof resetVisibilityPicker === 'function') {
+        ['doc','quiz','assessment'].forEach(resetVisibilityPicker);
+    }
+    var d = document.getElementById('dialogModules');
+    if (d) {
+        if (typeof d.showModal === 'function') {
+            d.showModal();
+        } else {
+            d.setAttribute('open', '');
+        }
+    }
+};
+</script>
+@endsection
 
 
 @section('header-actions')
@@ -17,9 +135,8 @@
     </button>
 @endsection
 
-
-
 @section('content')
+
 
 <style>
 
@@ -1121,11 +1238,10 @@
 
 
 
-@endsection
 
 
+{{-- Drawers and Dialogs --}}
 
-@section('drawers')
 
 <style>
     /* Delete Class Confirmation Modal */
@@ -1905,11 +2021,11 @@
     </div>
 </div>
 
+
 @endsection
 
-
-
 @section('scripts')
+
 
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
@@ -1925,7 +2041,7 @@ let currentClassId = null;
 
 // -”€-”€ Tab switcher -”€-”€
 
-window.switchTab = function(panelId, btn) {
+function switchTab(panelId, btn) {
 
     closeManageConfirm();
 
@@ -1953,7 +2069,7 @@ window.switchTab = function(panelId, btn) {
 
 // -”€-”€ Open Students dialog -”€-”€
 
-window.openStudentsDrawer = function(classId, className) {
+function openStudentsDrawer(classId, className) {
 
     currentClassId = classId;
 
@@ -2015,7 +2131,7 @@ window.openStudentsDrawer = function(classId, className) {
 
 // -”€-”€ Open Modules dialog -”€-”€
 
-window.openModulesDrawer = function(classId, className) {
+function openModulesDrawer(classId, className) {
 
     currentClassId = classId;
 
@@ -3205,7 +3321,7 @@ function closeDeleteClassConfirm() {
     currentDeleteForm = null;
 }
 
-document.getElementById('deleteClassConfirmProceedBtn')?.addEventListener('click', function() {
+document.getElementById('deleteClassConfirmProceedBtn').addEventListener('click', function() {
     if (currentDeleteForm) {
         currentDeleteForm.submit();
     }
@@ -3249,7 +3365,5 @@ function copyJoinLink() {
 
 </script>
 
+
 @endsection
-
-
-
