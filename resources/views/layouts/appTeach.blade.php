@@ -209,39 +209,34 @@
         /* ── Drawer ── */
         .rv-overlay {
             display: none;
-            position: fixed !important;
-            inset: 0 !important;
-            background: rgba(0, 0, 0, 0.45) !important;
-            z-index: 99998 !important;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 99998;
             backdrop-filter: blur(2px);
-            pointer-events: none !important;
         }
         .rv-overlay.open {
-            display: block !important;
-            pointer-events: auto !important;
+            display: block;
         }
 
         .rv-drawer {
-            position: fixed !important;
-            top: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            width: 480px !important;
-            max-width: 95vw !important;
-            height: 100vh !important;
-            max-height: 100vh !important;
-            background: #FAF7F2 !important;
-            z-index: 99999 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            transform: translateX(110%) !important;
-            transition: transform 0.25s cubic-bezier(0.4,0,0.2,1) !important;
-            box-shadow: -8px 0 36px rgba(0,0,0,0.18) !important;
-            pointer-events: none !important;
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: auto;
+            width: 480px;
+            max-width: 95vw;
+            background: #FAF7F2;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+            box-shadow: -8px 0 36px rgba(0,0,0,0.18);
         }
         .rv-drawer.open {
             transform: translateX(0) !important;
-            pointer-events: auto !important;
         }
 
         .rv-drawer-head {
