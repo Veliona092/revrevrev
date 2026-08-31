@@ -107,8 +107,10 @@ window.openModulesDrawer = function(classId, className) {
     var annForm = document.getElementById('announcementForm');
     if (annForm) annForm.action = "{{ url('/classes') }}/" + classId + "/announcements";
 
-    if (typeof toggleTestType === 'function') {
-        toggleTestType('pre_test');
+    var sel = document.getElementById('testTypeSelect');
+    if (sel) sel.value = 'pre_test';
+    if (typeof onTestTypeChange === 'function') {
+        onTestTypeChange('pre_test');
     }
     if (typeof switchTab === 'function') {
         switchTab('tabQuiz', document.querySelector('.rv-tab'));
@@ -1605,18 +1607,12 @@ window.openModulesDrawer = function(classId, className) {
                     <input type="hidden" name="quiz_stage" id="quizStageInput" value="pre_test">
 
                     <div class="rv-form-group">
-                        <label class="rv-label">Select Test Type <span style="color:#e24b4a">*</span></label>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
-                            <label id="typeLabelPreTest" style="display:flex; align-items:center; gap:8px; padding:10px 14px; background:#f4fbf7; border:2px solid #1d9e75; border-radius:10px; cursor:pointer; font-weight:600; color:#1d9e75; transition:all 0.2s;">
-                                <input type="radio" name="test_type_toggle" value="pre_test" checked onchange="toggleTestType(this.value)">
-                                <span><i class="fas fa-play-circle"></i> Pre-Test (Start / Unahan)</span>
-                            </label>
-                            <label id="typeLabelPostTest" style="display:flex; align-items:center; gap:8px; padding:10px 14px; background:#fff; border:1px solid #ddd; border-radius:10px; cursor:pointer; font-weight:600; color:#666; transition:all 0.2s;">
-                                <input type="radio" name="test_type_toggle" value="post_test" onchange="toggleTestType(this.value)">
-                                <span><i class="fas fa-flag-checkered"></i> Post-Test (End / Dulo)</span>
-                            </label>
-                        </div>
-                        <p id="testTypeHint" style="font-size: 14px; color:#666; margin:0 0 10px 2px;">
+                        <label class="rv-label">Test Type <span style="color:#e24b4a">*</span></label>
+                        <select name="quiz_stage" id="testTypeSelect" class="rv-input" onchange="onTestTypeChange(this.value)" style="width:100%;height:42px;font-size:15px;font-weight:500;">
+                            <option value="pre_test" selected>Pre-Test (Diagnostic — Start of module / Unahan)</option>
+                            <option value="post_test">Post-Test (Evaluation — End of module / Dulo)</option>
+                        </select>
+                        <p id="testTypeHint" style="font-size: 14px; color:#666; margin:6px 0 0 2px;">
                             <i class="fas fa-info-circle"></i> <strong>Pre-Test:</strong> Diagnostic assessment taken at the start before lecture modules. Laging nasa unahan.
                         </p>
                     </div>
@@ -1939,31 +1935,25 @@ let currentClassId = null;
 
 
 
-// ── Toggle Test Type (Pre-Test vs Post-Test) ──
-function toggleTestType(val) {
+// ── Change Test Type via Dropdown (Pre-Test vs Post-Test) ──
+function onTestTypeChange(val) {
     const isPre = val === 'pre_test';
     const stageInput = document.getElementById('quizStageInput');
     const isFormalInput = document.getElementById('quizIsFormalAssessment');
     if (stageInput) stageInput.value = isPre ? 'pre_test' : 'post_test';
     if (isFormalInput) isFormalInput.value = isPre ? '0' : '1';
 
-    const lblPre = document.getElementById('typeLabelPreTest');
-    const lblPost = document.getElementById('typeLabelPostTest');
     const hint = document.getElementById('testTypeHint');
     const titleLabel = document.getElementById('testTitleLabel');
     const titleInput = document.getElementById('testTitleInput');
     const submitBtn = document.getElementById('quizSubmitBtn');
 
     if (isPre) {
-        if (lblPre) { lblPre.style.borderColor = '#1d9e75'; lblPre.style.color = '#1d9e75'; lblPre.style.background = '#f4fbf7'; }
-        if (lblPost) { lblPost.style.borderColor = '#ddd'; lblPost.style.color = '#666'; lblPost.style.background = '#fff'; }
         if (hint) hint.innerHTML = '<i class="fas fa-info-circle"></i> <strong>Pre-Test:</strong> Diagnostic assessment taken at the start before lecture modules. Laging nasa unahan.';
         if (titleLabel) titleLabel.innerHTML = 'Pre-Test Title <span style="color:#e24b4a">*</span>';
         if (titleInput) titleInput.placeholder = 'e.g. Pre-Test 1: Diagnostic Assessment';
         if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-brain"></i> Start Pre-Test Creation';
     } else {
-        if (lblPre) { lblPre.style.borderColor = '#ddd'; lblPre.style.color = '#666'; lblPre.style.background = '#fff'; }
-        if (lblPost) { lblPost.style.borderColor = '#7b1fa2'; lblPost.style.color = '#7b1fa2'; lblPost.style.background = '#fbf5fd'; }
         if (hint) hint.innerHTML = '<i class="fas fa-info-circle"></i> <strong>Post-Test:</strong> Final evaluation assessment taken at the end of the module. Laging nasa dulo.';
         if (titleLabel) titleLabel.innerHTML = 'Post-Test Title <span style="color:#e24b4a">*</span>';
         if (titleInput) titleInput.placeholder = 'e.g. Post-Test: Final Module Evaluation';
@@ -2050,7 +2040,6 @@ function openStudentsDrawer(classId, className) {
 
 // ── Open Modules dialog ──
 function openModulesDrawer(classId, className) {
-
     currentClassId = classId;
     document.getElementById('modulesDrawerSubtitle').textContent = className;
     document.getElementById('moduleClassId').value = classId;
@@ -2061,7 +2050,9 @@ function openModulesDrawer(classId, className) {
     document.getElementById('announcementForm').action = "{{ url('/classes') }}/" + classId + "/announcements";
 
     // Reset to pre-test
-    toggleTestType('pre_test');
+    var sel = document.getElementById('testTypeSelect');
+    if (sel) sel.value = 'pre_test';
+    onTestTypeChange('pre_test');
     switchTab('tabQuiz', document.querySelector('.rv-tab'));
     ['doc','quiz','assessment'].forEach(resetVisibilityPicker);
     document.getElementById('dialogModules').showModal();
@@ -2122,8 +2113,7 @@ function loadCurrentStudents() {
 
 
 
-// -”€-”€ Add students -”€-”€
-
+// ── Add students ──
 $(document).ready(function () {
 
     $('#addSelectedStudentsBtn').on('click', function () {
@@ -2160,8 +2150,7 @@ $(document).ready(function () {
 
 
 
-// -”€-”€ Remove student -”€-”€
-
+// ── Remove student ──
 function removeStudent(triggerBtn, id) {
 
     openManageConfirm('Remove this student from the class?', function () {
@@ -2215,7 +2204,7 @@ function loadModulesForTab(classId, type, containerId) {
     $.get("{{ url('/classes') }}/" + classId + "/modules/list", function (data) {
         const all = data.modules || [];
 
-        const filtered = all.filter(m => {
+        const filtered = all.filter(function (m) {
             const isPreTest = m.quiz_stage === 'pre_test' || (m.is_quiz && !m.is_formal_assessment && m.quiz_stage !== 'post_test');
             const isPostTest = m.quiz_stage === 'post_test';
             const isFormal = m.is_formal_assessment && m.quiz_stage !== 'post_test' && m.quiz_stage !== 'pre_test';
@@ -2232,35 +2221,45 @@ function loadModulesForTab(classId, type, containerId) {
             return;
         }
 
-        const html = filtered.map(m => {
+        let html = '';
+        filtered.forEach(function (m) {
             const isPre = m.quiz_stage === 'pre_test' || (m.is_quiz && !m.is_formal_assessment && m.quiz_stage !== 'post_test');
-            const badge = (type === 'pre_post_test')
-                ? (isPre
+            let badge = '';
+            if (type === 'pre_post_test') {
+                badge = isPre
                     ? '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#1d9e75;color:#fff;margin-left:6px;text-transform:uppercase;">Pre-Test</span>'
-                    : '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#7b1fa2;color:#fff;margin-left:6px;text-transform:uppercase;">Post-Test</span>')
-                : '';
+                    : '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#7b1fa2;color:#fff;margin-left:6px;text-transform:uppercase;">Post-Test</span>';
+            }
 
-            return `
-            <div class="rv-module-item">
-                <div style="flex:1;">
-                    <div class="rv-module-title">${m.title} ${badge}</div>
-                    <div class="rv-module-meta">${m.created_at}${m.due_date ? ' · Due ' + m.due_date : ''}</div>
-                </div>
+            let editBtn = '';
+            if (m.edit_url) {
+                editBtn = '<a href="' + m.edit_url + '" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size:16px;text-decoration:none;"><i class="fas fa-pen"></i></a>';
+            }
 
-                <div style="display:flex;align-items:center;gap:6px;">
-                    ${m.edit_url
-                        ? `<a href="${m.edit_url}" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size: 16px;text-decoration:none;"><i class="fas fa-pen"></i></a>`
-                        : ''}
-                    ${m.file_path ? `<a href="${m.file_path}" target="_blank" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size: 16px;text-decoration:none;"><i class="fas fa-eye"></i></a>` : ''}
-                    <button class="rv-btn rv-btn-danger" style="height:28px;padding:0 10px;font-size: 16px;" onclick="deleteModuleFromTab(${m.id}, '${type}', '${containerId}')">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `).join('');
+            let viewBtn = '';
+            if (m.file_path) {
+                viewBtn = '<a href="' + m.file_path + '" target="_blank" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size:16px;text-decoration:none;"><i class="fas fa-eye"></i></a>';
+            }
+
+            let dueMeta = m.due_date ? ' · Due ' + m.due_date : '';
+
+            html += '<div class="rv-module-item">' +
+                '<div style="flex:1;">' +
+                    '<div class="rv-module-title">' + m.title + ' ' + badge + '</div>' +
+                    '<div class="rv-module-meta">' + m.created_at + dueMeta + '</div>' +
+                '</div>' +
+                '<div style="display:flex;align-items:center;gap:6px;">' +
+                    editBtn +
+                    viewBtn +
+                    '<button class="rv-btn rv-btn-danger" style="height:28px;padding:0 10px;font-size:16px;" onclick="deleteModuleFromTab(' + m.id + ', \'' + type + '\', \'' + containerId + '\')">' +
+                        '<i class="fas fa-trash"></i>' +
+                    '</button>' +
+                '</div>' +
+            '</div>';
+        });
 
         $('#' + containerId).html(html);
-    }).fail(() => {
+    }).fail(function () {
         $('#' + containerId).html('<p style="font-size: 16px;color:#e24b4a;text-align:center;">Failed to load.</p>');
     });
 }
