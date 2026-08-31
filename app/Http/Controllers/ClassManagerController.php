@@ -379,7 +379,7 @@ class ClassManagerController extends Controller
 
     private function getStemEchoThreshold(?string $questionType): float
     {
-        return in_array($questionType, ['why', 'how'], true) ? 92.0 : 85.0;
+        return 95.0;
     }
 
     private function getCrossBatchDuplicateThreshold(): float
@@ -435,8 +435,8 @@ class ClassManagerController extends Controller
             }
         }
 
-        // Grounded if at least 50% of the significant words in the evidence are present in the source
-        return ($found / count($words)) >= 0.5;
+        // Grounded if at least 35% of the significant words in the evidence are present in the source
+        return ($found / count($words)) >= 0.35;
     }
 
     private function shouldReplaceExistingQuestions(int $requested, int $generated, float $minimumAcceptanceRatio = 0.8): bool
@@ -547,8 +547,8 @@ class ClassManagerController extends Controller
                     $isDuplicate = true;
                     $conditionFired = 3;
                 }
-                // Condition 4: High options pool overlap (3 or more options are identical)
-                elseif ($sharedOptions >= 3) {
+                // Condition 4: High options pool overlap (3 or more options are identical) AND some topical corroboration
+                elseif ($sharedOptions >= 3 && ($maxStemSim >= 25.0 || $jaccard >= 15.0)) {
                     $isDuplicate = true;
                     $conditionFired = 4;
                 }
@@ -2097,10 +2097,12 @@ POWERSHELL;
                 $typeInstructions = match ($questionType) {
                     'why' => "ALL {$bufferedCount} questions MUST be WHY questions.\n"
                         ."- Ask for reasoning, justification, purpose, or rationale behind a rule, principle, or outcome.\n"
+                        ."- Answer options must concisely state the core rationale/purpose without repeating the question stem.\n"
                         ."- Set question_type to \"why\" on every object.\n"
                         ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
                     'how' => "ALL {$bufferedCount} questions MUST be HOW questions.\n"
                         ."- Ask for process, method, computation, application steps, or procedure.\n"
+                        ."- Answer options must concisely state the specific action/process without repeating the question stem.\n"
                         ."- Set question_type to \"how\" on every object.\n"
                         ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
                     default => "ALL {$bufferedCount} questions MUST be WHAT questions.\n"
