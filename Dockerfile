@@ -30,9 +30,10 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
 # Ensure PHP-FPM preserves environment variables
 RUN echo "clear_env = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf
 
-# Pre-create Nginx runtime directories
-RUN mkdir -p /run/nginx /var/log/nginx /var/lib/nginx/tmp /var/lib/nginx/logs \
-    && chown -R www-data:www-data /run/nginx /var/log/nginx /var/lib/nginx
+# Pre-create Nginx runtime directories with all temp subdirectories
+RUN mkdir -p /run/nginx /var/log/nginx /var/lib/nginx/tmp/client_body /var/lib/nginx/tmp/fastcgi /var/lib/nginx/tmp/proxy /var/lib/nginx/tmp/uwsgi /var/lib/nginx/tmp/scgi /var/lib/nginx/logs \
+    && chown -R www-data:www-data /run/nginx /var/log/nginx /var/lib/nginx \
+    && chmod -R 777 /run/nginx /var/log/nginx /var/lib/nginx
 
 # Copy Composer binary
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -51,7 +52,7 @@ RUN rm -rf bootstrap/cache/*.php \
     fi
 
 # Set full permissions on storage and bootstrap cache
-RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs storage/app/temp_context storage/app/private/temp_context bootstrap/cache \
     && chmod -R 777 storage bootstrap/cache
 
 # Copy server configs
