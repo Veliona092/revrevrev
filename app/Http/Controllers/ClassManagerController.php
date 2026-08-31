@@ -500,7 +500,23 @@ class ClassManagerController extends Controller
                     similar_text($ans1, $ans2, $ansSimilarity);
                 }
 
-                // 5. Token containment check for core question stem
+                // 5. Shared Options Pool Overlap check
+                $opts1 = array_filter(array_map('mb_strtolower', array_map('trim', array_values($existingQuestion['options'] ?? []))));
+                $opts2 = array_filter(array_map('mb_strtolower', array_map('trim', array_values($question['options'] ?? []))));
+                $sharedOptions = 0;
+                foreach ($opts1 as $o1) {
+                    foreach ($opts2 as $o2) {
+                        if ($o1 !== '' && $o2 !== '') {
+                            similar_text($o1, $o2, $optSim);
+                            if ($optSim >= 85.0) {
+                                $sharedOptions++;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // 6. Token containment check for core question stem
                 $isContained = false;
                 $shorterStem = mb_strlen($stemCleanedExisting) <= mb_strlen($stemCleanedQuestion) ? $stemCleanedExisting : $stemCleanedQuestion;
                 $longerStem = mb_strlen($stemCleanedExisting) <= mb_strlen($stemCleanedQuestion) ? $stemCleanedQuestion : $stemCleanedExisting;
@@ -516,19 +532,27 @@ class ClassManagerController extends Controller
 
                 $maxStemSim = max($similarity, $stemSimilarity);
 
-                // Condition 1: Nearly exact question stem (>= 92%)
-                if ($maxStemSim >= 92.0) {
+                // Condition 1: Nearly exact question stem (>= 88%)
+                if ($maxStemSim >= 88.0) {
                     $isDuplicate = true;
                 }
-                // Condition 2: Highly similar question stem (>= 80%) AND similar answer or options (>= 40%)
-                elseif ($maxStemSim >= 80.0 && (! $hasAnswer || $ansSimilarity >= 40.0)) {
+                // Condition 2: Highly similar question stem (>= 75%) AND similar answer or options (>= 40%)
+                elseif ($maxStemSim >= 75.0 && (! $hasAnswer || $ansSimilarity >= 40.0)) {
                     $isDuplicate = true;
                 }
-                // Condition 3: Rephrased question on same topic (>= 45% stem similarity or shared keywords) AND matching correct answer (>= 65%)
-                elseif ($ansSimilarity >= 65.0 && ($maxStemSim >= 45.0 || $jaccard >= 35.0)) {
+                // Condition 3: Same or near-identical correct answer (>= 80%) with phrase length >= 12 chars or topic overlap
+                elseif ($ansSimilarity >= 80.0 && (mb_strlen($ans1) >= 12 || $maxStemSim >= 25.0 || $jaccard >= 20.0)) {
                     $isDuplicate = true;
                 }
-                // Condition 4: Stem containment / subset
+                // Condition 4: High options pool overlap (3 or more options are identical)
+                elseif ($sharedOptions >= 3) {
+                    $isDuplicate = true;
+                }
+                // Condition 5: Rephrased question on same topic (>= 45% stem similarity or shared keywords) AND matching correct answer (>= 60%)
+                elseif ($ansSimilarity >= 60.0 && ($maxStemSim >= 40.0 || $jaccard >= 30.0)) {
+                    $isDuplicate = true;
+                }
+                // Condition 6: Stem containment / subset
                 elseif ($isContained) {
                     $isDuplicate = true;
                 }
@@ -2085,7 +2109,8 @@ POWERSHELL;
                         ."- Formulate questions specifically testing concepts, rules, facts, or scenarios found in the content below.\n"
                         ."- Return ONLY a valid JSON array of {$bufferedCount} objects.\n"
                         ."- Format: {\"question\":\"...\",\"options\":{$optionsExample},\"correct\":\"{$letterList}\",\"difficulty\":\"{$targetDifficulty}\",\"question_type\":\"{$questionType}\",\"evidence\":\"...\"}\n"
-                        ."- Spread correct answers across {$letterList}.\n\n"
+                        ."- Spread correct answers across {$letterList}.\n"
+                        ."- CRITICAL: Every question must test a DISTINCT topic or fact. Do NOT repeat or reuse the same answer choices or correct answers across different questions.\n\n"
                         .$extraInstructionsBlock
                         ."Content:\n{$assignedSection}\n\n"
                         .'Rules: Return valid JSON array only. No markdown, no extra text.';
