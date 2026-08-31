@@ -246,16 +246,21 @@
         <div class="qc-meta-icon"><i class="fas fa-clipboard-list"></i></div>
       <div>
             @php
-                $stageName = match($module->quiz_stage) {
-                    'pre_test' => 'Pre-Test',
-                    'post_test' => 'Post-Test',
-                    default => ($module->is_formal_assessment ? 'Formal Assessment' : 'Quiz')
-                };
-                $stageColor = match($module->quiz_stage) {
-                    'pre_test' => '#1d9e75',
-                    'post_test' => '#7b1fa2',
-                    default => ($module->is_formal_assessment ? '#172b4d' : '#5e72e4')
-                };
+                $isMb = ($isMockBoard ?? false) || ($module->is_mock_board ?? false) || !empty($mockBoard) || \DB::table('mock_board_phases')->where('module_id', $module->id)->exists();
+                $stageName = $isMb
+                    ? 'Mock Board'
+                    : match($module->quiz_stage) {
+                        'pre_test' => 'Pre-Test',
+                        'post_test' => 'Post-Test',
+                        default => ($module->is_formal_assessment ? 'Formal Assessment' : 'Quiz')
+                    };
+                $stageColor = $isMb
+                    ? '#172b4d'
+                    : match($module->quiz_stage) {
+                        'pre_test' => '#1d9e75',
+                        'post_test' => '#7b1fa2',
+                        default => ($module->is_formal_assessment ? '#172b4d' : '#5e72e4')
+                    };
             @endphp
             <div class="qc-meta-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                 <span>{{ $module->title }}</span>
