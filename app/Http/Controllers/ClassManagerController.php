@@ -1771,98 +1771,116 @@ POWERSHELL;
      */
     public function generateQuizAi(Request $request, Module $module, AiSettingsResolver $settingsResolver)
     {
-        $class = $module->class;
+        try {
+            $class = $module->class;
 
-        if ($class) {
-            if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
-                abort(403);
-            }
-        } else {
-            if (Auth::user()->role !== 'admin' && (int) $module->created_by !== (int) Auth::id()) {
-                abort(403, 'You do not have permission to generate questions for this Mock Board.');
-            }
-        }
-
-        if (! $module->is_quiz) {
-            abort(404, 'This module is not a quiz.');
-        }
-
-        // Sundin ang Global/Class AI feature toggle. Dati, frontend lang (disabled
-        // button) ang nag-e-enforce nito, kaya pwedeng ma-bypass sa direktang request.
-        if (! $settingsResolver->isFeatureEnabled('quiz_generation', $class)) {
-            abort(403, 'AI quiz generation is currently disabled for this class.');
-        }
-
-        $validator = Validator::make($request->all(), [
-            'context_files' => 'required|array|min:1',
-            'context_files.*' => 'file|mimes:pdf,doc,docx,txt|max:20480',
-            'file_difficulty_counts' => 'required|array|min:1',
-            'file_difficulty_counts.*' => 'array',
-            'file_difficulty_counts.*.Easy' => 'nullable|integer|min:0',
-            'file_difficulty_counts.*.Average' => 'nullable|integer|min:0',
-            'file_difficulty_counts.*.Difficult' => 'nullable|integer|min:0',
-            'extra_instructions' => 'nullable|string|max:500',
-            'choice_count' => 'nullable|integer|min:2|max:10',
-            'quiz_stage' => 'nullable|in:pre_test,post_test',
-        ]);
-
-        $validator->after(function ($v) use ($request) {
-            $allCounts = $request->input('file_difficulty_counts', []);
-            $grandTotal = 0;
-
-            if (is_array($allCounts)) {
-                foreach ($allCounts as $index => $tiers) {
-                    if (! is_array($tiers)) {
-                        continue;
-                    }
-
-                    $fileTotal = ((int) ($tiers['Easy'] ?? 0))
-                        + ((int) ($tiers['Average'] ?? 0))
-                        + ((int) ($tiers['Difficult'] ?? 0));
-
-                    if ($fileTotal > 100) {
-                        $v->errors()->add(
-                            "file_difficulty_counts.{$index}",
-                            "The total requested questions for this file ({$fileTotal}) exceeds the maximum allowed per-file limit of 100."
-                        );
-                    }
-
-                    $grandTotal += $fileTotal;
+            if ($class) {
+                if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Unauthorized: You do not have permission for this class.',
+                    ], 403);
+                }
+            } else {
+                if (Auth::user()->role !== 'admin' && (int) $module->created_by !== (int) Auth::id()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Unauthorized: You do not have permission for this Mock Board.',
+                    ], 403);
                 }
             }
 
-            if ($grandTotal > 100) {
-                $v->errors()->add(
-                    'file_difficulty_counts',
-                    "The total requested questions across all files ({$grandTotal}) exceeds the maximum allowed limit of 100."
-                );
+            if (! $module->is_quiz) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This module is not configured as a quiz.',
+                ], 400);
             }
 
-            if ($grandTotal === 0) {
-                $v->errors()->add(
-                    'file_difficulty_counts',
-                    'Please request at least one question for at least one file.'
-                );
+            if (! $settingsResolver->isFeatureEnabled('quiz_generation', $class)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'AI quiz generation is currently disabled for this class.',
+                ], 403);
             }
-        });
 
-        $validated = $validator->validate();
+            $validator = Validator::make($request->all(), [
+                'context_files' => 'required|array|min:1',
+                'context_files.*' => 'file|mimes:pdf,doc,docx,txt|max:20480',
+                'file_difficulty_counts' => 'required|array|min:1',
+                'file_difficulty_counts.*' => 'array',
+                'file_difficulty_counts.*.Easy' => 'nullable|integer|min:0',
+                'file_difficulty_counts.*.Average' => 'nullable|integer|min:0',
+                'file_difficulty_counts.*.Difficult' => 'nullable|integer|min:0',
+                'extra_instructions' => 'nullable|string|max:500',
+                'choice_count' => 'nullable|integer|min:2|max:10',
+                'quiz_stage' => 'nullable|in:pre_test,post_test',
+            ]);
 
-        $difficultyCounts = $validated['file_difficulty_counts'] ?? [];
-        $allowedDifficulties = ['Easy', 'Average', 'Difficult'];
-        $requestedQuestionCount = collect($difficultyCounts)
-            ->sum(fn (array $tiers): int => collect($allowedDifficulties)->sum(fn (string $tier): int => (int) ($tiers[$tier] ?? 0)));
+            $validator->after(function ($v) use ($request) {
+                $allCounts = $request->input('file_difficulty_counts', []);
+                $grandTotal = 0;
 
-        // Count active total requested questions to size the time limit correctly.
-        $totalQuestionsToGenerate = 0;
-        foreach ($difficultyCounts as $tiers) {
-            foreach ($allowedDifficulties as $tier) {
-                $totalQuestionsToGenerate += (int) ($tiers[$tier] ?? 0);
+                if (is_array($allCounts)) {
+                    foreach ($allCounts as $index => $tiers) {
+                        if (! is_array($tiers)) {
+                            continue;
+                        }
+
+                        $fileTotal = ((int) ($tiers['Easy'] ?? 0))
+                            + ((int) ($tiers['Average'] ?? 0))
+                            + ((int) ($tiers['Difficult'] ?? 0));
+
+                        if ($fileTotal > 100) {
+                            $v->errors()->add(
+                                "file_difficulty_counts.{$index}",
+                                "The total requested questions for this file ({$fileTotal}) exceeds the maximum allowed per-file limit of 100."
+                            );
+                        }
+
+                        $grandTotal += $fileTotal;
+                    }
+                }
+
+                if ($grandTotal > 100) {
+                    $v->errors()->add(
+                        'file_difficulty_counts',
+                        "The total requested questions across all files ({$grandTotal}) exceeds the maximum allowed limit of 100."
+                    );
+                }
+
+                if ($grandTotal === 0) {
+                    $v->errors()->add(
+                        'file_difficulty_counts',
+                        'Please request at least one question for at least one file.'
+                    );
+                }
+            });
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $validator->errors()->first() ?: 'Validation error.',
+                    'errors' => $validator->errors(),
+                ], 422);
             }
-        }
-        set_time_limit(max(120, $totalQuestionsToGenerate * 10));
 
-        try {
+            $validated = $validator->validated();
+
+            $difficultyCounts = $validated['file_difficulty_counts'] ?? [];
+            $allowedDifficulties = ['Easy', 'Average', 'Difficult'];
+            $requestedQuestionCount = collect($difficultyCounts)
+                ->sum(fn (array $tiers): int => collect($allowedDifficulties)->sum(fn (string $tier): int => (int) ($tiers[$tier] ?? 0)));
+
+            // Count active total requested questions to size the time limit correctly.
+            $totalQuestionsToGenerate = 0;
+            foreach ($difficultyCounts as $tiers) {
+                foreach ($allowedDifficulties as $tier) {
+                    $totalQuestionsToGenerate += (int) ($tiers[$tier] ?? 0);
+                }
+            }
+            set_time_limit(max(120, $totalQuestionsToGenerate * 10));
+
             $allGeneratedQuestions = [];
             $allExtractedTexts = [];
             $totalTokenUsage = [
