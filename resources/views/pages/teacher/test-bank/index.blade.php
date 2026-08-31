@@ -375,7 +375,7 @@
                 previewTitle.textContent = `${data.module_title} — ${n} question(s) currently in this assessment`;
 
                 if (n === 0) {
-                    previewList.innerHTML = '<div style="color:#aaa;">Wala pang tanong sa assessment na ito.</div>';
+                    previewList.innerHTML = '<div style="color:#aaa;">No questions in this assessment yet.</div>';
                     return;
                 }
 
