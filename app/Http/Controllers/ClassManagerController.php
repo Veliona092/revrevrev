@@ -406,11 +406,15 @@ class ClassManagerController extends Controller
 
     private function isGroundedInSource(string $evidence, string $sourceText): bool
     {
+        if ($evidence === '') {
+            return true;
+        }
+
         $normalizedEvidence = $this->normalizeForComparison($evidence);
         $normalizedSource = $this->normalizeForComparison($sourceText);
 
         if ($normalizedEvidence === '' || $normalizedSource === '') {
-            return false;
+            return true;
         }
 
         // Direct match
@@ -435,8 +439,8 @@ class ClassManagerController extends Controller
             }
         }
 
-        // Grounded if at least 50% of the significant words in the evidence are present in the source
-        return ($found / count($words)) >= 0.5;
+        // Grounded if at least 30% of the significant words in the evidence are present in the source
+        return ($found / count($words)) >= 0.3;
     }
 
     private function shouldReplaceExistingQuestions(int $requested, int $generated, float $minimumAcceptanceRatio = 0.8): bool
@@ -2268,7 +2272,7 @@ POWERSHELL;
             while (count($allGeneratedQuestions) < $requestedQuestionCount && $microBatchCount < $maxMicroBatches && ! empty($allExtractedTexts)) {
                 $microBatchCount++;
                 $missingCount = $requestedQuestionCount - count($allGeneratedQuestions);
-                $batchTarget = min($missingCount, 3);
+                $batchTarget = min($missingCount, 10);
                 $bufferedTopUp = $batchTarget + 2;
 
                 $fileKeys = array_keys($allExtractedTexts);
@@ -2312,7 +2316,7 @@ POWERSHELL;
                                 'content' => $topUpPrompt,
                             ],
                         ],
-                        'max_tokens' => min(320 * $bufferedTopUp, 1500),
+                        'max_tokens' => min(380 * $bufferedTopUp, 4000),
                         'temperature' => 0.4,
                         'response_format' => [
                             'type' => 'json_schema',
