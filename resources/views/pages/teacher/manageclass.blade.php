@@ -683,7 +683,7 @@
         <div class="rv-drawer-body">
             {{-- TAB 1: Documents & Content --}}
             <div id="tabUpload" class="rv-tab-panel active">
-                <form method="POST" action="{{ route('modules.store') }}" enctype="multipart/form-data" id="moduleUploadForm">
+                <form id="moduleUploadForm" enctype="multipart/form-data">
                     @csrf
                     <input type="hidden" name="class_id" id="moduleClassId">
                     <input type="hidden" name="type" value="document">
@@ -1476,6 +1476,28 @@ function removeVisChip(btn, form, id) {
 }
 window.removeVisChip = removeVisChip;
 
+function injectVisUserIds(form, formData) {
+    const ids = Object.keys(visSelectedStudents[form] || {});
+    ids.forEach(function (id) {
+        if (formData instanceof FormData) {
+            formData.append('visible_user_ids[]', id);
+        }
+    });
+}
+window.injectVisUserIds = injectVisUserIds;
+
+function injectVisHiddenInputs(form, formEl) {
+    formEl.querySelectorAll('input[name="visible_user_ids[]"]').forEach(function (el) { el.remove(); });
+    Object.keys(visSelectedStudents[form] || {}).forEach(function (id) {
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'visible_user_ids[]';
+        inp.value = id;
+        formEl.appendChild(inp);
+    });
+}
+window.injectVisHiddenInputs = injectVisHiddenInputs;
+
 // ── Generic Confirmation ──
 function openManageConfirm(message, onConfirm) {
     manageConfirmCallback = onConfirm;
@@ -1577,6 +1599,57 @@ $(document).ready(function () {
             closeManageConfirm();
             cb();
         }
+    });
+
+    // Module Upload Form
+    $('#moduleUploadForm').on('submit', function (e) {
+        e.preventDefault();
+        const visibility = document.getElementById('visInput_doc').value;
+        if ((visibility === 'selected' || visibility === 'except') && Object.keys(visSelectedStudents['doc'] || {}).length === 0) {
+            showUploadValidationToast('Please select at least one student.', 'warn');
+            return;
+        }
+
+        const formData = new FormData(this);
+        injectVisUserIds('doc', formData);
+
+        $.ajax({
+            url: "{{ url('/classes') }}/" + currentClassId + "/modules",
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
+        }).done(function (res) {
+            showUploadValidationToast(res.success || 'Module created successfully!', 'success');
+            document.getElementById('moduleUploadForm').reset();
+            resetVisibilityPicker('doc');
+            loadModulesForTab(currentClassId, 'document', 'documentsList');
+        }).fail(xhr => {
+            showUploadValidationToast('Upload failed: ' + (xhr.responseJSON?.message || 'Unknown error'), 'error');
+        });
+    });
+
+    // Quiz Draft Form submit intercept
+    $('#quizDraftForm').on('submit', function (e) {
+        const visibility = document.getElementById('visInput_quiz').value;
+        if ((visibility === 'selected' || visibility === 'except') && Object.keys(visSelectedStudents['quiz'] || {}).length === 0) {
+            e.preventDefault();
+            showUploadValidationToast('Please select at least one student.', 'warn');
+            return;
+        }
+        injectVisHiddenInputs('quiz', this);
+    });
+
+    // Assessment Draft Form submit intercept
+    $('#assessmentDraftForm').on('submit', function (e) {
+        const visibility = document.getElementById('visInput_assessment').value;
+        if ((visibility === 'selected' || visibility === 'except') && Object.keys(visSelectedStudents['assessment'] || {}).length === 0) {
+            e.preventDefault();
+            showUploadValidationToast('Please select at least one student.', 'warn');
+            return;
+        }
+        injectVisHiddenInputs('assessment', this);
     });
 
     // Announcements post
