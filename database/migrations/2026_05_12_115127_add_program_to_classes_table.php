@@ -10,17 +10,17 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-{
-    Schema::table('classes', function (Blueprint $table) {
-        // Adding the program column to group classes
-        $table->string('program')->after('name')->nullable();
-    });
-}
+    {
+        Schema::table('classes', function (Blueprint $table) {
+            // Adding the program column to group classes
+            $table->string('program')->after('name')->nullable();
+        });
+    }
 
-public function down(): void
-{
-    Schema::table('classes', function (Blueprint $table) {
-        $table->dropColumn('program');
-    });
-}
+    public function down(): void
+    {
+        Schema::table('classes', function (Blueprint $table) {
+            $table->dropColumn('program');
+        });
+    }
 };

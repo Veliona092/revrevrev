@@ -10,9 +10,10 @@ class MockBoardApprovalController extends Controller
     public function __construct()
     {
         $this->middleware(function ($request, $next) {
-            if (!in_array(auth()->user()->role, ['admin', 'superadmin'], true)) {
+            if (! in_array(auth()->user()->role, ['admin', 'superadmin'], true)) {
                 abort(403, 'Admins only.');
             }
+
             return $next($request);
         });
     }

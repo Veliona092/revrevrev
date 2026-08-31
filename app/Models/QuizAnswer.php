@@ -10,11 +10,11 @@ class QuizAnswer extends Model
         'attempt_id',
         'question_id',
         'selected_option',
-        'is_correct'
+        'is_correct',
     ];
 
     protected $casts = [
-        'is_correct' => 'boolean'
+        'is_correct' => 'boolean',
     ];
 
     public function attempt()

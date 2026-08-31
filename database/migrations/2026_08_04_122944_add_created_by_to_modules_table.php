@@ -9,18 +9,18 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-   public function up(): void
-{
-    Schema::table('modules', function (Blueprint $table) {
-        $table->foreignId('created_by')->nullable()->after('class_id')->constrained('users')->nullOnDelete();
-    });
-}
+    public function up(): void
+    {
+        Schema::table('modules', function (Blueprint $table) {
+            $table->foreignId('created_by')->nullable()->after('class_id')->constrained('users')->nullOnDelete();
+        });
+    }
 
-public function down(): void
-{
-    Schema::table('modules', function (Blueprint $table) {
-        $table->dropForeign(['created_by']);
-        $table->dropColumn('created_by');
-    });
-}
+    public function down(): void
+    {
+        Schema::table('modules', function (Blueprint $table) {
+            $table->dropForeign(['created_by']);
+            $table->dropColumn('created_by');
+        });
+    }
 };

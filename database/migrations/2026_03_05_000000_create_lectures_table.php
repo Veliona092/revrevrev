@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('lectures', function (Blueprint $table) {
             $table->id(); // Primary key
-            $table->foreignId('teacher_id')->constrained('users')->onDelete('cascade'); 
+            $table->foreignId('teacher_id')->constrained('users')->onDelete('cascade');
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('file_path')->nullable();

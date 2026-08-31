@@ -35,12 +35,10 @@ return [
         ],
     ],
 
-
-'cloudflare' => [
-    'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
-    'token'      => env('CLOUDFLARE_API_TOKEN'),
-    'gateway'    => env('CLOUDFLARE_AI_GATEWAY'),
-],
+    'cloudflare' => [
+        'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
+        'token' => env('CLOUDFLARE_API_TOKEN'),
+        'gateway' => env('CLOUDFLARE_AI_GATEWAY'),
+    ],
 
 ];
-

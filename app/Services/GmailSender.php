@@ -12,7 +12,7 @@ class GmailSender
 
     public function __construct()
     {
-        $client = new Client();
+        $client = new Client;
         $client->setAuthConfig(storage_path('app/google/credentials.json'));
 
         // Load saved tokens (for one account – for multi: load per account)
@@ -30,17 +30,17 @@ class GmailSender
 
     public function sendVerification($to, $url)
     {
-        $raw = "To: $to\r\n" .
-               "Subject: Verify Your Reviso Account\r\n" .
-               "MIME-Version: 1.0\r\n" .
-               "Content-Type: text/html; charset=utf-8\r\n\r\n" .
-               "<h1>Welcome to Reviso!</h1>" .
-               "<p>Click here to verify: <a href='$url'>Verify Email</a></p>" .
-               "<p>Thanks,<br>Reviso Team</p>";
+        $raw = "To: $to\r\n".
+               "Subject: Verify Your Reviso Account\r\n".
+               "MIME-Version: 1.0\r\n".
+               "Content-Type: text/html; charset=utf-8\r\n\r\n".
+               '<h1>Welcome to Reviso!</h1>'.
+               "<p>Click here to verify: <a href='$url'>Verify Email</a></p>".
+               '<p>Thanks,<br>Reviso Team</p>';
 
         $raw = rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
 
-        $message = new Message();
+        $message = new Message;
         $message->setRaw($raw);
 
         $this->service->users_messages->send('me', $message);

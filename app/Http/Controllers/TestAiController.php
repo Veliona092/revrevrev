@@ -1,4 +1,5 @@
 <?php
+
 // app/Http/Controllers/TestAiController.php
 
 namespace App\Http\Controllers;
@@ -17,12 +18,12 @@ class TestAiController extends Controller
                 'student_id' => 'STU-1234',
                 'grades' => [
                     'Mathematics' => 82,
-                    'English'     => 74,
-                    'Science'     => 91,
-                    'History'     => 68,
-                    'Art'         => 95,
+                    'English' => 74,
+                    'Science' => 91,
+                    'History' => 68,
+                    'Art' => 95,
                 ],
-                'term' => '2026 Q1'
+                'term' => '2026 Q1',
             ])],
         ];
 

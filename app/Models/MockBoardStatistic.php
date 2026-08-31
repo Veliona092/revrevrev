@@ -69,6 +69,7 @@ class MockBoardStatistic extends Model
 
         if ($this->anova_significant) {
             $improvement = $this->improvement_percentage > 0 ? 'improved' : 'decreased';
+
             return "Significant difference found (p={$this->anova_p_value}). Scores {$improvement} by {$this->improvement_percentage}%.";
         }
 
@@ -80,7 +81,7 @@ class MockBoardStatistic extends Model
      */
     public function isFresh(): bool
     {
-        if (!$this->computed_at) {
+        if (! $this->computed_at) {
             return false;
         }
 

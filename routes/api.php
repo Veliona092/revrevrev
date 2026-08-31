@@ -1,13 +1,15 @@
 <?php
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+
 Route::get('/health', function () {
     $dbStatus = 'disconnected';
     $dbError = null;
     try {
-        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        DB::connection()->getPdo();
         $dbStatus = 'connected';
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         $dbError = $e->getMessage();
     }
 
