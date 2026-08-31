@@ -297,7 +297,7 @@ Route::post('/signup', function (Request $request) {
         'idnumber' => ['required', 'string', 'max:50', 'unique:users,idnumber', 'unique:signups,idnumber'],
         'name' => ['required', 'string', 'max:150'],
         'password' => ['required', 'string', 'min:8', 'confirmed'],
-        'role' => ['required', 'in:student,teacher,admin'],
+        'role' => ['required', 'in:student,teacher'],
         'program' => ['nullable', 'string', 'in:accountancy,educ,psych,teacher'],
     ]);
 
