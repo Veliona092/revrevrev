@@ -104,18 +104,17 @@ window.openModulesDrawer = function(classId, className) {
     if (aId) aId.value = classId;
     var aForm = document.getElementById('assessmentDraftForm');
     if (aForm) aForm.action = "{{ url('/quiz/create-draft') }}/" + classId;
-    var ptId = document.getElementById('postTestClassId');
-    if (ptId) ptId.value = classId;
-    var ptForm = document.getElementById('postTestDraftForm');
-    if (ptForm) ptForm.action = "{{ url('/quiz/create-draft') }}/" + classId;
     var annForm = document.getElementById('announcementForm');
     if (annForm) annForm.action = "{{ url('/classes') }}/" + classId + "/announcements";
 
+    if (typeof toggleTestType === 'function') {
+        toggleTestType('pre_test');
+    }
     if (typeof switchTab === 'function') {
-        switchTab('tabPreTest', document.querySelector('.rv-tab'));
+        switchTab('tabQuiz', document.querySelector('.rv-tab'));
     }
     if (typeof resetVisibilityPicker === 'function') {
-        ['doc','quiz','assessment','posttest'].forEach(resetVisibilityPicker);
+        ['doc','quiz','assessment'].forEach(resetVisibilityPicker);
     }
     var d = document.getElementById('dialogModules');
     if (d) {
@@ -1589,31 +1588,47 @@ window.openModulesDrawer = function(classId, className) {
 
             {{-- Tabs --}}
 
+            {{-- Tabs --}}
             <div class="rv-tabs">
-                <button class="rv-tab active" onclick="switchTab('tabPreTest', this)">Pre-Test</button>
+                <button class="rv-tab active" onclick="switchTab('tabQuiz', this)">Pre-Test / Post-Test</button>
                 <button class="rv-tab" onclick="switchTab('tabUpload', this)">Domain / Documents</button>
                 <button class="rv-tab" onclick="switchTab('tabAssessment', this)">Formal Assessment</button>
-                <button class="rv-tab" onclick="switchTab('tabPostTest', this)">Post-Test</button>
+                <button class="rv-tab" onclick="switchTab('tabAnnouncements', this)">Announcements</button>
             </div>
 
-
-
-            {{-- 1. Pre-Test tab --}}
-            <div class="rv-tab-panel active" id="tabPreTest">
+            {{-- 1. Pre-Test / Post-Test tab --}}
+            <div class="rv-tab-panel active" id="tabQuiz">
                 <form id="quizDraftForm" method="POST" action="{{ url('/quiz/create-draft/0') }}">
                     @csrf
                     <input type="hidden" name="class_id" id="quizClassId" value="0">
-                    <input type="hidden" name="is_formal_assessment" value="0">
-                    <input type="hidden" name="quiz_stage" value="pre_test">
+                    <input type="hidden" name="is_formal_assessment" id="quizIsFormalAssessment" value="0">
+                    <input type="hidden" name="quiz_stage" id="quizStageInput" value="pre_test">
 
                     <div class="rv-form-group">
-                        <label class="rv-label">Pre-Test Title <span style="color:#e24b4a">*</span></label>
-                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Pre-Test 1: Basic Concepts">
+                        <label class="rv-label">Select Test Type <span style="color:#e24b4a">*</span></label>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
+                            <label id="typeLabelPreTest" style="display:flex; align-items:center; gap:8px; padding:10px 14px; background:#f4fbf7; border:2px solid #1d9e75; border-radius:10px; cursor:pointer; font-weight:600; color:#1d9e75; transition:all 0.2s;">
+                                <input type="radio" name="test_type_toggle" value="pre_test" checked onchange="toggleTestType(this.value)">
+                                <span><i class="fas fa-play-circle"></i> Pre-Test (Start / Unahan)</span>
+                            </label>
+                            <label id="typeLabelPostTest" style="display:flex; align-items:center; gap:8px; padding:10px 14px; background:#fff; border:1px solid #ddd; border-radius:10px; cursor:pointer; font-weight:600; color:#666; transition:all 0.2s;">
+                                <input type="radio" name="test_type_toggle" value="post_test" onchange="toggleTestType(this.value)">
+                                <span><i class="fas fa-flag-checkered"></i> Post-Test (End / Dulo)</span>
+                            </label>
+                        </div>
+                        <p id="testTypeHint" style="font-size: 14px; color:#666; margin:0 0 10px 2px;">
+                            <i class="fas fa-info-circle"></i> <strong>Pre-Test:</strong> Diagnostic assessment taken at the start before lecture modules. Laging nasa unahan.
+                        </p>
+                    </div>
+
+                    <div class="rv-form-group">
+                        <label class="rv-label" id="testTitleLabel">Pre-Test Title <span style="color:#e24b4a">*</span></label>
+                        <input type="text" name="title" id="testTitleInput" class="rv-input" required placeholder="e.g. Pre-Test 1: Diagnostic Assessment">
                     </div>
 
                     <div class="rv-form-group">
                         <label class="rv-label">Description (optional)</label>
-                        <textarea name="description" class="rv-textarea" placeholder="Brief overview of the pre-test..."></textarea>
+                        <textarea name="description" class="rv-textarea" placeholder="Brief overview..."></textarea>
                     </div>
 
                     <div class="rv-form-group">
@@ -1653,14 +1668,14 @@ window.openModulesDrawer = function(classId, className) {
                         </div>
                     </div>
 
-                    <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;">
+                    <button type="submit" id="quizSubmitBtn" class="rv-btn rv-btn-primary" style="width:100%;">
                         <i class="fas fa-brain"></i> Start Pre-Test Creation
                     </button>
                 </form>
 
                 <div style="margin-top:16px;">
-                    <label class="rv-label" style="margin-bottom:10px;">Pre-Tests:</label>
-                    <div id="preTestList">
+                    <label class="rv-label" style="margin-bottom:10px;">Pre-Tests & Post-Tests:</label>
+                    <div id="prePostTestList">
                         <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load.</p>
                     </div>
                 </div>
@@ -1793,78 +1808,6 @@ window.openModulesDrawer = function(classId, className) {
                 </div>
             </div>
 
-            {{-- 4. Post-Test tab --}}
-            <div class="rv-tab-panel" id="tabPostTest">
-                <form id="postTestDraftForm" method="POST" action="{{ url('/quiz/create-draft/0') }}">
-                    @csrf
-                    <input type="hidden" name="class_id" id="postTestClassId" value="0">
-                    <input type="hidden" name="is_formal_assessment" value="1">
-                    <input type="hidden" name="quiz_stage" value="post_test">
-
-                    <div class="rv-form-group">
-                        <label class="rv-label">Post-Test Title <span style="color:#e24b4a">*</span></label>
-                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Post-Test: Final Module Evaluation">
-                    </div>
-
-                    <div class="rv-form-group">
-                        <label class="rv-label">Description (optional)</label>
-                        <textarea name="description" class="rv-textarea" placeholder="Brief overview of the post-test..."></textarea>
-                    </div>
-
-                    <div class="rv-form-group">
-                        <label class="rv-label">Time Limit (minutes, 0 = unlimited)</label>
-                        <input type="number" name="time_limit" class="rv-input" min="0" value="0" style="width:50%;">
-                    </div>
-
-                    <div class="rv-form-group">
-                        <label class="rv-label">Passing Grade (%, leave blank for default 50%)</label>
-                        <input type="number" name="passing_grade" class="rv-input" min="1" max="100" placeholder="50" style="width:50%;">
-                    </div>
-                    <div class="rv-form-group">
-                        <label class="rv-label">Max Attempts (base)</label>
-                        <input type="number" name="max_attempts" class="rv-input" min="1" max="20" value="1" style="width:50%;">
-                    </div>
-                    <div class="rv-form-group">
-                        <label class="rv-label">Due Date (optional)</label>
-                        <input type="datetime-local" name="due_date" class="rv-input" style="width:60%;">
-                    </div>
-                    <div class="rv-form-group">
-                        <label class="rv-label">Who can see this?</label>
-                        <input type="hidden" name="visibility" id="visInput_posttest" value="all">
-
-                        <div class="vis-toggle">
-                            <button type="button" class="vis-opt active" onclick="setVisibility(this,'posttest')">All Students</button>
-                            <button type="button" class="vis-opt" onclick="setVisibility(this,'posttest')">Selected Students</button>
-                            <button type="button" class="vis-opt" onclick="setVisibility(this,'posttest')">Except Students</button>
-                        </div>
-
-                        <div class="vis-student-picker" id="visPicker_posttest">
-                            <div class="vis-search-wrap">
-                                <input type="text" id="visSearch_posttest" placeholder="Search students by name, ID, email..." autocomplete="off">
-                                <div class="vis-results" id="visResults_posttest"></div>
-                            </div>
-                            <div class="vis-chips" id="visChips_posttest"></div>
-                            <div class="vis-empty-hint" id="visHint_posttest">Search and select students above.</div>
-                        </div>
-                    </div>
-
-                    <p style="font-size: 16px;color:#aaa;margin-top:4px;">
-                        <i class="fas fa-flag-checkered"></i> Post-test is the final evaluation stage for this module.
-                    </p>
-
-                    <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;margin-top:8px;">
-                        <i class="fas fa-flag-checkered"></i> Start Post-Test Creation
-                    </button>
-                </form>
-
-                <div style="margin-top:16px;">
-                    <label class="rv-label" style="margin-bottom:10px;">Post-Tests:</label>
-                    <div id="postTestList">
-                        <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load.</p>
-                    </div>
-                </div>
-            </div>
-
 
 
             {{-- Announcements tab --}}
@@ -1964,12 +1907,9 @@ window.openModulesDrawer = function(classId, className) {
 
 
         </div>
-
     </div>
-
 </dialog>
 
-{{-- Delete Class Confirmation Modal --}}
 <div id="deleteClassConfirmOverlay" class="delete-confirm-overlay" aria-hidden="true">
     <div class="delete-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="deleteClassConfirmTitle">
         <p class="delete-confirm-title" id="deleteClassConfirmTitle">Please Confirm</p>
@@ -1999,8 +1939,39 @@ let currentClassId = null;
 
 
 
-// -”€-”€ Tab switcher -”€-”€
+// ── Toggle Test Type (Pre-Test vs Post-Test) ──
+function toggleTestType(val) {
+    const isPre = val === 'pre_test';
+    const stageInput = document.getElementById('quizStageInput');
+    const isFormalInput = document.getElementById('quizIsFormalAssessment');
+    if (stageInput) stageInput.value = isPre ? 'pre_test' : 'post_test';
+    if (isFormalInput) isFormalInput.value = isPre ? '0' : '1';
 
+    const lblPre = document.getElementById('typeLabelPreTest');
+    const lblPost = document.getElementById('typeLabelPostTest');
+    const hint = document.getElementById('testTypeHint');
+    const titleLabel = document.getElementById('testTitleLabel');
+    const titleInput = document.getElementById('testTitleInput');
+    const submitBtn = document.getElementById('quizSubmitBtn');
+
+    if (isPre) {
+        if (lblPre) { lblPre.style.borderColor = '#1d9e75'; lblPre.style.color = '#1d9e75'; lblPre.style.background = '#f4fbf7'; }
+        if (lblPost) { lblPost.style.borderColor = '#ddd'; lblPost.style.color = '#666'; lblPost.style.background = '#fff'; }
+        if (hint) hint.innerHTML = '<i class="fas fa-info-circle"></i> <strong>Pre-Test:</strong> Diagnostic assessment taken at the start before lecture modules. Laging nasa unahan.';
+        if (titleLabel) titleLabel.innerHTML = 'Pre-Test Title <span style="color:#e24b4a">*</span>';
+        if (titleInput) titleInput.placeholder = 'e.g. Pre-Test 1: Diagnostic Assessment';
+        if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-brain"></i> Start Pre-Test Creation';
+    } else {
+        if (lblPre) { lblPre.style.borderColor = '#ddd'; lblPre.style.color = '#666'; lblPre.style.background = '#fff'; }
+        if (lblPost) { lblPost.style.borderColor = '#7b1fa2'; lblPost.style.color = '#7b1fa2'; lblPost.style.background = '#fbf5fd'; }
+        if (hint) hint.innerHTML = '<i class="fas fa-info-circle"></i> <strong>Post-Test:</strong> Final evaluation assessment taken at the end of the module. Laging nasa dulo.';
+        if (titleLabel) titleLabel.innerHTML = 'Post-Test Title <span style="color:#e24b4a">*</span>';
+        if (titleInput) titleInput.placeholder = 'e.g. Post-Test: Final Module Evaluation';
+        if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-flag-checkered"></i> Start Post-Test Creation';
+    }
+}
+
+// ── Tab switcher ──
 function switchTab(panelId, btn) {
     closeManageConfirm();
     document.querySelectorAll('.rv-tab-panel').forEach(p => p.classList.remove('active'));
@@ -2008,17 +1979,15 @@ function switchTab(panelId, btn) {
     document.getElementById(panelId).classList.add('active');
     btn.classList.add('active');
 
-    if (panelId === 'tabPreTest' && currentClassId) loadModulesForTab(currentClassId, 'pre_test', 'preTestList');
+    if (panelId === 'tabQuiz' && currentClassId) loadModulesForTab(currentClassId, 'pre_post_test', 'prePostTestList');
     if (panelId === 'tabUpload' && currentClassId) loadModulesForTab(currentClassId, 'document', 'documentsList');
     if (panelId === 'tabAssessment' && currentClassId) loadModulesForTab(currentClassId, 'formal_assessment', 'formalAssessmentsList');
-    if (panelId === 'tabPostTest' && currentClassId) loadModulesForTab(currentClassId, 'post_test', 'postTestList');
     if (panelId === 'tabAnnouncements' && currentClassId) loadClassAnnouncements(currentClassId);
 }
 
 
 
-// -”€-”€ Open Students dialog -”€-”€
-
+// ── Open Students dialog ──
 function openStudentsDrawer(classId, className) {
 
     currentClassId = classId;
@@ -2079,8 +2048,7 @@ function openStudentsDrawer(classId, className) {
 
 
 
-// -”€-”€ Open Modules dialog -”€-”€
-
+// ── Open Modules dialog ──
 function openModulesDrawer(classId, className) {
 
     currentClassId = classId;
@@ -2090,20 +2058,18 @@ function openModulesDrawer(classId, className) {
     document.getElementById('quizDraftForm').action = "{{ url('/quiz/create-draft') }}/" + classId;
     document.getElementById('assessmentClassId').value = classId;
     document.getElementById('assessmentDraftForm').action = "{{ url('/quiz/create-draft') }}/" + classId;
-    document.getElementById('postTestClassId').value = classId;
-    document.getElementById('postTestDraftForm').action = "{{ url('/quiz/create-draft') }}/" + classId;
     document.getElementById('announcementForm').action = "{{ url('/classes') }}/" + classId + "/announcements";
 
-    // Reset to pre-test tab
-    switchTab('tabPreTest', document.querySelector('.rv-tab'));
-    ['doc','quiz','assessment','posttest'].forEach(resetVisibilityPicker);
+    // Reset to pre-test
+    toggleTestType('pre_test');
+    switchTab('tabQuiz', document.querySelector('.rv-tab'));
+    ['doc','quiz','assessment'].forEach(resetVisibilityPicker);
     document.getElementById('dialogModules').showModal();
 }
 
 
 
-// -”€-”€ Load current students -”€-”€
-
+// ── Load current students ──
 function loadCurrentStudents() {
 
     $('#currentStudentsList').html('<p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p>');
@@ -2242,8 +2208,7 @@ function removeStudent(triggerBtn, id) {
 
 
 
-// -”€-”€ Load modules by type (documents / pre-assessments / formal assessments) -”€-”€
-
+// ── Load modules by type ──
 function loadModulesForTab(classId, type, containerId) {
     $('#' + containerId).html('<p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p>');
 
@@ -2256,10 +2221,9 @@ function loadModulesForTab(classId, type, containerId) {
             const isFormal = m.is_formal_assessment && m.quiz_stage !== 'post_test' && m.quiz_stage !== 'pre_test';
             const isDoc = !m.is_quiz && m.type !== 'Quiz' && !m.is_formal_assessment;
 
-            if (type === 'pre_test' || type === 'pre_assessment') return isPreTest;
+            if (type === 'pre_post_test' || type === 'pre_test' || type === 'pre_assessment') return (isPreTest || isPostTest);
             if (type === 'document') return isDoc;
             if (type === 'formal_assessment') return isFormal;
-            if (type === 'post_test') return isPostTest;
             return false;
         });
 
@@ -2268,15 +2232,23 @@ function loadModulesForTab(classId, type, containerId) {
             return;
         }
 
-        const html = filtered.map(m => `
+        const html = filtered.map(m => {
+            const isPre = m.quiz_stage === 'pre_test' || (m.is_quiz && !m.is_formal_assessment && m.quiz_stage !== 'post_test');
+            const badge = (type === 'pre_post_test')
+                ? (isPre
+                    ? '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#1d9e75;color:#fff;margin-left:6px;text-transform:uppercase;">Pre-Test</span>'
+                    : '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#7b1fa2;color:#fff;margin-left:6px;text-transform:uppercase;">Post-Test</span>')
+                : '';
+
+            return `
             <div class="rv-module-item">
                 <div style="flex:1;">
-                    <div class="rv-module-title">${m.title}</div>
+                    <div class="rv-module-title">${m.title} ${badge}</div>
                     <div class="rv-module-meta">${m.created_at}${m.due_date ? ' · Due ' + m.due_date : ''}</div>
                 </div>
 
                 <div style="display:flex;align-items:center;gap:6px;">
-                    ${(type === 'pre_test' || type === 'pre_assessment' || type === 'formal_assessment' || type === 'post_test') && m.edit_url
+                    ${m.edit_url
                         ? `<a href="${m.edit_url}" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size: 16px;text-decoration:none;"><i class="fas fa-pen"></i></a>`
                         : ''}
                     ${m.file_path ? `<a href="${m.file_path}" target="_blank" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size: 16px;text-decoration:none;"><i class="fas fa-eye"></i></a>` : ''}
@@ -2661,7 +2633,7 @@ function resetVisibilityPicker(form) {
     }
     document.getElementById('visInput_' + form).value = 'all';
 
-    const formKeyToTab = { doc: 'tabUpload', quiz: 'tabPreTest', assessment: 'tabAssessment', posttest: 'tabPostTest' };
+    const formKeyToTab = { doc: 'tabUpload', quiz: 'tabQuiz', assessment: 'tabAssessment' };
     const panel = document.getElementById(formKeyToTab[form]);
     if (panel) {
         panel.querySelectorAll('.vis-opt').forEach((b, i) => {
@@ -3016,16 +2988,6 @@ $('#assessmentDraftForm').on('submit', function (e) {
         return;
     }
     injectVisHiddenInputs('assessment', this);
-});
-
-$('#postTestDraftForm').on('submit', function (e) {
-    const visibility = document.getElementById('visInput_posttest').value;
-    if ((visibility === 'selected' || visibility === 'except') && Object.keys(visSelectedStudents['posttest']).length === 0) {
-        e.preventDefault();
-        showUploadValidationToast('Please select at least one student.');
-        return;
-    }
-    injectVisHiddenInputs('posttest', this);
 });
 
 
