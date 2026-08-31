@@ -41,8 +41,9 @@ WORKDIR /var/www/html
 # Copy application files
 COPY . .
 
-# Install PHP dependencies without dev packages
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+# Install PHP dependencies without dev packages (disable http2 to prevent GitHub CDN drops)
+RUN composer config --global http2 false \
+    && composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
 # Set full permissions on storage and bootstrap cache
 RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
