@@ -1242,16 +1242,7 @@
 
 
     /* ── Native dialog panels ── */
-    dialog.rv-dialog:not([open]) {
-        display: none !important;
-        pointer-events: none !important;
-        visibility: hidden !important;
-    }
-
-    dialog.rv-dialog[open] {
-        display: block !important;
-        pointer-events: auto !important;
-        visibility: visible !important;
+    dialog.rv-dialog {
         padding: 0;
         border: none;
         border-radius: 0;
