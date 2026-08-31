@@ -26,6 +26,9 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         bcmath \
         opcache
 
+# Ensure PHP-FPM preserves environment variables
+RUN echo "clear_env = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+
 # Pre-create Nginx runtime directories
 RUN mkdir -p /run/nginx /var/log/nginx /var/lib/nginx/tmp /var/lib/nginx/logs \
     && chown -R www-data:www-data /run/nginx /var/log/nginx /var/lib/nginx

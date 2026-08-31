@@ -17,15 +17,21 @@ touch /var/www/html/storage/logs/laravel.log
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
+# Write .env file from environment variables so Artisan and PHP-FPM always have access
+touch /var/www/html/.env
+env > /var/www/html/.env
+chmod 644 /var/www/html/.env
+
+# Create storage symlink
 php artisan storage:link || true
 
 # Check APP_KEY
 if [ -z "$APP_KEY" ]; then
-    echo "APP_KEY is missing, generating one..."
+    echo "APP_KEY is missing in env, generating..."
     php artisan key:generate --force || true
 fi
 
-# Clear stale cache before database connection
+# Clear old cache
 php artisan config:clear || true
 php artisan cache:clear || true
 
