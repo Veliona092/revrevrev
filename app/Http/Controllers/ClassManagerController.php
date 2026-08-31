@@ -2019,7 +2019,7 @@ POWERSHELL;
 
                     foreach (['what' => $targetWhat, 'why' => $targetWhy, 'how' => $targetHow] as $qType => $count) {
                         while ($count > 0) {
-                            $batchSize = min(5, $count);
+                            $batchSize = min(10, $count);
                             $tasks[] = [
                                 'difficulty' => $targetDifficulty,
                                 'type' => $qType,
@@ -2067,7 +2067,7 @@ POWERSHELL;
                     $existingStems = array_map(fn ($q) => (string) ($q['question'] ?? ''), array_merge($allGeneratedQuestions, $fileQuestions));
                     $avoidBlock = '';
                     if (! empty($existingStems)) {
-                        $sampled = array_slice($existingStems, -35);
+                        $sampled = array_slice($existingStems, -20);
                         $avoidList = implode("\n", array_map(fn ($s) => '- '.trim($s), $sampled));
                         $avoidBlock = "CRITICAL: Avoid Duplicates. Do NOT generate questions that repeat or closely resemble any of these already created questions:\n{$avoidList}\n\n";
                     }
@@ -2102,7 +2102,7 @@ POWERSHELL;
                                     'content' => $prompt,
                                 ],
                             ],
-                            'max_tokens' => min(320 * $bufferedCount, 1500),
+                            'max_tokens' => min(380 * $bufferedCount, 4000),
                             'temperature' => 0.35,
                             'response_format' => [
                                 'type' => 'json_schema',
