@@ -16,8 +16,25 @@ class GmailService
 
     public function __construct()
     {
+        $dir = storage_path('app/google');
+        if (! file_exists($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
         $credentialsPath = storage_path('app/google/credentials.json');
         $tokenPath = storage_path('app/google/tokens.json');
+
+        if (env('GOOGLE_CREDENTIALS_JSON') && ! file_exists($credentialsPath)) {
+            @file_put_contents($credentialsPath, env('GOOGLE_CREDENTIALS_JSON'));
+        } elseif (env('GOOGLE_CREDENTIALS_BASE64') && ! file_exists($credentialsPath)) {
+            @file_put_contents($credentialsPath, base64_decode(env('GOOGLE_CREDENTIALS_BASE64')));
+        }
+
+        if (env('GOOGLE_TOKENS_JSON') && ! file_exists($tokenPath)) {
+            @file_put_contents($tokenPath, env('GOOGLE_TOKENS_JSON'));
+        } elseif (env('GOOGLE_TOKENS_BASE64') && ! file_exists($tokenPath)) {
+            @file_put_contents($tokenPath, base64_decode(env('GOOGLE_TOKENS_BASE64')));
+        }
 
         if (! file_exists($credentialsPath) || ! file_exists($tokenPath)) {
             // Google OAuth token files not available, will use Laravel Mail (SMTP) fallback
