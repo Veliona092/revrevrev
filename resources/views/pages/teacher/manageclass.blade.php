@@ -2014,6 +2014,80 @@
 
 
 <script>
+window.safeOpenDialog = function(dialogId) {
+    const d = document.getElementById(dialogId);
+    if (!d) return;
+    try {
+        if (d.open) {
+            d.close();
+        }
+    } catch (e) {}
+    try {
+        if (typeof d.showModal === 'function') {
+            d.showModal();
+        } else {
+            d.setAttribute('open', '');
+        }
+    } catch (e) {
+        d.setAttribute('open', '');
+    }
+};
+
+window.safeCloseDialog = function(dialogId) {
+    const d = document.getElementById(dialogId);
+    if (!d) return;
+    try {
+        if (typeof d.close === 'function') {
+            d.close();
+        }
+    } catch (e) {}
+    d.removeAttribute('open');
+};
+
+window.openCreateDialog = function() {
+    window.safeOpenDialog('dialogCreate');
+};
+
+window.closeCreateDialog = function() {
+    window.safeCloseDialog('dialogCreate');
+};
+
+let deleteModeActive = false;
+window.toggleDeleteMode = function() {
+    deleteModeActive = !deleteModeActive;
+    const toggleBtn = document.getElementById('deleteModeToggle');
+    const deleteActions = document.querySelectorAll('.class-delete-action');
+
+    if (deleteModeActive) {
+        if (toggleBtn) {
+            toggleBtn.classList.add('active');
+            toggleBtn.innerHTML = '<i class="fas fa-times"></i> Cancel Delete';
+        }
+        deleteActions.forEach(el => el.style.display = 'block');
+    } else {
+        if (toggleBtn) {
+            toggleBtn.classList.remove('active');
+            toggleBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Delete Classes';
+        }
+        deleteActions.forEach(el => el.style.display = 'none');
+    }
+};
+
+let currentDeleteForm = null;
+window.openDeleteClassConfirm = function(btn) {
+    currentDeleteForm = btn.closest('.delete-class-form');
+    const className = currentDeleteForm ? currentDeleteForm.dataset.className : '';
+    const msg = document.getElementById('deleteClassConfirmMessage');
+    if (msg) msg.textContent = 'Delete class "' + className + '"? This cannot be undone.';
+    const overlay = document.getElementById('deleteClassConfirmOverlay');
+    if (overlay) overlay.setAttribute('aria-hidden', 'false');
+};
+
+window.closeDeleteClassConfirm = function() {
+    const overlay = document.getElementById('deleteClassConfirmOverlay');
+    if (overlay) overlay.setAttribute('aria-hidden', 'true');
+    currentDeleteForm = null;
+};
 
 let currentClassId = null;
 
@@ -3407,141 +3481,56 @@ function generateJoinLink() {
     })
 
     .finally(() => {
-
         genBtn.classList.remove('generating');
-
         genBtn.disabled = false;
-
     });
-
 }
 
-
-
-// Toggle delete mode for classes
-let deleteModeActive = false;
-function toggleDeleteMode() {
-    deleteModeActive = !deleteModeActive;
-    const toggleBtn = document.getElementById('deleteModeToggle');
-    const deleteActions = document.querySelectorAll('.class-delete-action');
-
-    if (deleteModeActive) {
-        toggleBtn.classList.add('active');
-        toggleBtn.innerHTML = '<i class="fas fa-times"></i> Cancel Delete';
-        deleteActions.forEach(el => el.style.display = 'block');
-    } else {
-        toggleBtn.classList.remove('active');
-        toggleBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Delete Classes';
-        deleteActions.forEach(el => el.style.display = 'none');
-    }
-}
-
-// Delete class confirmation modal
-let currentDeleteForm = null;
-
-function openDeleteClassConfirm(btn) {
-    currentDeleteForm = btn.closest('.delete-class-form');
-    const className = currentDeleteForm.dataset.className;
-    document.getElementById('deleteClassConfirmMessage').textContent = 'Delete class "' + className + '"? This cannot be undone.';
-    document.getElementById('deleteClassConfirmOverlay').setAttribute('aria-hidden', 'false');
-}
-
-function closeDeleteClassConfirm() {
-    document.getElementById('deleteClassConfirmOverlay').setAttribute('aria-hidden', 'true');
-    currentDeleteForm = null;
-}
-
-document.getElementById('deleteClassConfirmProceedBtn').addEventListener('click', function() {
-    if (currentDeleteForm) {
-        currentDeleteForm.submit();
-    }
-});
-
-function copyJoinLink() {
-
+window.copyJoinLink = function() {
     const input = document.getElementById('joinLinkInput');
-
     const btn = document.getElementById('joinLinkCopyBtn');
-
-
-
-    if (!input.value) return;
-
-
+    if (!input || !input.value) return;
 
     input.select();
-
     input.setSelectionRange(0, 99999);
 
-
-
     navigator.clipboard.writeText(input.value).then(() => {
-
-        btn.classList.add('copied');
-
-        btn.innerHTML = '<i class="fas fa-check"></i>';
-
-        setTimeout(() => {
-            btn.classList.remove('copied');
-            btn.innerHTML = '<i class="fas fa-copy"></i>';
-        }, 2000);
+        if (btn) {
+            btn.classList.add('copied');
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+                btn.classList.remove('copied');
+                btn.innerHTML = '<i class="fas fa-copy"></i>';
+            }, 2000);
+        }
     });
-}
-
-function safeOpenDialog(dialogId) {
-    const d = document.getElementById(dialogId);
-    if (!d) return;
-    try {
-        if (d.open) {
-            d.close();
-        }
-        if (typeof d.showModal === 'function') {
-            d.showModal();
-        } else {
-            d.setAttribute('open', '');
-        }
-    } catch (e) {
-        d.setAttribute('open', '');
-    }
-}
-
-function safeCloseDialog(dialogId) {
-    const d = document.getElementById(dialogId);
-    if (!d) return;
-    try {
-        if (typeof d.close === 'function') {
-            d.close();
-        }
-    } catch (e) {}
-    d.removeAttribute('open');
-}
-
-function openCreateDialog() {
-    safeOpenDialog('dialogCreate');
-}
-
-function closeCreateDialog() {
-    safeCloseDialog('dialogCreate');
-}
+};
 
 document.addEventListener('DOMContentLoaded', function () {
+    const proceedBtn = document.getElementById('deleteClassConfirmProceedBtn');
+    if (proceedBtn) {
+        proceedBtn.addEventListener('click', function() {
+            if (currentDeleteForm) {
+                currentDeleteForm.submit();
+            }
+        });
+    }
+
     document.querySelectorAll('dialog.rv-dialog').forEach(d => {
         d.addEventListener('click', function (e) {
             const rect = d.getBoundingClientRect();
             const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height
                 && rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
             if (!isInDialog || e.target === d) {
-                safeCloseDialog(d.id);
+                window.safeCloseDialog(d.id);
             }
         });
     });
-});
 
-@if ($errors->any())
-document.addEventListener('DOMContentLoaded', function () {
-    safeOpenDialog('dialogCreate');
+    @if ($errors->any())
+    window.safeOpenDialog('dialogCreate');
+    @endif
 });
-@endif
 </script>
 
 @endsection
