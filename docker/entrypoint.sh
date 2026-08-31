@@ -1,13 +1,10 @@
 #!/bin/sh
 set -e
 
-PORT_NUM="${PORT:-8080}"
-echo "Configuring Nginx for port ${PORT_NUM} and 80..."
-
-if [ "$PORT_NUM" != "80" ]; then
-    sed -i "s/__PORT__/${PORT_NUM};\n        listen 80/g" /etc/nginx/nginx.conf
-else
-    sed -i "s/__PORT__/${PORT_NUM}/g" /etc/nginx/nginx.conf
+# If a custom dynamic PORT is provided by Railway (and not 8080/80/3000), update config
+if [ -n "$PORT" ] && [ "$PORT" != "8080" ] && [ "$PORT" != "80" ] && [ "$PORT" != "3000" ]; then
+    echo "Updating Nginx for custom Railway PORT ${PORT}..."
+    sed -i "s/listen 8080 default_server;/listen ${PORT} default_server;/g" /etc/nginx/nginx.conf
 fi
 
 # Ensure Nginx runtime and log directories exist
@@ -39,6 +36,10 @@ fi
 php artisan config:cache || true
 php artisan route:cache || true
 php artisan view:cache || true
+
+# Validate Nginx configuration
+echo "Testing Nginx configuration..."
+nginx -t
 
 echo "Starting Supervisor (Nginx + PHP-FPM)..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
