@@ -1,4 +1,4 @@
-﻿@extends($layout)
+@extends($layout)
 
 @section('title', 'Assessments')
 
@@ -309,7 +309,7 @@
 
                                 <div class="as-row-action">
                                     @if($attempt !== null && $attempt->status !== 'in_progress')
-                                        <a href="{{ route('assessment.results', $assessment) }}" class="as-btn-pill outline">View</a>
+                                        <a href="{{ route('assessment.results', $assessment) }}" class="as-btn-pill outline"><i class="fas fa-clipboard-check"></i> Review</a>
                                     @endif
 
                                     @if($isOverdue)

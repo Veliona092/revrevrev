@@ -735,12 +735,19 @@ class QuizController extends Controller
     {
         $rawTime = $request->input('time_limit', null);
         $minutes = is_numeric($rawTime) ? (int) $rawTime : 0;
+        $rawAttempts = $request->input('max_attempts', 1);
+        $maxAttempts = is_numeric($rawAttempts) ? max(1, (int) $rawAttempts) : 1;
+        $rawPassingGrade = $request->input('passing_grade', null);
+        $passingGrade = is_numeric($rawPassingGrade) ? (int) $rawPassingGrade : 50;
 
         $module = Module::create([
             'class_id' => $class->id,
             'title' => $request->title,
             'description' => $request->description,
             'time_limit' => $minutes,
+            'passing_grade' => $passingGrade,
+            'max_attempts' => $maxAttempts,
+            'due_date' => $request->input('due_date'),
             'is_quiz' => true,
             'is_formal_assessment' => (bool) $request->is_formal_assessment,
             'assessment_purpose' => $request->input('assessment_purpose'),
