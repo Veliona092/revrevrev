@@ -1857,7 +1857,6 @@ window.closeCreateDialog = function() {
 
 
         </div>
-    </div>
 </div>
 
 <div id="dialogLectureContent" class="rv-drawer">
