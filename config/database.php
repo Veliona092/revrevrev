@@ -44,25 +44,30 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
-        'mysql' => [
-            'driver' => 'mysql',
-            'url' => env('DB_URL') ?: env('DATABASE_URL') ?: env('MYSQL_URL') ?: null,
-            'host' => env('DB_HOST') ?: env('MYSQLHOST') ?: env('MYSQL_HOST') ?: 'mysql.railway.internal',
-            'port' => env('DB_PORT') ?: env('MYSQLPORT') ?: env('MYSQL_PORT') ?: '3306',
-            'database' => env('DB_DATABASE') ?: env('MYSQLDATABASE') ?: env('MYSQL_DATABASE') ?: 'railway',
-            'username' => env('DB_USERNAME') ?: env('MYSQLUSER') ?: env('MYSQL_USER') ?: 'root',
-            'password' => env('DB_PASSWORD') ?: env('MYSQLPASSWORD') ?: env('MYSQL_ROOT_PASSWORD') ?: env('MYSQL_PASSWORD') ?: env('DATABASE_PASSWORD') ?: '',
-            'unix_socket' => env('DB_SOCKET', ''),
-            'charset' => env('DB_CHARSET', 'utf8mb4'),
-            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'strict' => true,
-            'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
-        ],
+        'mysql' => (function () {
+            $dbUrl = env('DB_URL') ?: env('DATABASE_URL') ?: env('MYSQL_URL');
+            $dbUrlParts = $dbUrl ? parse_url($dbUrl) : [];
+
+            return [
+                'driver' => 'mysql',
+                'url' => null,
+                'host' => env('DB_HOST') ?: env('MYSQLHOST') ?: env('MYSQL_HOST') ?: ($dbUrlParts['host'] ?? null) ?: 'mysql.railway.internal',
+                'port' => env('DB_PORT') ?: env('MYSQLPORT') ?: env('MYSQL_PORT') ?: ($dbUrlParts['port'] ?? null) ?: '3306',
+                'database' => env('DB_DATABASE') ?: env('MYSQLDATABASE') ?: env('MYSQL_DATABASE') ?: (isset($dbUrlParts['path']) ? ltrim($dbUrlParts['path'], '/') : null) ?: 'railway',
+                'username' => env('DB_USERNAME') ?: env('MYSQLUSER') ?: env('MYSQL_USER') ?: ($dbUrlParts['user'] ?? null) ?: 'root',
+                'password' => env('DB_PASSWORD') ?: env('MYSQLPASSWORD') ?: env('MYSQL_ROOT_PASSWORD') ?: env('MYSQL_PASSWORD') ?: env('DATABASE_PASSWORD') ?: ($dbUrlParts['pass'] ?? null) ?: '',
+                'unix_socket' => env('DB_SOCKET', ''),
+                'charset' => env('DB_CHARSET', 'utf8mb4'),
+                'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+                'prefix' => '',
+                'prefix_indexes' => true,
+                'strict' => true,
+                'engine' => null,
+                'options' => extension_loaded('pdo_mysql') ? array_filter([
+                    (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+                ]) : [],
+            ];
+        })(),
 
         'mariadb' => [
             'driver' => 'mariadb',
