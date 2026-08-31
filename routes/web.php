@@ -410,6 +410,7 @@ Route::get('/email/verify/{token}', function (Request $request, $token) {
         'password' => $signup->password,
         'role' => $signup->role ?? 'student',
         'program' => $signup->program ?? null,
+        'program_locked' => ! empty($signup->program),
         'status' => 'active',
         'email_verified_at' => now(),
     ]);
