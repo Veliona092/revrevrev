@@ -13,9 +13,66 @@ class TeacherDemoSeeder extends Seeder
      */
     public function run(): void
     {
-        $password = Hash::make('teacher123');
+        $teacherPassword = Hash::make('teacher123');
+        $studentPassword = Hash::make('student123');
+        $adminPassword = Hash::make('admin123');
 
-        $teachers = [
+        $users = [
+            // ── Admin Accounts ──
+            [
+                'idnumber' => '23-0001',
+                'name' => 'System Admin',
+                'email' => 'admin@reviso.com',
+                'program' => null,
+                'role' => 'admin',
+                'status' => 'approved',
+                'password' => $adminPassword,
+                'email_verified_at' => now(),
+            ],
+            [
+                'idnumber' => 'ADMIN-001',
+                'name' => 'Administrator One',
+                'email' => 'admin1@reviso.com',
+                'program' => null,
+                'role' => 'admin',
+                'status' => 'approved',
+                'password' => $adminPassword,
+                'email_verified_at' => now(),
+            ],
+
+            // ── Student Accounts (Accountancy, Psychology, Education) ──
+            [
+                'idnumber' => '23-0101',
+                'name' => 'Juan Dela Cruz (Accountancy)',
+                'email' => 'student.acc@reviso.com',
+                'program' => 'accountancy',
+                'role' => 'student',
+                'status' => 'approved',
+                'password' => $studentPassword,
+                'email_verified_at' => now(),
+            ],
+            [
+                'idnumber' => '23-0102',
+                'name' => 'Maria Santos (Psychology)',
+                'email' => 'student.psych@reviso.com',
+                'program' => 'psych',
+                'role' => 'student',
+                'status' => 'approved',
+                'password' => $studentPassword,
+                'email_verified_at' => now(),
+            ],
+            [
+                'idnumber' => '23-0103',
+                'name' => 'Mark Reyes (Education)',
+                'email' => 'student.educ@reviso.com',
+                'program' => 'educ',
+                'role' => 'student',
+                'status' => 'approved',
+                'password' => $studentPassword,
+                'email_verified_at' => now(),
+            ],
+
+            // ── Teacher Accounts ──
             [
                 'idnumber' => '23-0801',
                 'name' => 'Prof. Elena Ramos (Psychology)',
@@ -23,6 +80,7 @@ class TeacherDemoSeeder extends Seeder
                 'program' => 'psych',
                 'role' => 'teacher',
                 'status' => 'approved',
+                'password' => $teacherPassword,
                 'email_verified_at' => now(),
             ],
             [
@@ -32,6 +90,7 @@ class TeacherDemoSeeder extends Seeder
                 'program' => 'educ',
                 'role' => 'teacher',
                 'status' => 'approved',
+                'password' => $teacherPassword,
                 'email_verified_at' => now(),
             ],
             [
@@ -41,21 +100,22 @@ class TeacherDemoSeeder extends Seeder
                 'program' => 'accountancy',
                 'role' => 'teacher',
                 'status' => 'approved',
+                'password' => $teacherPassword,
                 'email_verified_at' => now(),
             ],
         ];
 
-        foreach ($teachers as $teacher) {
+        foreach ($users as $userData) {
             User::updateOrCreate(
-                ['idnumber' => $teacher['idnumber']],
+                ['idnumber' => $userData['idnumber']],
                 [
-                    'name' => $teacher['name'],
-                    'email' => $teacher['email'],
-                    'password' => $password,
-                    'role' => $teacher['role'],
-                    'program' => $teacher['program'],
-                    'status' => $teacher['status'],
-                    'email_verified_at' => $teacher['email_verified_at'],
+                    'name' => $userData['name'],
+                    'email' => $userData['email'],
+                    'password' => $userData['password'],
+                    'role' => $userData['role'],
+                    'program' => $userData['program'],
+                    'status' => $userData['status'],
+                    'email_verified_at' => $userData['email_verified_at'],
                 ]
             );
         }
