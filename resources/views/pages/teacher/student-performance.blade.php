@@ -206,24 +206,41 @@
     .sp-ai-footer { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #f0f0f0; }
 
     .sp-refresh-btn {
-        height: 38px; padding: 0 16px; background: transparent;
-        border: 1px solid #e4e4e4; border-radius: 10px;
-        font-family: 'DM Sans', sans-serif; font-size: 17px; color: #888;
-        cursor: pointer; transition: border-color 0.15s, color 0.15s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 32px;
+        padding: 0 12px;
+        background: #fff;
+        border: 1px solid #e4e4e4;
+        border-radius: 8px;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 13px;
+        font-weight: 500;
+        color: #555;
+        white-space: nowrap;
+        line-height: 1;
+        cursor: pointer;
+        transition: border-color 0.15s, color 0.15s, background 0.15s;
+        text-decoration: none;
+        box-sizing: border-box;
     }
 
     .sp-analysis-btn {
-        height: 36px;
-        padding: 0 14px;
-        font-size: 17px;
+        height: 30px;
+        padding: 0 10px;
+        font-size: 12px;
+        gap: 5px;
+        white-space: nowrap;
     }
 
     .sp-analysis-btn i {
-        font-size: 17px;
-        margin-right: 4px;
+        font-size: 12px;
+        margin-right: 0;
+        flex-shrink: 0;
     }
 
-    .sp-refresh-btn:hover { border-color: #111; color: #111; }
+    .sp-refresh-btn:hover { border-color: #111; color: #111; background: #f8fafc; }
 
     .sp-empty { font-size: 19px; color: #bbb; text-align: center; padding: 2.25rem 0; }
 
@@ -746,15 +763,15 @@
                                         {{ number_format($aAvg, 1) }}%
                                     </span>
                                 </td>
-                                <td style="text-align:right">
-                                    <div style="display:inline-flex;gap:6px;">
+                                <td style="text-align:right;white-space:nowrap;">
+                                    <div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">
                                         <button class="sp-refresh-btn sp-analysis-btn" type="button"
                                                 onclick="openItemAnalysis({{ $aStudent->id }}, '{{ addslashes($aStudent->name) }}', true)">
                                             <i class="fas fa-chart-bar"></i> Latest
                                         </button>
                                         <a href="{{ route('student.assessment.analysis', [$class, $aStudent->id]) }}"
                                            class="sp-refresh-btn sp-analysis-btn"
-                                           style="display:inline-flex;align-items:center;text-decoration:none;">
+                                           style="text-decoration:none;">
                                             <i class="fas fa-robot"></i> AI Analysis
                                         </a>
                                     </div>
@@ -1424,15 +1441,15 @@ function renderAssessmentTopStudents(items, remainingCount) {
                 <td style="text-align:right">
                     <span class="sp-score-pill ${pillClass}">${avg.toFixed(1)}%</span>
                 </td>
-                <td style="text-align:right">
-                    <div style="display:inline-flex;gap:6px;">
+                <td style="text-align:right;white-space:nowrap;">
+                    <div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">
                         <button class="sp-refresh-btn sp-analysis-btn" type="button"
                             onclick="openItemAnalysis(${studentId}, '${safeName}', true)">
                             <i class="fas fa-chart-bar"></i> Latest
                         </button>
-                                <a href="${assessmentAnalysisRouteTemplate.replace('__CLASS__', currentClassId).replace('__STUDENT__', studentId)}"
+                        <a href="${assessmentAnalysisRouteTemplate.replace('__CLASS__', currentClassId).replace('__STUDENT__', studentId)}"
                            class="sp-refresh-btn sp-analysis-btn"
-                           style="display:inline-flex;align-items:center;text-decoration:none;">
+                           style="text-decoration:none;">
                             <i class="fas fa-robot"></i> AI Analysis
                         </a>
                     </div>

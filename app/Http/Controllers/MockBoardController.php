@@ -541,14 +541,31 @@ class MockBoardController extends Controller
             }
         }
 
-        return DB::transaction(function () use ($validated, $classId, $program) {
+        $programMap = [
+            'psych' => 'psychology',
+            'psychology' => 'psychology',
+            'educ' => 'education',
+            'education' => 'education',
+            'accountancy' => 'accountancy',
+            'acc' => 'accountancy',
+            'bsa' => 'accountancy',
+            'nursing' => 'nursing',
+            'bsn' => 'nursing',
+            'crim' => 'criminology',
+            'criminology' => 'criminology',
+            'bscrim' => 'criminology',
+        ];
+        $rawProgram = strtolower(trim($program ?? ''));
+        $normProgram = $programMap[$rawProgram] ?? $rawProgram;
+
+        return DB::transaction(function () use ($validated, $classId, $normProgram) {
 
             $mockBoard = MockBoard::create([
                 'class_id' => $classId,
                 'teacher_id' => auth()->id(),
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
-                'program' => strtolower(trim($program)), // Naka-lowercase para laging consistent sa matching
+                'program' => $normProgram,
                 'review_period_start' => $validated['review_period_start'],
                 'review_period_end' => $validated['review_period_end'],
                 'passing_percentage' => $validated['passing_percentage'],
