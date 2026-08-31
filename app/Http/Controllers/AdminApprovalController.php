@@ -7,6 +7,7 @@ use App\Services\GmailService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 
 class AdminApprovalController extends Controller
 {
@@ -135,19 +136,44 @@ class AdminApprovalController extends Controller
             abort(403);
         }
 
-        $validated = $request->validate([
-            'user_ids' => 'required|array',
+        $validator = Validator::make($request->all(), [
+            'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:users,id',
             'roles' => 'required|array',
             'roles.*' => 'required|in:student,teacher,admin',
             'programs' => 'array',
             'programs.*' => 'nullable|in:educ,accountancy,psych',
+        ], [
+            'user_ids.required' => 'Please select at least one user to approve.',
+            'roles.required' => 'Please assign a role for each selected user.',
+            'roles.*.required' => 'Please select a role for all checked users before approving.',
+            'roles.*.in' => 'One or more assigned roles are invalid.',
+            'programs.*.in' => 'One or more assigned programs are invalid.',
         ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors([
+                'error' => $validator->errors()->first(),
+            ]);
+        }
+
+        $validated = $validator->validated();
 
         /** @var Collection<int, User> $users */
         $users = User::whereIn('id', $validated['user_ids'])
             ->where('status', 'pending')
             ->get();
+
+        foreach ($users as $user) {
+            $role = $validated['roles'][$user->id] ?? null;
+            $requestedProgram = $validated['programs'][$user->id] ?? null;
+
+            if (in_array($role, ['student', 'teacher'], true) && empty($requestedProgram)) {
+                return redirect()->back()->withErrors([
+                    'error' => "Please select a program for {$user->name} ({$user->idnumber}) before approving.",
+                ]);
+            }
+        }
 
         $approvedCount = 0;
         $skippedCount = 0;
