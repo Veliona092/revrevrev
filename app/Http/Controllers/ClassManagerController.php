@@ -1772,17 +1772,25 @@ POWERSHELL;
     public function generateQuizAi(Request $request, Module $module, AiSettingsResolver $settingsResolver)
     {
         try {
+            $user = Auth::user();
+            if (! $user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized: Please log in again.',
+                ], 401);
+            }
+
             $class = $module->class;
 
             if ($class) {
-                if ($class->created_by !== Auth::id() && Auth::user()->role !== 'admin') {
+                if ((int) $class->created_by !== (int) $user->id && $user->role !== 'admin') {
                     return response()->json([
                         'success' => false,
                         'message' => 'Unauthorized: You do not have permission for this class.',
                     ], 403);
                 }
             } else {
-                if (Auth::user()->role !== 'admin' && (int) $module->created_by !== (int) Auth::id()) {
+                if ($user->role !== 'admin' && (int) $module->created_by !== (int) $user->id) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Unauthorized: You do not have permission for this Mock Board.',
@@ -1926,6 +1934,10 @@ POWERSHELL;
                     $rawText = file_get_contents($fullPath) ?: '';
                     $cleanedText = $this->cleanExtractedPdfText($rawText);
                     $text = $this->truncateAtSentenceBoundary($cleanedText, 25000);
+                } elseif (in_array($ext, ['docx', 'doc'])) {
+                    $rawText = $this->extractDocxText($fullPath);
+                    $cleanedText = $this->cleanExtractedPdfText($rawText);
+                    $text = $this->truncateAtSentenceBoundary($cleanedText, 25000);
                 } else {
                     try {
                         $parser = new Parser;
@@ -1933,7 +1945,7 @@ POWERSHELL;
                         $rawText = $pdf->getText();
                         $cleanedText = $this->cleanExtractedPdfText($rawText);
                         $text = $this->truncateAtSentenceBoundary($cleanedText, 25000);
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
                         Log::warning('Document parse failed for file '.$file->getClientOriginalName().' - '.$e->getMessage());
                         @unlink($fullPath);
 
@@ -2476,6 +2488,29 @@ POWERSHELL;
         $lastSpace = mb_strrpos($substring, ' ');
 
         return $lastSpace !== false ? mb_substr($substring, 0, $lastSpace) : $substring;
+    }
+
+    /**
+     * Helper to extract plain text from DOCX files
+     */
+    private function extractDocxText(string $filePath): string
+    {
+        if (! class_exists('\ZipArchive')) {
+            return '';
+        }
+
+        $zip = new \ZipArchive;
+        if ($zip->open($filePath) === true) {
+            $xml = $zip->getFromName('word/document.xml');
+            $zip->close();
+            if ($xml) {
+                $xml = preg_replace('/<w:p[ >]/', "\n", $xml);
+
+                return strip_tags($xml);
+            }
+        }
+
+        return '';
     }
 
     /**
