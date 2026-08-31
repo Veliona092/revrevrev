@@ -40,6 +40,8 @@ COUNT=0
 while [ $COUNT -lt $MAX_TRIES ]; do
     if php artisan migrate --force --no-interaction; then
         echo "Database migration completed successfully."
+        # Seed teacher demo accounts
+        php artisan db:seed --class=TeacherDemoSeeder --force || true
         break
     else
         COUNT=$((COUNT + 1))
