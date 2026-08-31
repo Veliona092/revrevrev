@@ -6,23 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Models\MockBoard;
 use App\Models\MockBoardAttempt;
 use App\Models\QuizAttempt;
-use Illuminate\Http\Request;
 use App\Services\MockBoardStatisticsService;
+use Illuminate\Http\Request;
 
 class StudentMockBoardController extends Controller
 {
     // This part is the "bridge" that fixes the error
     public function __construct(
         private MockBoardStatisticsService $statisticsService
-    ) {
-    }
+    ) {}
 
     public function index()
     {
         $user = auth()->user();
-        
+
         $availableBoards = MockBoard::where('program', $user->program)
-            ->with(['attempts' => function($query) use ($user) {
+            ->with(['attempts' => function ($query) use ($user) {
                 $query->where('user_id', $user->id);
             }])
             ->orderBy('created_at', 'desc')
@@ -50,15 +49,15 @@ class StudentMockBoardController extends Controller
             'mockBoard' => $mockBoard,
             'phase' => $phase,
             'questions' => $questions,
-            'timeLimit' => 60 
+            'timeLimit' => 60,
         ]);
     }
 
     public function store(Request $request, MockBoard $mockBoard, string $phase)
     {
         $user = auth()->user();
-        $answers = $request->input('answers'); 
-        
+        $answers = $request->input('answers');
+
         $questions = $mockBoard->questions;
         $totalQuestions = $questions->count();
         $correctCount = 0;
@@ -89,9 +88,10 @@ class StudentMockBoardController extends Controller
         return response()->json([
             'success' => true,
             'redirect' => route('student.mock-boards.index'),
-            'message' => 'Exam submitted successfully!'
+            'message' => 'Exam submitted successfully!',
         ]);
     }
+
     public function results(MockBoard $mockBoard)
     {
         $user = auth()->user();
@@ -128,8 +128,9 @@ class StudentMockBoardController extends Controller
                 ? $mockBoard->phases->firstWhere('phase_type', $phaseType)
                 : null;
 
-            if (!$phaseModel || !$phaseModel->module_id) {
+            if (! $phaseModel || ! $phaseModel->module_id) {
                 $history[$phaseType] = [];
+
                 continue;
             }
 
@@ -144,3 +145,18 @@ class StudentMockBoardController extends Controller
             $history[$phaseType] = $quizAttempts->values()->map(function ($qa, $idx) {
                 return [
                     'attempt_number' => $idx + 1,
+                    'score' => $qa->score,
+                    'total_questions' => $qa->total_questions,
+                    'percentage' => $qa->percentage,
+                    'completed_at' => $qa->completed_at,
+                ];
+            });
+        }
+
+        return view('pages.student.mock-boards.results', [
+            'mockBoard' => $mockBoard,
+            'attempts' => $attempts,
+            'history' => $history,
+        ]);
+    }
+}

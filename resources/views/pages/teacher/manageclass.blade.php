@@ -1402,19 +1402,18 @@ window.setVisibility = function(btn, form) {
         <button type="button" class="rv-drawer-close" onclick="closeCreateDialog()">&#x2715;</button>
     </div>
 
-    <div class="rv-drawer-body">
-        @if ($errors->any())
-            <div style="background: #fee2e2; border: 1px solid #f87171; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; color: #991b1b; font-size: 14px;">
-                <ul style="margin: 0; padding-left: 20px;">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
-        <form method="POST" action="{{ route('classes.store') }}" id="createClassForm">
-            @csrf
+    <form method="POST" action="{{ route('classes.store') }}" id="createClassForm" style="display: flex; flex-direction: column; flex: 1; min-height: 0; margin: 0;">
+        @csrf
+        <div class="rv-drawer-body">
+            @if ($errors->any())
+                <div style="background: #fee2e2; border: 1px solid #f87171; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; color: #991b1b; font-size: 14px;">
+                    <ul style="margin: 0; padding-left: 20px;">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
 
             <div class="rv-form-group" style="margin-bottom: 16px;">
                 <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Class Name <span style="color:#e24b4a">*</span></label>
@@ -1447,15 +1446,15 @@ window.setVisibility = function(btn, form) {
                 <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Description (optional)</label>
                 <textarea name="description" class="rv-textarea" placeholder="Brief description of the class..." style="width: 100%;">{{ old('description') }}</textarea>
             </div>
-        </form>
-    </div>
+        </div>
 
-    <div class="rv-drawer-footer">
-        <button type="button" class="rv-btn rv-btn-secondary" onclick="closeCreateDialog()" style="min-width: 90px;">Cancel</button>
-        <button type="submit" form="createClassForm" class="rv-btn rv-btn-primary" style="min-width: 140px; display: inline-flex; align-items: center; gap: 8px; justify-content: center;">
-            <i class="fas fa-plus"></i> Create Class
-        </button>
-    </div>
+        <div class="rv-drawer-footer">
+            <button type="button" class="rv-btn rv-btn-secondary" onclick="closeCreateDialog()" style="min-width: 90px;">Cancel</button>
+            <button type="submit" class="rv-btn rv-btn-primary" style="min-width: 140px; display: inline-flex; align-items: center; gap: 8px; justify-content: center;">
+                <i class="fas fa-plus"></i> Create Class
+            </button>
+        </div>
+    </form>
 </div>
 
 {{-- ─────────────────────────────────────────────────────────────────────────
