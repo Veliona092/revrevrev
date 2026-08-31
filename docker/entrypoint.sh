@@ -5,7 +5,7 @@ PORT_NUM="${PORT:-8080}"
 echo "Configuring Nginx for port ${PORT_NUM}..."
 sed -i "s/__PORT__/${PORT_NUM}/g" /etc/nginx/nginx.conf
 
-# Ensure Nginx run directories exist
+# Ensure Nginx runtime and log directories exist
 mkdir -p /run/nginx /var/log/nginx /var/lib/nginx/tmp /var/lib/nginx/logs
 chown -R www-data:www-data /run/nginx /var/log/nginx /var/lib/nginx
 
@@ -20,20 +20,20 @@ php artisan storage:link || true
 
 # Generate APP_KEY if not set
 if [ -z "$APP_KEY" ]; then
-    echo "Generating new application key..."
+    echo "Generating application encryption key..."
     php artisan key:generate --force || true
 fi
 
 # Run database migrations
 if [ -n "$DB_HOST" ] || [ -n "$MYSQLHOST" ]; then
     echo "Running database migrations..."
-    php artisan migrate --force || echo "Database migration failed or database not reachable yet."
+    php artisan migrate --force || echo "Database migration skipped or connection pending."
 fi
 
-# Cache configuration, routes, and views
+# Cache config, routes, views
 php artisan config:cache || true
 php artisan route:cache || true
 php artisan view:cache || true
 
-echo "Ready! Starting Nginx and PHP-FPM on port ${PORT_NUM}..."
+echo "Starting Supervisor (Nginx + PHP-FPM)..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
