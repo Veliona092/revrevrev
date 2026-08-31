@@ -297,7 +297,17 @@ Route::post('/signup', function (Request $request) {
         'idnumber' => ['required', 'string', 'max:50', 'unique:users,idnumber', 'unique:signups,idnumber'],
         'name' => ['required', 'string', 'max:150'],
         'password' => ['required', 'string', 'min:8', 'confirmed'],
+        'role' => ['required', 'in:student,teacher,admin'],
+        'program' => ['nullable', 'string', 'in:accountancy,educ,psych,teacher'],
     ]);
+
+    $role = $validated['role'];
+    $program = null;
+    if ($role === 'student') {
+        $program = $validated['program'] ?? 'accountancy';
+    } elseif ($role === 'teacher') {
+        $program = 'teacher';
+    }
 
     $token = Str::random(60);
 
@@ -306,6 +316,8 @@ Route::post('/signup', function (Request $request) {
         'email' => $validated['email'],
         'idnumber' => $validated['idnumber'],
         'password' => Hash::make($validated['password']),
+        'role' => $role,
+        'program' => $program,
         'verification_token' => $token,
     ]);
 
@@ -397,7 +409,8 @@ Route::get('/email/verify/{token}', function (Request $request, $token) {
         'idnumber' => $signup->idnumber,
         'password' => $signup->password,
         'role' => $signup->role ?? 'student',
-        'status' => 'pending',
+        'program' => $signup->program ?? null,
+        'status' => 'active',
         'email_verified_at' => now(),
     ]);
 
@@ -407,7 +420,7 @@ Route::get('/email/verify/{token}', function (Request $request, $token) {
     ]);
 
     return redirect()->route('login')
-        ->with('status', 'Email verified successfully! You can now log in.');
+        ->with('status', 'Email verified and account activated successfully! You can now log in.');
 })->name('verification.verify');
 
 // ── Gmail OAuth ──

@@ -12,6 +12,7 @@ class Signup extends Model
         'idnumber',
         'password',
         'role',
+        'program',
         'verification_token',
         'verified_at',
     ];

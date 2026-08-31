@@ -298,6 +298,50 @@
         @enderror
     </div>
 
+    <!-- Role Selection (Testing Mode) -->
+    <div class="form-group">
+        <label class="form-control-label" for="role">Role (Testing Mode)</label>
+        <div class="input-group input-group-alternative mb-3">
+            <div class="input-group-prepend">
+                <span class="input-group-text">
+                    <i class="ni ni-badge"></i>
+                </span>
+            </div>
+            <select id="role" name="role" class="form-control" required onchange="toggleProgramField(this.value)">
+                <option value="student" {{ old('role', 'student') === 'student' ? 'selected' : '' }}>Student</option>
+                <option value="teacher" {{ old('role') === 'teacher' ? 'selected' : '' }}>Teacher</option>
+                <option value="admin" {{ old('role') === 'admin' ? 'selected' : '' }}>Admin</option>
+            </select>
+        </div>
+        @error('role')
+            <span class="invalid-feedback d-block" role="alert">
+                <strong>{{ $message }}</strong>
+            </span>
+        @enderror
+    </div>
+
+    <!-- Program Selection (Active for Student) -->
+    <div class="form-group" id="programGroup" style="{{ old('role', 'student') === 'student' ? '' : 'display:none;' }}">
+        <label class="form-control-label" for="program">Program</label>
+        <div class="input-group input-group-alternative mb-3">
+            <div class="input-group-prepend">
+                <span class="input-group-text">
+                    <i class="ni ni-hat-3"></i>
+                </span>
+            </div>
+            <select id="program" name="program" class="form-control">
+                <option value="accountancy" {{ old('program', 'accountancy') === 'accountancy' ? 'selected' : '' }}>BS Accountancy</option>
+                <option value="educ" {{ old('program') === 'educ' ? 'selected' : '' }}>BS Education</option>
+                <option value="psych" {{ old('program') === 'psych' ? 'selected' : '' }}>BS Psychology</option>
+            </select>
+        </div>
+        @error('program')
+            <span class="invalid-feedback d-block" role="alert">
+                <strong>{{ $message }}</strong>
+            </span>
+        @enderror
+    </div>
+
     <div class="form-group">
         <label class="form-control-label" for="password">Password</label>
         <div class="input-group input-group-alternative mb-3">
@@ -372,5 +416,18 @@
     <script src="{{ asset('assets/js/plugins/jquery/dist/jquery.min.js') }}"></script>
     <script src="{{ asset('assets/js/plugins/bootstrap/dist/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('assets/js/argon-dashboard.min.js?v=1.1.2') }}"></script>
+    <script>
+        function toggleProgramField(role) {
+            const programGroup = document.getElementById('programGroup');
+            const programSelect = document.getElementById('program');
+            if (role === 'student') {
+                programGroup.style.display = 'block';
+                programSelect.required = true;
+            } else {
+                programGroup.style.display = 'none';
+                programSelect.required = false;
+            }
+        }
+    </script>
 </body>
 </html>
