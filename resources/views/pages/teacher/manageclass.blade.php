@@ -811,117 +811,70 @@
 
 
     .mc-confirm-overlay {
-
         position: fixed;
-
         inset: 0;
-
         background: rgba(0, 0, 0, 0.42);
-
         display: none;
-
         align-items: center;
-
         justify-content: center;
-
         z-index: 12000;
-
         padding: 16px;
-
+        pointer-events: none;
     }
 
-
-
-    .mc-confirm-overlay.show { display: flex; }
-
-
+    .mc-confirm-overlay.show,
+    .mc-confirm-overlay[aria-hidden="false"] {
+        display: flex !important;
+        pointer-events: auto !important;
+    }
 
     .mc-confirm-modal {
-
         width: min(420px, 96vw);
-
         background: #fff;
-
         border: 1px solid #ececec;
-
         border-radius: 12px;
-
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
-
         padding: 14px;
-
+        pointer-events: auto;
     }
-
-
 
     .mc-confirm-title {
-
         margin: 0 0 8px;
-
         font-size: 16px;
-
         font-weight: 500;
-
         color: #111;
-
     }
-
-
 
     .mc-confirm-text {
-
         margin: 0;
-
         font-size: 16px;
-
         color: #555;
-
         line-height: 1.45;
-
     }
-
-
 
     .mc-confirm-actions {
-
         margin-top: 12px;
-
         display: flex;
-
         justify-content: flex-end;
-
         gap: 8px;
-
     }
-
-
 
     .ann-edit-overlay {
-
         position: fixed;
-
         inset: 0;
-
         background: rgba(0, 0, 0, 0.38);
-
         display: none;
-
         align-items: center;
-
         justify-content: center;
-
         z-index: 12000;
-
         padding: 16px;
-
+        pointer-events: none;
     }
 
-
-
-    .ann-edit-overlay.show {
-
-        display: flex;
-
+    .ann-edit-overlay.show,
+    .ann-edit-overlay[aria-hidden="false"] {
+        display: flex !important;
+        pointer-events: auto !important;
     }
 
 
@@ -1204,11 +1157,13 @@
         z-index: 10000;
         opacity: 0;
         transition: opacity 0.2s ease;
+        pointer-events: none;
     }
 
     .delete-confirm-overlay[aria-hidden="false"] {
-        display: flex;
+        display: flex !important;
         opacity: 1;
+        pointer-events: auto !important;
     }
 
     .delete-confirm-modal {
@@ -1221,6 +1176,7 @@
         text-align: center;
         transform: scale(0.95);
         transition: transform 0.2s ease;
+        pointer-events: auto;
     }
 
     .delete-confirm-overlay[aria-hidden="false"] .delete-confirm-modal {
@@ -1286,7 +1242,16 @@
 
 
     /* ── Native dialog panels ── */
-    dialog.rv-dialog {
+    dialog.rv-dialog:not([open]) {
+        display: none !important;
+        pointer-events: none !important;
+        visibility: hidden !important;
+    }
+
+    dialog.rv-dialog[open] {
+        display: block !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
         padding: 0;
         border: none;
         border-radius: 0;

@@ -210,8 +210,9 @@
             display: none; position: fixed; inset: 0;
             background: rgba(0,0,0,0.35); z-index: 199;
             backdrop-filter: blur(2px);
+            pointer-events: none;
         }
-        .rv-overlay.open { display: block; }
+        .rv-overlay.open { display: block; pointer-events: auto; }
 
         .rv-drawer {
             position: fixed; top: 0; right: 0; bottom: 0;
