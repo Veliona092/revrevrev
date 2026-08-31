@@ -134,10 +134,19 @@ Route::post('/login', function (Request $request) use ($resolveUserDashboardPath
         'password' => ['required', 'string'],
     ]);
 
-    $credentials = $request->only('idnumber', 'password');
+    $loginInput = trim($request->input('idnumber'));
+    $password = $request->input('password');
 
-    if (Auth::attempt($credentials)) {
-        $user = Auth::user();
+    // Find user by idnumber (case-insensitive) or email
+    $user = User::where(function ($q) use ($loginInput) {
+        $q->where('idnumber', $loginInput)
+            ->orWhere('email', $loginInput)
+            ->orWhereRaw('LOWER(idnumber) = ?', [strtolower($loginInput)])
+            ->orWhereRaw('LOWER(email) = ?', [strtolower($loginInput)]);
+    })->first();
+
+    if ($user && Hash::check($password, $user->password)) {
+        Auth::login($user, $request->boolean('remember'));
 
         // ── Status checks ──
         if ($user->status === 'pending') {
