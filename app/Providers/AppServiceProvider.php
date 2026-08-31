@@ -24,6 +24,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if (config('app.env') === 'production' || str_starts_with((string) config('app.url'), 'https://')) {
+            URL::forceScheme('https');
+        }
+
         Gate::define('view-batch-analytics', function ($user): bool {
             return in_array($user->role, ['teacher', 'admin', 'superadmin'], true);
         });
