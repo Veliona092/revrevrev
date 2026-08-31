@@ -10,9 +10,9 @@ class CloudflareAI
 {
     public function run(string $model, array $payload): array
     {
-        $accountId = config('services.cloudflare.account_id');
-        $token = config('services.cloudflare.token');
-        $gateway = config('services.cloudflare.gateway');
+        $accountId = trim((string) config('services.cloudflare.account_id'), "\" \t\n\r\0\x0B'");
+        $token = trim((string) config('services.cloudflare.token'), "\" \t\n\r\0\x0B'");
+        $gateway = trim((string) config('services.cloudflare.gateway'), "\" \t\n\r\0\x0B'");
 
         if (empty($accountId) || empty($token)) {
             throw new RuntimeException(
