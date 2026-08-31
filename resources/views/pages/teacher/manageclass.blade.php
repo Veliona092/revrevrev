@@ -121,7 +121,25 @@ window.copyJoinLink = function() {
         window.doCopyJoinLink();
     }
 };
+
+window.setVisibility = function(btn, form) {
+    if (typeof window.doSetVisibility === 'function') {
+        window.doSetVisibility(btn, form);
+    } else {
+        btn.closest('.vis-toggle').querySelectorAll('.vis-opt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const label = btn.textContent.trim();
+        const map = { 'All Students': 'all', 'Selected Students': 'selected', 'Except Students': 'except' };
+        const val = map[label] || 'all';
+        const input = document.getElementById('visInput_' + form);
+        if (input) input.value = val;
+        const picker = document.getElementById('visPicker_' + form);
+        if (picker) picker.style.display = (val === 'all') ? 'none' : 'block';
+    }
+};
 </script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 @endsection
 
 
@@ -2002,11 +2020,6 @@ window.copyJoinLink = function() {
 
 
 @section('scripts')
-
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
 <script>
 let currentClassId = null;
 
@@ -2853,7 +2866,7 @@ $('#announcementForm').on('submit', function (e) {
 
 
 // ── Visibility helpers ──
-window.setVisibility = function(btn, form) {
+window.doSetVisibility = window.setVisibility = function(btn, form) {
     btn.closest('.vis-toggle').querySelectorAll('.vis-opt').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
 
