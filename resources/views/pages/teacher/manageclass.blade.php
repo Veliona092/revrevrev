@@ -1377,22 +1377,32 @@
         </div>
 
         <div class="rv-drawer-body">
+            @if ($errors->any())
+                <div style="background: #fee2e2; border: 1px solid #f87171; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; color: #991b1b; font-size: 14px;">
+                    <ul style="margin: 0; padding-left: 20px;">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <form method="POST" action="{{ route('classes.store') }}" id="createClassForm">
                 @csrf
 
                 <div class="rv-form-group" style="margin-bottom: 16px;">
                     <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Class Name <span style="color:#e24b4a">*</span></label>
-                    <input type="text" name="name" class="rv-input" required placeholder="e.g. Grade 10 - Section A" style="width: 100%;">
+                    <input type="text" name="name" class="rv-input" required placeholder="e.g. Grade 10 - Section A" value="{{ old('name') }}" style="width: 100%;">
                 </div>
 
                 <div class="rv-form-group" style="margin-bottom: 16px;">
                     <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Code (optional)</label>
-                    <input type="text" name="code" class="rv-input" placeholder="e.g. 10A-2026" style="width: 100%;">
+                    <input type="text" name="code" class="rv-input" placeholder="e.g. 10A-2026" value="{{ old('code') }}" style="width: 100%;">
                 </div>
 
                 <div class="rv-form-group" style="margin-bottom: 16px;">
                     <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">School Year</label>
-                    <input type="number" name="school_year" class="rv-input" placeholder="2026" style="width: 100%;">
+                    <input type="text" name="school_year" class="rv-input" placeholder="e.g. 2026" value="{{ old('school_year', date('Y')) }}" style="width: 100%;">
                 </div>
 
                 <!-- IDINAGDAG NA YEAR LEVEL -->
@@ -1400,16 +1410,16 @@
                     <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Year Level (optional)</label>
                     <select name="year_level" class="rv-input" style="width: 100%;">
                         <option value="">Select Year Level</option>
-                        <option value="1">1st Year</option>
-                        <option value="2">2nd Year</option>
-                        <option value="3">3rd Year</option>
-                        <option value="4">4th Year</option>
+                        <option value="1" {{ old('year_level') == '1' ? 'selected' : '' }}>1st Year</option>
+                        <option value="2" {{ old('year_level') == '2' ? 'selected' : '' }}>2nd Year</option>
+                        <option value="3" {{ old('year_level') == '3' ? 'selected' : '' }}>3rd Year</option>
+                        <option value="4" {{ old('year_level') == '4' ? 'selected' : '' }}>4th Year</option>
                     </select>
                 </div>
 
                 <div class="rv-form-group" style="margin-bottom: 16px;">
                     <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Description (optional)</label>
-                    <textarea name="description" class="rv-textarea" placeholder="Brief description of the class..." style="width: 100%;"></textarea>
+                    <textarea name="description" class="rv-textarea" placeholder="Brief description of the class..." style="width: 100%;">{{ old('description') }}</textarea>
                 </div>
             </form>
         </div>
@@ -3590,6 +3600,12 @@ function closeCreateDialog() {
         }
     }
 }
+
+@if ($errors->any())
+document.addEventListener('DOMContentLoaded', function () {
+    openCreateDialog();
+});
+@endif
 </script>
 
 @endsection

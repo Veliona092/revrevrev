@@ -25,6 +25,7 @@ class ClassModel extends Model
      */
     protected $fillable = [
         'name',
+        'program',
         'code',
         'school_year',
         "year_level",

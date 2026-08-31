@@ -649,18 +649,27 @@ class ClassManagerController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100',
-            'code' => 'nullable|string|max:20|unique:classes,code',
-            'school_year' => 'nullable|integer|digits:4|min:2000|max:2100',
+            'code' => 'nullable|string|max:50|unique:classes,code',
+            'school_year' => 'nullable',
             'year_level' => 'nullable|integer|min:1|max:4',
             'description' => 'nullable|string|max:500',
         ]);
 
+        $schoolYearInput = $request->input('school_year');
+        $cleanSchoolYear = null;
+        if (! empty($schoolYearInput)) {
+            if (preg_match('/\b(19\d\d|20\d\d)\b/', (string) $schoolYearInput, $matches)) {
+                $cleanSchoolYear = (int) $matches[1];
+            }
+        }
+
         ClassModel::create([
             'name' => $validated['name'],
             'code' => $validated['code'] ?? null,
-            'school_year' => $validated['school_year'] ?? null,
+            'school_year' => $cleanSchoolYear,
             'year_level' => $validated['year_level'] ?? null,
             'description' => $validated['description'] ?? null,
+            'program' => Auth::user()?->program ?? null,
             'created_by' => Auth::id(),
         ]);
 
