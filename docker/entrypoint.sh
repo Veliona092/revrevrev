@@ -11,16 +11,20 @@ fi
 mkdir -p /run/nginx /var/log/nginx /var/lib/nginx/tmp /var/lib/nginx/logs
 chown -R www-data:www-data /run/nginx /var/log/nginx /var/lib/nginx
 
-# Ensure Laravel storage directory permissions
-mkdir -p /var/www/html/storage/framework/cache /var/www/html/storage/framework/sessions /var/www/html/storage/framework/views /var/www/html/storage/logs
+# Ensure all Laravel storage directories exist with full 777 permissions
+mkdir -p /var/www/html/storage/framework/cache/data \
+         /var/www/html/storage/framework/sessions \
+         /var/www/html/storage/framework/views \
+         /var/www/html/storage/logs \
+         /var/www/html/bootstrap/cache
+
 touch /var/www/html/storage/logs/laravel.log
-chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Write .env file from environment variables so Artisan and PHP-FPM always have access
 touch /var/www/html/.env
 env > /var/www/html/.env
-chmod 644 /var/www/html/.env
+chmod 666 /var/www/html/.env
 
 # Create storage symlink
 php artisan storage:link || true

@@ -44,9 +44,9 @@ COPY . .
 # Install PHP dependencies without dev packages
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Set correct storage and cache permissions
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# Set full permissions on storage and bootstrap cache
+RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+    && chmod -R 777 storage bootstrap/cache
 
 # Copy server configs
 COPY docker/nginx.conf /etc/nginx/nginx.conf
