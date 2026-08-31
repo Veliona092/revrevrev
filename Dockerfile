@@ -43,7 +43,8 @@ WORKDIR /var/www/html
 COPY . .
 
 # Generate optimized autoloader from vendored dependencies (zero network required)
-RUN if [ -d "vendor" ]; then \
+RUN rm -rf bootstrap/cache/*.php \
+    && if [ -d "vendor" ]; then \
         composer dump-autoload --optimize --no-dev --no-interaction; \
     else \
         composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress; \
