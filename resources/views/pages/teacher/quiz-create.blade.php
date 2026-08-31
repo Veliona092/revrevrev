@@ -275,7 +275,7 @@
         </div>
     </div>
 
-    @if($isAssessment)
+    @if(!($isMockBoard ?? false))
     <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; background:#fafafa; border:1px solid #ebebeb; border-radius:10px; margin-bottom:20px;">
         <label style="font-size:16px; font-weight:500; color:#666; white-space:nowrap;">Max Attempts (base):</label>
         <input type="number" id="maxAttemptsInput" min="1" max="20" value="{{ $module->max_attempts ?? 1 }}" class="rv-input" style="width:80px;">

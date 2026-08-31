@@ -1738,6 +1738,10 @@ window.openModulesDrawer = function(classId, className) {
                         <input type="number" name="passing_grade" class="rv-input" min="1" max="100" placeholder="50" style="width:50%;">
                     </div>
                     <div class="rv-form-group">
+                        <label class="rv-label">Max Attempts (base)</label>
+                        <input type="number" name="max_attempts" class="rv-input" min="1" max="20" value="1" style="width:50%;">
+                    </div>
+                    <div class="rv-form-group">
                         <label class="rv-label">Due Date (optional)</label>
                         <input type="datetime-local" name="due_date" class="rv-input" style="width:60%;">
                     </div>
@@ -1838,6 +1842,10 @@ window.openModulesDrawer = function(classId, className) {
                     <div class="rv-form-group">
                         <label class="rv-label">Passing Grade (%, leave blank for default 50%)</label>
                         <input type="number" name="passing_grade" class="rv-input" min="1" max="100" placeholder="50" style="width:50%;">
+                    </div>
+                    <div class="rv-form-group">
+                        <label class="rv-label">Max Attempts (base)</label>
+                        <input type="number" name="max_attempts" class="rv-input" min="1" max="20" value="1" style="width:50%;">
                     </div>
                     <div class="rv-form-group">
                         <label class="rv-label">Due Date (optional)</label>
