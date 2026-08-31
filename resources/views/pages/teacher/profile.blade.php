@@ -1,4 +1,4 @@
-﻿@php
+@php
     $profileTrack = auth()->user()?->role === 'student'
         ? (auth()->user()?->program ?? 'accountancy')
         : auth()->user()?->role;
@@ -135,7 +135,10 @@
     <div class="pf-info-row">
         <div class="pf-info-card">
             <p class="pf-info-label">ID Number</p>
-            <p class="pf-info-value">{{ $user->idnumber }}</p>
+            <p class="pf-info-value" style="display:flex;align-items:center;gap:6px;">
+                {{ $user->idnumber }}
+                <i class="fas fa-lock" style="font-size:13px;color:#94a3b8;" title="Locked ID Number"></i>
+            </p>
         </div>
         <div class="pf-info-card">
             <p class="pf-info-label">Email</p>
@@ -153,7 +156,7 @@
         <div class="pf-card-head">
             <p class="pf-card-title">Program / Course</p>
             <p class="pf-card-sub">
-                @if($user->program_locked)
+                @if($user->program_locked || !empty($user->program))
                     Your program is locked. Contact an admin if you need to change it.
                 @else
                     Set your program once - it cannot be changed after saving without admin approval.
@@ -161,7 +164,7 @@
             </p>
         </div>
 
-        @if($user->program_locked)
+        @if($user->program_locked || !empty($user->program))
             <div class="pf-card-body">
                 <div class="pf-program-badge">
                     <i class="fas fa-graduation-cap" style="color:#2563eb;font-size: 16px;"></i>
