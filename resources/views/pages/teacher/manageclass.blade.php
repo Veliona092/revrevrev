@@ -1288,7 +1288,13 @@
 
 
     /* ── Native dialog panels ── */
-    dialog.rv-dialog {
+    dialog.rv-dialog:not([open]) {
+        display: none !important;
+        pointer-events: none !important;
+    }
+
+    dialog.rv-dialog[open] {
+        display: block !important;
         padding: 0;
         border: none;
         border-radius: 0;
@@ -1304,6 +1310,7 @@
         right: 0;
         top: 0;
         bottom: 0;
+        z-index: 9999;
     }
 
     dialog.rv-dialog::backdrop {
