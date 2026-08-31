@@ -208,27 +208,39 @@
 
         /* ── Drawer ── */
         .rv-overlay {
-            display: none; position: fixed; inset: 0;
-            background: rgba(0,0,0,0.35); z-index: 999;
+            display: none;
+            position: fixed !important;
+            inset: 0 !important;
+            background: rgba(0, 0, 0, 0.45) !important;
+            z-index: 99998 !important;
             backdrop-filter: blur(2px);
-            pointer-events: none;
+            pointer-events: none !important;
         }
-        .rv-overlay.open { display: block !important; pointer-events: auto !important; }
+        .rv-overlay.open {
+            display: block !important;
+            pointer-events: auto !important;
+        }
 
         .rv-drawer {
-            position: fixed; top: 0; right: 0; bottom: 0;
-            width: 500px; max-width: 95vw;
-            background: #FAF7F2; z-index: 1000;
-            display: flex; flex-direction: column;
-            transform: translateX(100%);
-            transition: transform 0.28s cubic-bezier(0.4,0,0.2,1), visibility 0.28s;
-            box-shadow: -8px 0 40px rgba(0,0,0,0.12);
-            visibility: hidden;
-            pointer-events: none;
+            position: fixed !important;
+            top: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 480px !important;
+            max-width: 95vw !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            background: #FAF7F2 !important;
+            z-index: 99999 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            transform: translateX(110%) !important;
+            transition: transform 0.25s cubic-bezier(0.4,0,0.2,1) !important;
+            box-shadow: -8px 0 36px rgba(0,0,0,0.18) !important;
+            pointer-events: none !important;
         }
         .rv-drawer.open {
             transform: translateX(0) !important;
-            visibility: visible !important;
             pointer-events: auto !important;
         }
 
