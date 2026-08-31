@@ -740,6 +740,8 @@ class QuizController extends Controller
         $rawPassingGrade = $request->input('passing_grade', null);
         $passingGrade = is_numeric($rawPassingGrade) ? (int) $rawPassingGrade : 50;
 
+        $stage = $request->input('quiz_stage');
+
         $module = Module::create([
             'class_id' => $class->id,
             'title' => $request->title,
@@ -750,7 +752,8 @@ class QuizController extends Controller
             'due_date' => $request->input('due_date'),
             'is_quiz' => true,
             'is_formal_assessment' => (bool) $request->is_formal_assessment,
-            'assessment_purpose' => $request->input('assessment_purpose'),
+            'quiz_stage' => $stage,
+            'assessment_purpose' => $request->input('assessment_purpose', $stage),
             'visibility' => $request->input('visibility', 'all'),
             'created_by' => Auth::id(),
         ]);

@@ -1638,7 +1638,29 @@ POWERSHELL;
         }
 
         $modules = $class->modules()
-            ->orderBy('title')
+            ->orderByRaw("
+                CASE 
+                    WHEN quiz_stage = 'pre_test' 
+                         OR assessment_purpose IN ('pre_test', 'pre_assessment') 
+                         OR LOWER(title) LIKE '%pre-test%' 
+                         OR LOWER(title) LIKE '%pre-assessment%' 
+                         OR LOWER(title) LIKE '%pre test%' 
+                         OR LOWER(title) LIKE '%pre assessment%' 
+                         OR (is_quiz = 1 AND (is_formal_assessment = 0 OR is_formal_assessment IS NULL) AND quiz_stage != 'post_test') THEN 0
+                    WHEN is_lecture = 1 OR is_quiz = 0 OR file_path IS NOT NULL THEN 1
+                    WHEN is_formal_assessment = 1 AND (quiz_stage IS NULL OR quiz_stage NOT IN ('pre_test', 'post_test')) THEN 2
+                    WHEN quiz_stage = 'post_test' 
+                         OR assessment_purpose IN ('post_test', 'post_assessment') 
+                         OR LOWER(title) LIKE '%post-test%' 
+                         OR LOWER(title) LIKE '%post-assessment%' 
+                         OR LOWER(title) LIKE '%post test%' 
+                         OR LOWER(title) LIKE '%post assessment%' 
+                         OR LOWER(title) LIKE '%final assessment%' THEN 3
+                    ELSE 2
+                END
+            ")
+            ->orderBy('order')
+            ->orderBy('id')
             ->get()
             ->map(function ($module) {
                 return [
@@ -1649,6 +1671,8 @@ POWERSHELL;
                     'is_quiz' => (bool) $module->is_quiz,
                     'is_lecture' => (bool) $module->is_lecture,
                     'is_formal_assessment' => (bool) $module->is_formal_assessment,
+                    'quiz_stage' => $module->quiz_stage,
+                    'assessment_purpose' => $module->assessment_purpose,
                     'edit_url' => $module->is_quiz ? route('quiz.create', $module) : null,
                     'file_path' => $module->file_path ? asset('storage/'.$module->file_path) : null,
                     'file_type' => $module->file_type,

@@ -104,14 +104,18 @@ window.openModulesDrawer = function(classId, className) {
     if (aId) aId.value = classId;
     var aForm = document.getElementById('assessmentDraftForm');
     if (aForm) aForm.action = "{{ url('/quiz/create-draft') }}/" + classId;
+    var ptId = document.getElementById('postTestClassId');
+    if (ptId) ptId.value = classId;
+    var ptForm = document.getElementById('postTestDraftForm');
+    if (ptForm) ptForm.action = "{{ url('/quiz/create-draft') }}/" + classId;
     var annForm = document.getElementById('announcementForm');
     if (annForm) annForm.action = "{{ url('/classes') }}/" + classId + "/announcements";
 
     if (typeof switchTab === 'function') {
-        switchTab('tabUpload', document.querySelector('.rv-tab'));
+        switchTab('tabPreTest', document.querySelector('.rv-tab'));
     }
     if (typeof resetVisibilityPicker === 'function') {
-        ['doc','quiz','assessment'].forEach(resetVisibilityPicker);
+        ['doc','quiz','assessment','posttest'].forEach(resetVisibilityPicker);
     }
     var d = document.getElementById('dialogModules');
     if (d) {
@@ -1586,154 +1590,38 @@ window.openModulesDrawer = function(classId, className) {
             {{-- Tabs --}}
 
             <div class="rv-tabs">
-
-                <button class="rv-tab active" onclick="switchTab('tabUpload', this)">Upload Document</button>
-
-                <button class="rv-tab" onclick="switchTab('tabQuiz', this)">Pre-Assessment</button>
-
+                <button class="rv-tab active" onclick="switchTab('tabPreTest', this)">Pre-Test</button>
+                <button class="rv-tab" onclick="switchTab('tabUpload', this)">Domain / Documents</button>
                 <button class="rv-tab" onclick="switchTab('tabAssessment', this)">Formal Assessment</button>
-
-                <button class="rv-tab" onclick="switchTab('tabAnnouncements', this)">Announcements</button>
-
+                <button class="rv-tab" onclick="switchTab('tabPostTest', this)">Post-Test</button>
             </div>
 
 
 
-            {{-- Upload tab --}}
-
-            <div class="rv-tab-panel active" id="tabUpload">
-
-                <form id="moduleUploadForm" enctype="multipart/form-data">
-
-                    @csrf
-
-                    <input type="hidden" name="class_id" id="moduleClassId">
-
-                    <input type="hidden" name="type" value="document">
-
-                    <div class="rv-form-group">
-
-                        <label class="rv-label">Module Title <span style="color:#e24b4a">*</span></label>
-
-                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Module 1: Introduction">
-
-                    </div>
-
-                    <div class="rv-form-group">
-
-                        <label class="rv-label">Description (optional)</label>
-
-                        <textarea name="description" class="rv-textarea" placeholder="Brief overview..."></textarea>
-
-                    </div>
-
-                    <div class="rv-form-group">
-
-                        <label class="rv-label">File (PDF, PPT, DOCX - max 50MB)</label>
-
-                        <input type="file" name="file" class="rv-input" accept=".pdf,.ppt,.pptx,.doc,.docx,.mov" required style="padding:7px 12px;">
-
-                    </div>
-
-                    <div class="rv-form-group">
-
-                        <label class="rv-label">Who can see this?</label>
-
-                        <input type="hidden" name="visibility" id="visInput_doc" value="all">
-
-                        <div class="vis-toggle">
-
-                            <button type="button" class="vis-opt active" onclick="setVisibility(this,'doc')">All Students</button>
-
-                            <button type="button" class="vis-opt" onclick="setVisibility(this,'doc')">Selected Students</button>
-
-                            <button type="button" class="vis-opt" onclick="setVisibility(this,'doc')">Except Students</button>
-
-                        </div>
-
-                        <div class="vis-student-picker" id="visPicker_doc">
-
-                            <div class="vis-search-wrap">
-
-                                <input type="text" id="visSearch_doc" placeholder="Search students by name, ID, email..." autocomplete="off">
-
-                                <div class="vis-results" id="visResults_doc"></div>
-
-                            </div>
-
-                            <div class="vis-chips" id="visChips_doc"></div>
-
-                            <div class="vis-empty-hint" id="visHint_doc">Search and select students above.</div>
-
-                        </div>
-
-                    </div>
-
-                    <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;">
-
-                        <i class="fas fa-upload"></i> Upload Document
-
-                    </button>
-
-                </form>
-
-
-
-                <div style="margin-top:16px;">
-
-                    <label class="rv-label" style="margin-bottom:10px;">Documents:</label>
-
-                    <div id="documentsList">
-
-                        <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load.</p>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-
-            {{-- Pre-Assessment tab --}}
-
-            <div class="rv-tab-panel" id="tabQuiz">
-
+            {{-- 1. Pre-Test tab --}}
+            <div class="rv-tab-panel active" id="tabPreTest">
                 <form id="quizDraftForm" method="POST" action="{{ url('/quiz/create-draft/0') }}">
-
                     @csrf
-
                     <input type="hidden" name="class_id" id="quizClassId" value="0">
-
                     <input type="hidden" name="is_formal_assessment" value="0">
+                    <input type="hidden" name="quiz_stage" value="pre_test">
 
                     <div class="rv-form-group">
-
-                        <label class="rv-label">Quiz Title <span style="color:#e24b4a">*</span></label>
-
-                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Pre-Assessment 1: Basic Concepts">
-
+                        <label class="rv-label">Pre-Test Title <span style="color:#e24b4a">*</span></label>
+                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Pre-Test 1: Basic Concepts">
                     </div>
 
                     <div class="rv-form-group">
-
                         <label class="rv-label">Description (optional)</label>
-
-                        <textarea name="description" class="rv-textarea" placeholder="Brief overview..."></textarea>
-
+                        <textarea name="description" class="rv-textarea" placeholder="Brief overview of the pre-test..."></textarea>
                     </div>
 
                     <div class="rv-form-group">
-
                         <label class="rv-label">Time Limit (minutes, 0 = unlimited)</label>
-
                         <input type="number" name="time_limit" class="rv-input" min="0" value="0" style="width:50%;">
-
                     </div>
 
                     <div class="rv-form-group">
-
-                        
                         <label class="rv-label">Passing Grade (%, leave blank for default 50%)</label>
                         <input type="number" name="passing_grade" class="rv-input" min="1" max="100" placeholder="50" style="width:50%;">
                     </div>
@@ -1750,93 +1638,110 @@ window.openModulesDrawer = function(classId, className) {
                         <input type="hidden" name="visibility" id="visInput_quiz" value="all">
 
                         <div class="vis-toggle">
-
                             <button type="button" class="vis-opt active" onclick="setVisibility(this,'quiz')">All Students</button>
-
                             <button type="button" class="vis-opt" onclick="setVisibility(this,'quiz')">Selected Students</button>
-
                             <button type="button" class="vis-opt" onclick="setVisibility(this,'quiz')">Except Students</button>
-
                         </div>
 
                         <div class="vis-student-picker" id="visPicker_quiz">
-
                             <div class="vis-search-wrap">
-
                                 <input type="text" id="visSearch_quiz" placeholder="Search students by name, ID, email..." autocomplete="off">
-
                                 <div class="vis-results" id="visResults_quiz"></div>
-
                             </div>
-
                             <div class="vis-chips" id="visChips_quiz"></div>
-
                             <div class="vis-empty-hint" id="visHint_quiz">Search and select students above.</div>
-
                         </div>
-
                     </div>
 
                     <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;">
-
-                        <i class="fas fa-brain"></i> Start Pre-Assessment
-
+                        <i class="fas fa-brain"></i> Start Pre-Test Creation
                     </button>
-
                 </form>
 
-
-
                 <div style="margin-top:16px;">
-
-                    <label class="rv-label" style="margin-bottom:10px;">Pre-Assessments:</label>
-
-                    <div id="preAssessmentsList">
-
+                    <label class="rv-label" style="margin-bottom:10px;">Pre-Tests:</label>
+                    <div id="preTestList">
                         <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load.</p>
-
                     </div>
-
                 </div>
-
             </div>
 
-
-
-            {{-- Formal Assessment tab --}}
-
-            <div class="rv-tab-panel" id="tabAssessment">
-
-                <form id="assessmentDraftForm" method="POST" action="{{ url('/quiz/create-draft/0') }}">
-
+            {{-- 2. Domain / Documents tab --}}
+            <div class="rv-tab-panel" id="tabUpload">
+                <form id="moduleUploadForm" enctype="multipart/form-data">
                     @csrf
-
-                    <input type="hidden" name="class_id" id="assessmentClassId" value="0">
-
-                    <input type="hidden" name="is_formal_assessment" value="1">
+                    <input type="hidden" name="class_id" id="moduleClassId">
+                    <input type="hidden" name="type" value="document">
 
                     <div class="rv-form-group">
-
-                        <label class="rv-label">Assessment Title <span style="color:#e24b4a">*</span></label>
-
-                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Midterm Assessment">
-
+                        <label class="rv-label">Module / Domain Title <span style="color:#e24b4a">*</span></label>
+                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Module 1: Introduction">
                     </div>
 
                     <div class="rv-form-group">
-
                         <label class="rv-label">Description (optional)</label>
-
                         <textarea name="description" class="rv-textarea" placeholder="Brief overview..."></textarea>
-
                     </div>
 
                     <div class="rv-form-group">
+                        <label class="rv-label">File (PDF, PPT, DOCX - max 50MB)</label>
+                        <input type="file" name="file" class="rv-input" accept=".pdf,.ppt,.pptx,.doc,.docx,.mov" required style="padding:7px 12px;">
+                    </div>
 
+                    <div class="rv-form-group">
+                        <label class="rv-label">Who can see this?</label>
+                        <input type="hidden" name="visibility" id="visInput_doc" value="all">
+
+                        <div class="vis-toggle">
+                            <button type="button" class="vis-opt active" onclick="setVisibility(this,'doc')">All Students</button>
+                            <button type="button" class="vis-opt" onclick="setVisibility(this,'doc')">Selected Students</button>
+                            <button type="button" class="vis-opt" onclick="setVisibility(this,'doc')">Except Students</button>
+                        </div>
+
+                        <div class="vis-student-picker" id="visPicker_doc">
+                            <div class="vis-search-wrap">
+                                <input type="text" id="visSearch_doc" placeholder="Search students by name, ID, email..." autocomplete="off">
+                                <div class="vis-results" id="visResults_doc"></div>
+                            </div>
+                            <div class="vis-chips" id="visChips_doc"></div>
+                            <div class="vis-empty-hint" id="visHint_doc">Search and select students above.</div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;">
+                        <i class="fas fa-upload"></i> Upload Document / Domain
+                    </button>
+                </form>
+
+                <div style="margin-top:16px;">
+                    <label class="rv-label" style="margin-bottom:10px;">Domain / Documents:</label>
+                    <div id="documentsList">
+                        <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load.</p>
+                    </div>
+                </div>
+            </div>
+
+            {{-- 3. Formal Assessment tab --}}
+            <div class="rv-tab-panel" id="tabAssessment">
+                <form id="assessmentDraftForm" method="POST" action="{{ url('/quiz/create-draft/0') }}">
+                    @csrf
+                    <input type="hidden" name="class_id" id="assessmentClassId" value="0">
+                    <input type="hidden" name="is_formal_assessment" value="1">
+                    <input type="hidden" name="quiz_stage" value="">
+
+                    <div class="rv-form-group">
+                        <label class="rv-label">Assessment Title <span style="color:#e24b4a">*</span></label>
+                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Midterm Assessment">
+                    </div>
+
+                    <div class="rv-form-group">
+                        <label class="rv-label">Description (optional)</label>
+                        <textarea name="description" class="rv-textarea" placeholder="Brief overview..."></textarea>
+                    </div>
+
+                    <div class="rv-form-group">
                         <label class="rv-label">Time Limit (minutes, 0 = unlimited)</label>
-
                         <input type="number" name="time_limit" class="rv-input" min="0" value="0" style="width:50%;">
-
                     </div>
 
                     <div class="rv-form-group">
@@ -1856,61 +1761,108 @@ window.openModulesDrawer = function(classId, className) {
                         <input type="hidden" name="visibility" id="visInput_assessment" value="all">
 
                         <div class="vis-toggle">
-
                             <button type="button" class="vis-opt active" onclick="setVisibility(this,'assessment')">All Students</button>
-
                             <button type="button" class="vis-opt" onclick="setVisibility(this,'assessment')">Selected Students</button>
-
                             <button type="button" class="vis-opt" onclick="setVisibility(this,'assessment')">Except Students</button>
-
                         </div>
 
                         <div class="vis-student-picker" id="visPicker_assessment">
-
                             <div class="vis-search-wrap">
-
                                 <input type="text" id="visSearch_assessment" placeholder="Search students by name, ID, email..." autocomplete="off">
-
                                 <div class="vis-results" id="visResults_assessment"></div>
-
                             </div>
-
                             <div class="vis-chips" id="visChips_assessment"></div>
-
                             <div class="vis-empty-hint" id="visHint_assessment">Search and select students above.</div>
-
                         </div>
-
                     </div>
 
                     <p style="font-size: 16px;color:#aaa;margin-top:4px;">
-
                         <i class="fas fa-info-circle"></i> Formal assessments appear in the student Assessment tab.
-
                     </p>
 
                     <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;margin-top:8px;">
-
                         <i class="fas fa-clipboard-check"></i> Start Assessment Creation
-
                     </button>
-
                 </form>
 
-
-
                 <div style="margin-top:16px;">
-
                     <label class="rv-label" style="margin-bottom:10px;">Formal Assessments:</label>
-
                     <div id="formalAssessmentsList">
-
                         <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load.</p>
+                    </div>
+                </div>
+            </div>
 
+            {{-- 4. Post-Test tab --}}
+            <div class="rv-tab-panel" id="tabPostTest">
+                <form id="postTestDraftForm" method="POST" action="{{ url('/quiz/create-draft/0') }}">
+                    @csrf
+                    <input type="hidden" name="class_id" id="postTestClassId" value="0">
+                    <input type="hidden" name="is_formal_assessment" value="1">
+                    <input type="hidden" name="quiz_stage" value="post_test">
+
+                    <div class="rv-form-group">
+                        <label class="rv-label">Post-Test Title <span style="color:#e24b4a">*</span></label>
+                        <input type="text" name="title" class="rv-input" required placeholder="e.g. Post-Test: Final Module Evaluation">
                     </div>
 
-                </div>
+                    <div class="rv-form-group">
+                        <label class="rv-label">Description (optional)</label>
+                        <textarea name="description" class="rv-textarea" placeholder="Brief overview of the post-test..."></textarea>
+                    </div>
 
+                    <div class="rv-form-group">
+                        <label class="rv-label">Time Limit (minutes, 0 = unlimited)</label>
+                        <input type="number" name="time_limit" class="rv-input" min="0" value="0" style="width:50%;">
+                    </div>
+
+                    <div class="rv-form-group">
+                        <label class="rv-label">Passing Grade (%, leave blank for default 50%)</label>
+                        <input type="number" name="passing_grade" class="rv-input" min="1" max="100" placeholder="50" style="width:50%;">
+                    </div>
+                    <div class="rv-form-group">
+                        <label class="rv-label">Max Attempts (base)</label>
+                        <input type="number" name="max_attempts" class="rv-input" min="1" max="20" value="1" style="width:50%;">
+                    </div>
+                    <div class="rv-form-group">
+                        <label class="rv-label">Due Date (optional)</label>
+                        <input type="datetime-local" name="due_date" class="rv-input" style="width:60%;">
+                    </div>
+                    <div class="rv-form-group">
+                        <label class="rv-label">Who can see this?</label>
+                        <input type="hidden" name="visibility" id="visInput_posttest" value="all">
+
+                        <div class="vis-toggle">
+                            <button type="button" class="vis-opt active" onclick="setVisibility(this,'posttest')">All Students</button>
+                            <button type="button" class="vis-opt" onclick="setVisibility(this,'posttest')">Selected Students</button>
+                            <button type="button" class="vis-opt" onclick="setVisibility(this,'posttest')">Except Students</button>
+                        </div>
+
+                        <div class="vis-student-picker" id="visPicker_posttest">
+                            <div class="vis-search-wrap">
+                                <input type="text" id="visSearch_posttest" placeholder="Search students by name, ID, email..." autocomplete="off">
+                                <div class="vis-results" id="visResults_posttest"></div>
+                            </div>
+                            <div class="vis-chips" id="visChips_posttest"></div>
+                            <div class="vis-empty-hint" id="visHint_posttest">Search and select students above.</div>
+                        </div>
+                    </div>
+
+                    <p style="font-size: 16px;color:#aaa;margin-top:4px;">
+                        <i class="fas fa-flag-checkered"></i> Post-test is the final evaluation stage for this module.
+                    </p>
+
+                    <button type="submit" class="rv-btn rv-btn-primary" style="width:100%;margin-top:8px;">
+                        <i class="fas fa-flag-checkered"></i> Start Post-Test Creation
+                    </button>
+                </form>
+
+                <div style="margin-top:16px;">
+                    <label class="rv-label" style="margin-bottom:10px;">Post-Tests:</label>
+                    <div id="postTestList">
+                        <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Open this tab to load.</p>
+                    </div>
+                </div>
             </div>
 
 
@@ -2050,27 +2002,17 @@ let currentClassId = null;
 // -”€-”€ Tab switcher -”€-”€
 
 function switchTab(panelId, btn) {
-
     closeManageConfirm();
-
     document.querySelectorAll('.rv-tab-panel').forEach(p => p.classList.remove('active'));
-
     document.querySelectorAll('.rv-tab').forEach(b => b.classList.remove('active'));
-
     document.getElementById(panelId).classList.add('active');
-
     btn.classList.add('active');
 
-
-
+    if (panelId === 'tabPreTest' && currentClassId) loadModulesForTab(currentClassId, 'pre_test', 'preTestList');
     if (panelId === 'tabUpload' && currentClassId) loadModulesForTab(currentClassId, 'document', 'documentsList');
-
-    if (panelId === 'tabQuiz' && currentClassId) loadModulesForTab(currentClassId, 'pre_assessment', 'preAssessmentsList');
-
     if (panelId === 'tabAssessment' && currentClassId) loadModulesForTab(currentClassId, 'formal_assessment', 'formalAssessmentsList');
-
+    if (panelId === 'tabPostTest' && currentClassId) loadModulesForTab(currentClassId, 'post_test', 'postTestList');
     if (panelId === 'tabAnnouncements' && currentClassId) loadClassAnnouncements(currentClassId);
-
 }
 
 
@@ -2142,31 +2084,20 @@ function openStudentsDrawer(classId, className) {
 function openModulesDrawer(classId, className) {
 
     currentClassId = classId;
-
     document.getElementById('modulesDrawerSubtitle').textContent = className;
-
     document.getElementById('moduleClassId').value = classId;
-
     document.getElementById('quizClassId').value = classId;
-
     document.getElementById('quizDraftForm').action = "{{ url('/quiz/create-draft') }}/" + classId;
-
     document.getElementById('assessmentClassId').value = classId;
-
     document.getElementById('assessmentDraftForm').action = "{{ url('/quiz/create-draft') }}/" + classId;
-
+    document.getElementById('postTestClassId').value = classId;
+    document.getElementById('postTestDraftForm').action = "{{ url('/quiz/create-draft') }}/" + classId;
     document.getElementById('announcementForm').action = "{{ url('/classes') }}/" + classId + "/announcements";
 
-
-
-    // Reset to upload tab
-
-    switchTab('tabUpload', document.querySelector('.rv-tab'));
-
-    ['doc','quiz','assessment'].forEach(resetVisibilityPicker);
-
+    // Reset to pre-test tab
+    switchTab('tabPreTest', document.querySelector('.rv-tab'));
+    ['doc','quiz','assessment','posttest'].forEach(resetVisibilityPicker);
     document.getElementById('dialogModules').showModal();
-
 }
 
 
@@ -2314,35 +2245,30 @@ function removeStudent(triggerBtn, id) {
 // -”€-”€ Load modules by type (documents / pre-assessments / formal assessments) -”€-”€
 
 function loadModulesForTab(classId, type, containerId) {
-
     $('#' + containerId).html('<p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p>');
 
-
-
     $.get("{{ url('/classes') }}/" + classId + "/modules/list", function (data) {
-
         const all = data.modules || [];
 
         const filtered = all.filter(m => {
-            if (type === 'document')          return !m.is_quiz && m.type !== 'Quiz' && !m.is_formal_assessment;
-            if (type === 'pre_assessment')    return (m.is_quiz || m.type === 'Quiz') && !m.is_formal_assessment;
-            if (type === 'formal_assessment') return (m.is_quiz || m.type === 'Quiz') && m.is_formal_assessment;
+            const isPreTest = m.quiz_stage === 'pre_test' || (m.is_quiz && !m.is_formal_assessment && m.quiz_stage !== 'post_test');
+            const isPostTest = m.quiz_stage === 'post_test';
+            const isFormal = m.is_formal_assessment && m.quiz_stage !== 'post_test' && m.quiz_stage !== 'pre_test';
+            const isDoc = !m.is_quiz && m.type !== 'Quiz' && !m.is_formal_assessment;
+
+            if (type === 'pre_test' || type === 'pre_assessment') return isPreTest;
+            if (type === 'document') return isDoc;
+            if (type === 'formal_assessment') return isFormal;
+            if (type === 'post_test') return isPostTest;
             return false;
         });
 
-
-
         if (filtered.length === 0) {
-
             $('#' + containerId).html('<p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">None yet.</p>');
-
             return;
-
         }
 
-
-
-const html = filtered.map(m => `
+        const html = filtered.map(m => `
             <div class="rv-module-item">
                 <div style="flex:1;">
                     <div class="rv-module-title">${m.title}</div>
@@ -2350,37 +2276,21 @@ const html = filtered.map(m => `
                 </div>
 
                 <div style="display:flex;align-items:center;gap:6px;">
-
-                    ${(type === 'pre_assessment' || type === 'formal_assessment') && m.edit_url
-
+                    ${(type === 'pre_test' || type === 'pre_assessment' || type === 'formal_assessment' || type === 'post_test') && m.edit_url
                         ? `<a href="${m.edit_url}" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size: 16px;text-decoration:none;"><i class="fas fa-pen"></i></a>`
-
                         : ''}
-
                     ${m.file_path ? `<a href="${m.file_path}" target="_blank" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size: 16px;text-decoration:none;"><i class="fas fa-eye"></i></a>` : ''}
-
                     <button class="rv-btn rv-btn-danger" style="height:28px;padding:0 10px;font-size: 16px;" onclick="deleteModuleFromTab(${m.id}, '${type}', '${containerId}')">
-
                         <i class="fas fa-trash"></i>
-
                     </button>
-
                 </div>
-
             </div>
-
         `).join('');
 
-
-
         $('#' + containerId).html(html);
-
     }).fail(() => {
-
         $('#' + containerId).html('<p style="font-size: 16px;color:#e24b4a;text-align:center;">Failed to load.</p>');
-
     });
-
 }
 
 
@@ -2714,95 +2624,50 @@ $('#announcementForm').on('submit', function (e) {
 // -”€-”€ Visibility helpers -”€-”€
 
 const visDebounceTimers = {};
-
-const visSelectedStudents = { doc: {}, quiz: {}, assessment: {} };
-
-
+const visSelectedStudents = { doc: {}, quiz: {}, assessment: {}, posttest: {} };
 
 function setVisibility(btn, form) {
-
     btn.closest('.vis-toggle').querySelectorAll('.vis-opt').forEach(b => b.classList.remove('active'));
-
     btn.classList.add('active');
 
-
-
     const label = btn.textContent.trim();
-
     const map = { 'All Students': 'all', 'Selected Students': 'selected', 'Except Students': 'except' };
-
     const val = map[label] || 'all';
-
     document.getElementById('visInput_' + form).value = val;
 
-
-
     const picker = document.getElementById('visPicker_' + form);
-
     const hint = document.getElementById('visHint_' + form);
 
-
-
     if (val === 'all') {
-
         picker.style.display = 'none';
-
     } else {
-
         picker.style.display = 'block';
-
         hint.textContent = val === 'selected'
-
             ? 'Only these students will see this content.'
-
             : 'Everyone EXCEPT these students will see this content.';
-
     }
-
 }
 
-
-
 function resetVisibilityPicker(form) {
-
     visSelectedStudents[form] = {};
-
     const picker = document.getElementById('visPicker_' + form);
-
     if (picker) {
-
         picker.style.display = 'none';
-
         document.getElementById('visSearch_' + form).value = '';
-
         document.getElementById('visResults_' + form).innerHTML = '';
-
         document.getElementById('visResults_' + form).style.display = 'none';
-
         document.getElementById('visChips_' + form).innerHTML = '';
-
         document.getElementById('visHint_' + form).textContent = 'Search and select students above.';
-
     }
-
     document.getElementById('visInput_' + form).value = 'all';
 
-
-
-    const formKeyToTab = { doc: 'tabUpload', quiz: 'tabQuiz', assessment: 'tabAssessment' };
-
+    const formKeyToTab = { doc: 'tabUpload', quiz: 'tabPreTest', assessment: 'tabAssessment', posttest: 'tabPostTest' };
     const panel = document.getElementById(formKeyToTab[form]);
-
     if (panel) {
-
         panel.querySelectorAll('.vis-opt').forEach((b, i) => {
-
             b.classList.toggle('active', i === 0);
-
         });
-
     }
-
 }
 
 
@@ -2847,7 +2712,7 @@ function removeVisChip(btn, form, id) {
 
 
 
-['doc', 'quiz', 'assessment'].forEach(function (form) {
+['doc', 'quiz', 'assessment', 'posttest'].forEach(function (form) {
 
     const input = document.getElementById('visSearch_' + form);
 
@@ -3144,23 +3009,23 @@ $('#quizDraftForm').on('submit', function (e) {
 
 
 $('#assessmentDraftForm').on('submit', function (e) {
-
     const visibility = document.getElementById('visInput_assessment').value;
-
     if ((visibility === 'selected' || visibility === 'except') && Object.keys(visSelectedStudents['assessment']).length === 0) {
-
         e.preventDefault();
-
         showUploadValidationToast('Please select at least one student.');
-
         return;
-
     }
-
-
-
     injectVisHiddenInputs('assessment', this);
+});
 
+$('#postTestDraftForm').on('submit', function (e) {
+    const visibility = document.getElementById('visInput_posttest').value;
+    if ((visibility === 'selected' || visibility === 'except') && Object.keys(visSelectedStudents['posttest']).length === 0) {
+        e.preventDefault();
+        showUploadValidationToast('Please select at least one student.');
+        return;
+    }
+    injectVisHiddenInputs('posttest', this);
 });
 
 
