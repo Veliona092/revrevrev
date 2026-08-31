@@ -11,16 +11,23 @@
 window.safeOpenDialog = function(dialogId) {
     const el = document.getElementById(dialogId);
     if (!el) return;
+    document.querySelectorAll('.rv-drawer.open').forEach(d => {
+        if (d.id !== dialogId) d.classList.remove('open');
+    });
     el.classList.add('open');
     const overlay = document.getElementById('rvOverlay');
     if (overlay) overlay.classList.add('open');
 };
 
 window.safeCloseDialog = function(dialogId) {
-    const el = document.getElementById(dialogId);
-    if (!el) return;
-    el.classList.remove('open');
-    if (!document.querySelector('.rv-drawer.open')) {
+    if (dialogId) {
+        const el = document.getElementById(dialogId);
+        if (el) el.classList.remove('open');
+    } else {
+        document.querySelectorAll('.rv-drawer.open').forEach(d => d.classList.remove('open'));
+    }
+    const openDrawers = document.querySelectorAll('.rv-drawer.open');
+    if (openDrawers.length === 0) {
         const overlay = document.getElementById('rvOverlay');
         if (overlay) overlay.classList.remove('open');
     }
@@ -144,7 +151,7 @@ window.copyJoinLink = function() {
     }
 
 
-    /* -”€-”€ Stats row -”€-”€ */
+    /* -- Stats row -- */
 
     .mc-stats {
 
@@ -180,7 +187,7 @@ window.copyJoinLink = function() {
 
 
 
-    /* -”€-”€ Class cards grid -”€-”€ */
+    /* -- Class cards grid -- */
 
     .mc-grid {
 
@@ -308,7 +315,7 @@ window.copyJoinLink = function() {
 
 
 
-    /* -”€-”€ Empty state -”€-”€ */
+    /* -- Empty state -- */
 
     .mc-empty {
 
@@ -324,7 +331,7 @@ window.copyJoinLink = function() {
 
 
 
-    /* -”€-”€ Drawer tabs -”€-”€ */
+    /* -- Drawer tabs -- */
 
     .rv-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid #f0f0f0; margin-bottom: 20px; }
 
@@ -350,7 +357,7 @@ window.copyJoinLink = function() {
 
 
 
-    /* -”€-”€ Student list items -”€-”€ */
+    /* -- Student list items -- */
 
     .rv-student-item {
 
@@ -366,7 +373,7 @@ window.copyJoinLink = function() {
 
 
 
-    /* -”€-”€ Module list items -”€-”€ */
+    /* -- Module list items -- */
 
     .rv-module-item {
 
@@ -416,7 +423,7 @@ window.copyJoinLink = function() {
 
 
 
-    /* -”€-”€ Visibility picker -”€-”€ */
+    /* -- Visibility picker -- */
 
     .vis-toggle { display: flex; gap: 6px; margin-bottom: 10px; }
 
@@ -1127,7 +1134,7 @@ window.copyJoinLink = function() {
 
 
 
-{{-- -”€-”€ Stats row -”€-”€ --}}
+{{-- -- Stats row -- --}}
 
 <div class="mc-stats">
 
@@ -1151,7 +1158,7 @@ window.copyJoinLink = function() {
 
 
 
-{{-- -”€-”€ Class cards -”€-”€ --}}
+{{-- -- Class cards -- --}}
 
 <div class="mc-grid" id="classGrid">
 
@@ -2004,16 +2011,23 @@ window.copyJoinLink = function() {
 window.safeOpenDialog = function(dialogId) {
     const el = document.getElementById(dialogId);
     if (!el) return;
+    document.querySelectorAll('.rv-drawer.open').forEach(d => {
+        if (d.id !== dialogId) d.classList.remove('open');
+    });
     el.classList.add('open');
     const overlay = document.getElementById('rvOverlay');
     if (overlay) overlay.classList.add('open');
 };
 
 window.safeCloseDialog = function(dialogId) {
-    const el = document.getElementById(dialogId);
-    if (!el) return;
-    el.classList.remove('open');
-    if (!document.querySelector('.rv-drawer.open')) {
+    if (dialogId) {
+        const el = document.getElementById(dialogId);
+        if (el) el.classList.remove('open');
+    } else {
+        document.querySelectorAll('.rv-drawer.open').forEach(d => d.classList.remove('open'));
+    }
+    const openDrawers = document.querySelectorAll('.rv-drawer.open');
+    if (openDrawers.length === 0) {
         const overlay = document.getElementById('rvOverlay');
         if (overlay) overlay.classList.remove('open');
     }
@@ -2187,7 +2201,7 @@ window.initModulesDrawer = window.openModulesDrawer = function(classId, classNam
 
 
 
-// -”€-”€ Load current students -”€-”€
+// -- Load current students --
 
 function loadCurrentStudents() {
 
@@ -2241,7 +2255,7 @@ function loadCurrentStudents() {
 
 
 
-// -”€-”€ Add students -”€-”€
+// -- Add students --
 
 $(document).ready(function () {
 
@@ -2279,7 +2293,7 @@ $(document).ready(function () {
 
 
 
-// -”€-”€ Remove student -”€-”€
+// -- Remove student --
 
 function removeStudent(triggerBtn, id) {
 
@@ -2327,7 +2341,7 @@ function removeStudent(triggerBtn, id) {
 
 
 
-// -”€-”€ Load modules by type (documents / pre-assessments / formal assessments) -”€-”€
+// -- Load modules by type (documents / pre-assessments / formal assessments) --
 
 function loadModulesForTab(classId, type, containerId) {
 
@@ -2416,7 +2430,7 @@ const html = filtered.map(m => `
 
 
 
-// -”€-”€ Delete module from a typed tab -”€-”€
+// -- Delete module from a typed tab --
 
 // ── Lecture Pre-Test / Post-Test list (Assessment tab) ──
 function loadLectureAssessments(classId) {
@@ -3305,7 +3319,7 @@ function addLectureUploadField() {
     document.getElementById('lectureContentUploadFields').appendChild(row);
 }
 
-// -”€-”€ Upload module form -”€-”€
+// -- Upload module form --
 
 $('#moduleUploadForm').on('submit', function (e) {
 
