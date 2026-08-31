@@ -295,16 +295,14 @@
         </div>
     </div>
 
-    @if(!($isMockBoard ?? false))
     <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; background:#fafafa; border:1px solid #ebebeb; border-radius:10px; margin-bottom:20px;">
-        <label style="font-size:16px; font-weight:500; color:#666; white-space:nowrap;">Max Attempts (base):</label>
+        <label style="font-size:16px; font-weight:500; color:#666; white-space:nowrap;">Max Attempts (for students):</label>
         <input type="number" id="maxAttemptsInput" min="1" max="20" value="{{ $module->max_attempts ?? 1 }}" class="rv-input" style="width:80px;">
         <button type="button" id="saveMaxAttemptsBtn" class="rv-btn rv-btn-secondary" style="height:34px;font-size:14px;">
             <i class="fas fa-save"></i> Save
         </button>
         <span id="maxAttemptsStatus" style="font-size:14px; color:#1d9e75; display:none;"></span>
     </div>
-    @endif
 
 @if(!($isMockBoard ?? false))
     <div class="qc-tabs">
