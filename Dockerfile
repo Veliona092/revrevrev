@@ -4,6 +4,7 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 
 # Install system dependencies
 RUN apk add --no-cache \
+    git \
     nginx \
     supervisor \
     curl \
