@@ -209,22 +209,28 @@
         /* ── Drawer ── */
         .rv-overlay {
             display: none; position: fixed; inset: 0;
-            background: rgba(0,0,0,0.35); z-index: 199;
+            background: rgba(0,0,0,0.35); z-index: 999;
             backdrop-filter: blur(2px);
             pointer-events: none;
         }
-        .rv-overlay.open { display: block; pointer-events: auto; }
+        .rv-overlay.open { display: block !important; pointer-events: auto !important; }
 
         .rv-drawer {
             position: fixed; top: 0; right: 0; bottom: 0;
             width: 500px; max-width: 95vw;
-            background: #FAF7F2; z-index: 200;
+            background: #FAF7F2; z-index: 1000;
             display: flex; flex-direction: column;
             transform: translateX(100%);
-            transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+            transition: transform 0.28s cubic-bezier(0.4,0,0.2,1), visibility 0.28s;
             box-shadow: -8px 0 40px rgba(0,0,0,0.12);
+            visibility: hidden;
+            pointer-events: none;
         }
-        .rv-drawer.open { transform: translateX(0); }
+        .rv-drawer.open {
+            transform: translateX(0) !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+        }
 
         .rv-drawer-head {
             padding: 24px 28px 18px; border-bottom: 1px solid #DDD8CF;

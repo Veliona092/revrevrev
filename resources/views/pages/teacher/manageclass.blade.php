@@ -6,6 +6,36 @@
 
 @section('page-heading', 'Class Management')
 
+@section('head')
+<script>
+window.safeOpenDialog = function(dialogId) {
+    const el = document.getElementById(dialogId);
+    if (!el) return;
+    el.classList.add('open');
+    const overlay = document.getElementById('rvOverlay');
+    if (overlay) overlay.classList.add('open');
+};
+
+window.safeCloseDialog = function(dialogId) {
+    const el = document.getElementById(dialogId);
+    if (!el) return;
+    el.classList.remove('open');
+    if (!document.querySelector('.rv-drawer.open')) {
+        const overlay = document.getElementById('rvOverlay');
+        if (overlay) overlay.classList.remove('open');
+    }
+};
+
+window.openCreateDialog = function() {
+    window.safeOpenDialog('dialogCreate');
+};
+
+window.closeCreateDialog = function() {
+    window.safeCloseDialog('dialogCreate');
+};
+</script>
+@endsection
+
 
 
 @section('header-actions')
