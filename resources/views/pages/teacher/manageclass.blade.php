@@ -1241,76 +1241,11 @@
     }
 
 
-    /* ── Native dialog panels ── */
-    dialog.rv-dialog {
-        padding: 0;
-        border: none;
-        border-radius: 0;
-        margin: 0 0 0 auto;
-        width: 480px;
-        max-width: 95vw;
-        height: 100vh;
-        max-height: 100vh;
-        background: transparent;
-        outline: none;
-        box-sizing: border-box;
-    }
-
-    dialog.rv-dialog::backdrop {
-        background: rgba(0, 0, 0, 0.45);
-        backdrop-filter: blur(2px);
-    }
-
-    .rv-dialog-panel {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        max-height: 100vh;
+    .rv-drawer-tabs-bar {
+        padding: 0 24px;
         background: #FAF7F2;
-        border-left: 1px solid #DDD8CF;
-        overflow: hidden;
-        box-sizing: border-box;
-    }
-
-    .rv-dialog-panel .rv-drawer-head {
-        padding: 20px 24px 16px;
         border-bottom: 1px solid #DDD8CF;
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
         flex-shrink: 0;
-        background: #FAF7F2;
-    }
-
-    .rv-dialog-panel .rv-drawer-body {
-        flex: 1 1 0px;
-        min-height: 0;
-        overflow-y: auto;
-        padding: 20px 24px;
-        box-sizing: border-box;
-        background: #FAF7F2;
-    }
-
-    .rv-dialog-panel .rv-drawer-body::-webkit-scrollbar {
-        width: 5px;
-    }
-
-    .rv-dialog-panel .rv-drawer-body::-webkit-scrollbar-thumb {
-        background: #DDD8CF;
-        border-radius: 99px;
-    }
-
-    .rv-dialog-panel .rv-drawer-footer {
-        padding: 16px 24px;
-        border-top: 1px solid #DDD8CF;
-        display: flex;
-        gap: 12px;
-        justify-content: flex-end;
-        align-items: center;
-        flex-shrink: 0;
-        background: #FAF7F2;
-        box-sizing: border-box;
-        box-shadow: 0 -4px 12px rgba(0,0,0,0.03);
     }
 </style>
 
@@ -1318,185 +1253,129 @@
 
 {{-- ─────────────────────────────────────────────────────────────────────────
 
-     DIALOG: Create Class
+     DRAWER: Create Class
 
 ───────────────────────────────────────────────────────────────────────── --}}
 
-<dialog id="dialogCreate" class="rv-dialog">
-    <div class="rv-dialog-panel">
-        <div class="rv-drawer-head">
-            <div>
-                <div class="rv-drawer-title">New Class</div>
-                <div class="rv-drawer-subtitle">Fill in the details below to create a class.</div>
+<div id="dialogCreate" class="rv-drawer">
+    <div class="rv-drawer-head">
+        <div>
+            <div class="rv-drawer-title">New Class</div>
+            <div class="rv-drawer-subtitle">Fill in the details below to create a class.</div>
+        </div>
+        <button type="button" class="rv-drawer-close" onclick="closeCreateDialog()">&#x2715;</button>
+    </div>
+
+    <div class="rv-drawer-body">
+        @if ($errors->any())
+            <div style="background: #fee2e2; border: 1px solid #f87171; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; color: #991b1b; font-size: 14px;">
+                <ul style="margin: 0; padding-left: 20px;">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
             </div>
-            <button type="button" class="rv-drawer-close" onclick="closeCreateDialog()">&#x2715;</button>
+        @endif
+
+        <form method="POST" action="{{ route('classes.store') }}" id="createClassForm">
+            @csrf
+
+            <div class="rv-form-group" style="margin-bottom: 16px;">
+                <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Class Name <span style="color:#e24b4a">*</span></label>
+                <input type="text" name="name" class="rv-input" required placeholder="e.g. Grade 10 - Section A" value="{{ old('name') }}" style="width: 100%;">
+            </div>
+
+            <div class="rv-form-group" style="margin-bottom: 16px;">
+                <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Code (optional)</label>
+                <input type="text" name="code" class="rv-input" placeholder="e.g. 10A-2026" value="{{ old('code') }}" style="width: 100%;">
+            </div>
+
+            <div class="rv-form-group" style="margin-bottom: 16px;">
+                <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">School Year</label>
+                <input type="text" name="school_year" class="rv-input" placeholder="e.g. 2026" value="{{ old('school_year', date('Y')) }}" style="width: 100%;">
+            </div>
+
+            <!-- IDINAGDAG NA YEAR LEVEL -->
+            <div class="rv-form-group" style="margin-bottom: 16px;">
+                <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Year Level (optional)</label>
+                <select name="year_level" class="rv-input" style="width: 100%;">
+                    <option value="">Select Year Level</option>
+                    <option value="1" {{ old('year_level') == '1' ? 'selected' : '' }}>1st Year</option>
+                    <option value="2" {{ old('year_level') == '2' ? 'selected' : '' }}>2nd Year</option>
+                    <option value="3" {{ old('year_level') == '3' ? 'selected' : '' }}>3rd Year</option>
+                    <option value="4" {{ old('year_level') == '4' ? 'selected' : '' }}>4th Year</option>
+                </select>
+            </div>
+
+            <div class="rv-form-group" style="margin-bottom: 16px;">
+                <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Description (optional)</label>
+                <textarea name="description" class="rv-textarea" placeholder="Brief description of the class..." style="width: 100%;">{{ old('description') }}</textarea>
+            </div>
+        </form>
+    </div>
+
+    <div class="rv-drawer-footer">
+        <button type="button" class="rv-btn rv-btn-secondary" onclick="closeCreateDialog()" style="min-width: 90px;">Cancel</button>
+        <button type="submit" form="createClassForm" class="rv-btn rv-btn-primary" style="min-width: 140px; display: inline-flex; align-items: center; gap: 8px; justify-content: center;">
+            <i class="fas fa-plus"></i> Create Class
+        </button>
+    </div>
+</div>
+
+{{-- ─────────────────────────────────────────────────────────────────────────
+
+     DRAWER: Manage Students
+
+───────────────────────────────────────────────────────────────────────── --}}
+
+<div id="dialogStudents" class="rv-drawer">
+    <div class="rv-drawer-head">
+        <div>
+            <div class="rv-drawer-title">Students</div>
+            <div class="rv-drawer-subtitle" id="studentsDrawerSubtitle">—</div>
         </div>
+        <button type="button" class="rv-drawer-close" onclick="safeCloseDialog('dialogStudents')">&#x2715;</button>
+    </div>
 
-        <div class="rv-drawer-body">
-            @if ($errors->any())
-                <div style="background: #fee2e2; border: 1px solid #f87171; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; color: #991b1b; font-size: 14px;">
-                    <ul style="margin: 0; padding-left: 20px;">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
-            <form method="POST" action="{{ route('classes.store') }}" id="createClassForm">
-                @csrf
-
-                <div class="rv-form-group" style="margin-bottom: 16px;">
-                    <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Class Name <span style="color:#e24b4a">*</span></label>
-                    <input type="text" name="name" class="rv-input" required placeholder="e.g. Grade 10 - Section A" value="{{ old('name') }}" style="width: 100%;">
-                </div>
-
-                <div class="rv-form-group" style="margin-bottom: 16px;">
-                    <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Code (optional)</label>
-                    <input type="text" name="code" class="rv-input" placeholder="e.g. 10A-2026" value="{{ old('code') }}" style="width: 100%;">
-                </div>
-
-                <div class="rv-form-group" style="margin-bottom: 16px;">
-                    <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">School Year</label>
-                    <input type="text" name="school_year" class="rv-input" placeholder="e.g. 2026" value="{{ old('school_year', date('Y')) }}" style="width: 100%;">
-                </div>
-
-                <!-- IDINAGDAG NA YEAR LEVEL -->
-                <div class="rv-form-group" style="margin-bottom: 16px;">
-                    <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Year Level (optional)</label>
-                    <select name="year_level" class="rv-input" style="width: 100%;">
-                        <option value="">Select Year Level</option>
-                        <option value="1" {{ old('year_level') == '1' ? 'selected' : '' }}>1st Year</option>
-                        <option value="2" {{ old('year_level') == '2' ? 'selected' : '' }}>2nd Year</option>
-                        <option value="3" {{ old('year_level') == '3' ? 'selected' : '' }}>3rd Year</option>
-                        <option value="4" {{ old('year_level') == '4' ? 'selected' : '' }}>4th Year</option>
-                    </select>
-                </div>
-
-                <div class="rv-form-group" style="margin-bottom: 16px;">
-                    <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Description (optional)</label>
-                    <textarea name="description" class="rv-textarea" placeholder="Brief description of the class..." style="width: 100%;">{{ old('description') }}</textarea>
-                </div>
-            </form>
-        </div>
-
-        <div class="rv-drawer-footer">
-            <button type="button" class="rv-btn rv-btn-secondary" onclick="closeCreateDialog()" style="min-width: 90px;">Cancel</button>
-            <button type="submit" form="createClassForm" class="rv-btn rv-btn-primary" style="min-width: 140px; display: inline-flex; align-items: center; gap: 8px; justify-content: center;">
-                <i class="fas fa-plus"></i> Create Class
+    <div class="rv-drawer-body">
+        <div class="rv-form-group">
+            <label class="rv-label">Add students</label>
+            <select id="studentSelect" multiple="multiple" style="width:100%"></select>
+            <button class="rv-btn rv-btn-success" style="margin-top:10px;width:100%;" id="addSelectedStudentsBtn">
+                <i class="fas fa-user-plus"></i> Add Selected
             </button>
         </div>
-    </div>
-</dialog>
 
-
-
-{{-- -•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•
-
-     DIALOG: Manage Students
-
--•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-• --}}
-
-<dialog id="dialogStudents" class="rv-dialog">
-
-    <div class="rv-dialog-panel">
-
-        <div class="rv-drawer-head">
-
-            <div>
-
-                <div class="rv-drawer-title">Students</div>
-
-                <div class="rv-drawer-subtitle" id="studentsDrawerSubtitle">-€”</div>
-
+        <div style="margin-top:8px;">
+            <label class="rv-label" style="margin-bottom:12px;">Current students</label>
+            <div id="currentStudentsList">
+                <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p>
             </div>
-
-            <button class="rv-drawer-close" onclick="safeCloseDialog('dialogStudents')">&#x2715;</button>
         </div>
 
-        <div class="rv-drawer-body">
-
-            <div class="rv-form-group">
-
-                <label class="rv-label">Add students</label>
-
-                <select id="studentSelect" multiple="multiple" style="width:100%"></select>
-
-                <button class="rv-btn rv-btn-success" style="margin-top:10px;width:100%;" id="addSelectedStudentsBtn">
-
-                    <i class="fas fa-user-plus"></i> Add Selected
-
+        {{-- Join Link Section --}}
+        <div class="rv-join-link-section">
+            <div class="rv-join-link-header">
+                <i class="fas fa-link"></i>
+                <span>Invite Link</span>
+            </div>
+            <p class="rv-join-link-desc">Generate a link valid for 24 hours to share with students.</p>
+            <div class="rv-join-link-wrap">
+                <input type="text" class="rv-join-link-input" id="joinLinkInput" readonly placeholder="Click Generate to create link...">
+                <button class="rv-join-link-btn" id="joinLinkGenerateBtn" onclick="generateJoinLink()" title="Generate new link">
+                    <i class="fas fa-sync-alt"></i>
                 </button>
-
+                <button class="rv-join-link-btn" id="joinLinkCopyBtn" onclick="copyJoinLink()" title="Copy link" disabled>
+                    <i class="fas fa-copy"></i>
+                </button>
             </div>
-
-
-
-            <div style="margin-top:8px;">
-
-                <label class="rv-label" style="margin-bottom:12px;">Current students</label>
-
-                <div id="currentStudentsList">
-
-                    <p style="font-size: 16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p>
-
-                </div>
-
-            </div>
-
-
-
-            {{-- Join Link Section --}}
-
-            <div class="rv-join-link-section">
-
-                <div class="rv-join-link-header">
-
-                    <i class="fas fa-link"></i>
-
-                    <span>Invite Link</span>
-
-                </div>
-
-                <p class="rv-join-link-desc">Generate a link valid for 24 hours to share with students.</p>
-
-                <div class="rv-join-link-wrap">
-
-                    <input type="text" class="rv-join-link-input" id="joinLinkInput" readonly placeholder="Click Generate to create link...">
-
-                    <button class="rv-join-link-btn" id="joinLinkGenerateBtn" onclick="generateJoinLink()" title="Generate new link">
-
-                        <i class="fas fa-sync-alt"></i>
-
-                    </button>
-
-                    <button class="rv-join-link-btn" id="joinLinkCopyBtn" onclick="copyJoinLink()" title="Copy link" disabled>
-
-                        <i class="fas fa-copy"></i>
-
-                    </button>
-
-                </div>
-
-            </div>
-
         </div>
-
     </div>
-
-</dialog>
-
-
-
-{{-- -•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•
-
-     DIALOG: Manage Modules
+</div>
 
 -•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-• --}}
 
-<dialog id="dialogModules" class="rv-dialog">
-
-    <div class="rv-dialog-panel">
+<div id="dialogModules" class="rv-drawer">
 
         <div class="rv-drawer-head">
 
@@ -1944,50 +1823,46 @@
 
 
         </div>
-
     </div>
+</div>
 
-</dialog>
-
-<dialog id="dialogLectureContent" class="rv-dialog">
-    <div class="rv-dialog-panel">
-        <div class="rv-drawer-head">
-            <div>
-                <div class="rv-drawer-title">Module Content</div>
-                <div class="rv-drawer-subtitle" id="lectureContentSubtitle">Manage Domains and Lessons.</div>
-            </div>
-            <button class="rv-drawer-close" onclick="safeCloseDialog('dialogLectureContent')">&#x2715;</button>
+<div id="dialogLectureContent" class="rv-drawer">
+    <div class="rv-drawer-head">
+        <div>
+            <div class="rv-drawer-title">Module Content</div>
+            <div class="rv-drawer-subtitle" id="lectureContentSubtitle">Manage Domains and Lessons.</div>
         </div>
-        <div class="rv-drawer-body">
-            <form id="lectureContentForm" enctype="multipart/form-data">
-                @csrf
-                <input type="hidden" id="lectureContentModuleId">
-                <div class="rv-form-group">
-                    <label class="rv-label">Add Content File</label>
-                    <input type="text" id="lectureContentTitle" class="rv-input" required maxlength="150" placeholder="Content title">
-                    <input type="file" id="lectureContentFile" class="rv-input" accept=".pdf,.ppt,.pptx,.docx,.mov" required style="margin-top:8px;padding:7px 12px;">
-                </div>
-                <button type="submit" class="rv-btn rv-btn-primary"><i class="fas fa-upload"></i> Upload Content</button>
-            </form>
-            <form id="lectureSubpartForm">
-                @csrf
-                <input type="hidden" id="lectureSubpartModuleId">
-                <div class="rv-form-group">
-                    <label class="rv-label">New Domain</label>
-                    <input type="text" id="lectureSubpartTitle" class="rv-input" required maxlength="150" placeholder="e.g. 1.1 Introduction">
-                </div>
-                <div class="rv-form-group">
-                    <textarea id="lectureSubpartDescription" class="rv-textarea" placeholder="Domain description (optional)"></textarea>
-                </div>
-                <button type="submit" class="rv-btn rv-btn-primary"><i class="fas fa-plus"></i> Add Domain</button>
-            </form>
-            <div style="margin-top:20px;">
-                <label class="rv-label">Domains and Lessons</label>
-                <div id="lectureContentList"><p style="font-size:16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p></div>
+        <button type="button" class="rv-drawer-close" onclick="safeCloseDialog('dialogLectureContent')">&#x2715;</button>
+    </div>
+    <div class="rv-drawer-body">
+        <form id="lectureContentForm" enctype="multipart/form-data">
+            @csrf
+            <input type="hidden" id="lectureContentModuleId">
+            <div class="rv-form-group">
+                <label class="rv-label">Add Content File</label>
+                <input type="text" id="lectureContentTitle" class="rv-input" required maxlength="150" placeholder="Content title">
+                <input type="file" id="lectureContentFile" class="rv-input" accept=".pdf,.ppt,.pptx,.docx,.mov" required style="margin-top:8px;padding:7px 12px;">
             </div>
+            <button type="submit" class="rv-btn rv-btn-primary"><i class="fas fa-upload"></i> Upload Content</button>
+        </form>
+        <form id="lectureSubpartForm">
+            @csrf
+            <input type="hidden" id="lectureSubpartModuleId">
+            <div class="rv-form-group">
+                <label class="rv-label">New Domain</label>
+                <input type="text" id="lectureSubpartTitle" class="rv-input" required maxlength="150" placeholder="e.g. 1.1 Introduction">
+            </div>
+            <div class="rv-form-group">
+                <textarea id="lectureSubpartDescription" class="rv-textarea" placeholder="Domain description (optional)"></textarea>
+            </div>
+            <button type="submit" class="rv-btn rv-btn-primary"><i class="fas fa-plus"></i> Add Domain</button>
+        </form>
+        <div style="margin-top:20px;">
+            <label class="rv-label">Domains and Lessons</label>
+            <div id="lectureContentList"><p style="font-size:16px;color:#ccc;text-align:center;padding:1rem 0;">Loading...</p></div>
         </div>
     </div>
-</dialog>
+</div>
 
 {{-- Delete Class Confirmation Modal --}}
 <div id="deleteClassConfirmOverlay" class="delete-confirm-overlay" aria-hidden="true">
@@ -2013,35 +1888,22 @@
 
 
 
-<script>
 window.safeOpenDialog = function(dialogId) {
-    const d = document.getElementById(dialogId);
-    if (!d) return;
-    try {
-        if (d.open) {
-            d.close();
-        }
-    } catch (e) {}
-    try {
-        if (typeof d.showModal === 'function') {
-            d.showModal();
-        } else {
-            d.setAttribute('open', '');
-        }
-    } catch (e) {
-        d.setAttribute('open', '');
-    }
+    const el = document.getElementById(dialogId);
+    if (!el) return;
+    el.classList.add('open');
+    const overlay = document.getElementById('rvOverlay');
+    if (overlay) overlay.classList.add('open');
 };
 
 window.safeCloseDialog = function(dialogId) {
-    const d = document.getElementById(dialogId);
-    if (!d) return;
-    try {
-        if (typeof d.close === 'function') {
-            d.close();
-        }
-    } catch (e) {}
-    d.removeAttribute('open');
+    const el = document.getElementById(dialogId);
+    if (!el) return;
+    el.classList.remove('open');
+    if (!document.querySelector('.rv-drawer.open')) {
+        const overlay = document.getElementById('rvOverlay');
+        if (overlay) overlay.classList.remove('open');
+    }
 };
 
 window.openCreateDialog = function() {
@@ -3516,15 +3378,13 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    document.querySelectorAll('dialog.rv-dialog').forEach(d => {
-        d.addEventListener('click', function (e) {
-            const rect = d.getBoundingClientRect();
-            const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height
-                && rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
-            if (!isInDialog || e.target === d) {
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.rv-drawer.open').forEach(d => {
                 window.safeCloseDialog(d.id);
-            }
-        });
+            });
+            window.closeDeleteClassConfirm();
+        }
     });
 
     @if ($errors->any())
