@@ -121,7 +121,7 @@ Route::get('/login', function () {
 })->name('login')->middleware('guest');
 
 Route::get('/pending-approval', function () {
-    return view('pages.admin.pending approval');
+    return view('pages.admin.pending-approval');
 })->name('login.pending');
 
 Route::get('/account-rejected', function () {
