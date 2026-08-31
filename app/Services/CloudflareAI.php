@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -82,6 +83,75 @@ class CloudflareAI
         $result['usage'] = $usage;
 
         return $result;
+    }
+
+    /**
+     * Run multiple model payloads concurrently using Http::pool().
+     *
+     * @param  array<int|string, array{model: string, payload: array}>  $tasks
+     * @return array<int|string, array>
+     */
+    public function runPool(array $tasks): array
+    {
+        if (empty($tasks)) {
+            return [];
+        }
+
+        $accountId = trim((string) config('services.cloudflare.account_id'), "\" \t\n\r\0\x0B'");
+        $token = trim((string) config('services.cloudflare.token'), "\" \t\n\r\0\x0B'");
+        $gateway = trim((string) config('services.cloudflare.gateway'), "\" \t\n\r\0\x0B'");
+
+        if (empty($accountId) || empty($token)) {
+            throw new RuntimeException('Cloudflare Workers AI credentials are missing.');
+        }
+
+        $baseUrl = $gateway
+            ? "https://gateway.ai.cloudflare.com/v1/{$accountId}/{$gateway}"
+            : "https://api.cloudflare.com/client/v4/accounts/{$accountId}/ai";
+
+        $responses = Http::pool(function ($pool) use ($tasks, $baseUrl, $token) {
+            $requests = [];
+            foreach ($tasks as $key => $task) {
+                $model = $task['model'];
+                $payload = $task['payload'];
+                $url = "{$baseUrl}/run/{$model}";
+
+                $requests[(string) $key] = $pool->as((string) $key)
+                    ->withHeaders([
+                        'Authorization' => 'Bearer '.$token,
+                        'Content-Type' => 'application/json',
+                    ])
+                    ->timeout(35)
+                    ->connectTimeout(10)
+                    ->retry(1, 500)
+                    ->post($url, $payload);
+            }
+
+            return $requests;
+        });
+
+        $results = [];
+        foreach ($tasks as $key => $task) {
+            $strKey = (string) $key;
+            $response = $responses[$strKey] ?? null;
+
+            if ($response instanceof Response && $response->successful()) {
+                $result = $response->json('result');
+                if (is_array($result) && isset($result['response'])) {
+                    $results[$key] = $result;
+
+                    continue;
+                }
+            }
+
+            Log::warning("Cloudflare AI pool task [{$key}] failed", [
+                'status' => $response instanceof Response ? $response->status() : 'exception',
+                'error' => $response instanceof Response ? $response->body() : 'no response',
+            ]);
+            $results[$key] = ['response' => []];
+        }
+
+        return $results;
     }
 
     public function generateSummary(array $stats, array $options = []): string
