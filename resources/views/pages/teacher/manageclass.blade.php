@@ -1287,67 +1287,90 @@
     }
 
 
-    /* -”€-”€ Native dialog panels -”€-”€ */
-
+    /* ── Native dialog panels ── */
     dialog.rv-dialog {
-
         padding: 0;
-
         border: none;
-
         border-radius: 0;
-
         margin: 0 0 0 auto;
-
-        width: 420px;
-
+        width: 480px;
         max-width: 95vw;
-
         height: 100vh;
-
         max-height: 100vh;
-
         background: transparent;
-
         outline: none;
-
+        box-sizing: border-box;
+        position: fixed;
+        right: 0;
+        top: 0;
+        bottom: 0;
     }
-
-
 
     dialog.rv-dialog::backdrop {
-
         background: rgba(0, 0, 0, 0.45);
-
+        backdrop-filter: blur(2px);
     }
-
-
 
     .rv-dialog-panel {
-
         display: flex;
-
         flex-direction: column;
-
-        height: 100%;
-
-        background: #fff;
-
-        border-left: 1px solid rgba(255,255,255,0.08);
-
+        height: 100vh;
+        max-height: 100vh;
+        background: #FAF7F2;
+        border-left: 1px solid #DDD8CF;
         overflow: hidden;
-
+        box-sizing: border-box;
     }
 
+    .rv-dialog-panel .rv-drawer-head {
+        padding: 20px 24px 16px;
+        border-bottom: 1px solid #DDD8CF;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        flex-shrink: 0;
+        background: #FAF7F2;
+    }
+
+    .rv-dialog-panel .rv-drawer-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 20px 24px;
+        box-sizing: border-box;
+        background: #FAF7F2;
+    }
+
+    .rv-dialog-panel .rv-drawer-body::-webkit-scrollbar {
+        width: 5px;
+    }
+
+    .rv-dialog-panel .rv-drawer-body::-webkit-scrollbar-thumb {
+        background: #DDD8CF;
+        border-radius: 99px;
+    }
+
+    .rv-dialog-panel .rv-drawer-footer {
+        padding: 16px 24px;
+        border-top: 1px solid #DDD8CF;
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        align-items: center;
+        flex-shrink: 0;
+        background: #FAF7F2;
+        box-sizing: border-box;
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.03);
+    }
 </style>
 
 
 
-{{-- -•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•
+{{-- ─────────────────────────────────────────────────────────────────────────
 
      DIALOG: Create Class
 
--•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-• --}}
+───────────────────────────────────────────────────────────────────────── --}}
 
 <dialog id="dialogCreate" class="rv-dialog">
     <div class="rv-dialog-panel">
@@ -1356,32 +1379,32 @@
                 <div class="rv-drawer-title">New Class</div>
                 <div class="rv-drawer-subtitle">Fill in the details below to create a class.</div>
             </div>
-            <button class="rv-drawer-close" onclick="document.getElementById('dialogCreate').close()">&#x2715;</button>
+            <button type="button" class="rv-drawer-close" onclick="document.getElementById('dialogCreate').close()">&#x2715;</button>
         </div>
 
         <div class="rv-drawer-body">
             <form method="POST" action="{{ route('classes.store') }}" id="createClassForm">
                 @csrf
 
-                <div class="rv-form-group">
-                    <label class="rv-label">Class Name <span style="color:#e24b4a">*</span></label>
-                    <input type="text" name="name" class="rv-input" required placeholder="e.g. Grade 10 - Section A">
+                <div class="rv-form-group" style="margin-bottom: 16px;">
+                    <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Class Name <span style="color:#e24b4a">*</span></label>
+                    <input type="text" name="name" class="rv-input" required placeholder="e.g. Grade 10 - Section A" style="width: 100%;">
                 </div>
 
-                <div class="rv-form-group">
-                    <label class="rv-label">Code (optional)</label>
-                    <input type="text" name="code" class="rv-input" placeholder="e.g. 10A-2026">
+                <div class="rv-form-group" style="margin-bottom: 16px;">
+                    <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Code (optional)</label>
+                    <input type="text" name="code" class="rv-input" placeholder="e.g. 10A-2026" style="width: 100%;">
                 </div>
 
-                <div class="rv-form-group">
-                    <label class="rv-label">School Year</label>
-                    <input type="number" name="school_year" class="rv-input" placeholder="2026">
+                <div class="rv-form-group" style="margin-bottom: 16px;">
+                    <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">School Year</label>
+                    <input type="number" name="school_year" class="rv-input" placeholder="2026" style="width: 100%;">
                 </div>
 
                 <!-- IDINAGDAG NA YEAR LEVEL -->
-                <div class="rv-form-group">
-                    <label class="rv-label">Year Level (optional)</label>
-                    <select name="year_level" class="rv-input">
+                <div class="rv-form-group" style="margin-bottom: 16px;">
+                    <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Year Level (optional)</label>
+                    <select name="year_level" class="rv-input" style="width: 100%;">
                         <option value="">Select Year Level</option>
                         <option value="1">1st Year</option>
                         <option value="2">2nd Year</option>
@@ -1390,16 +1413,16 @@
                     </select>
                 </div>
 
-                <div class="rv-form-group">
-                    <label class="rv-label">Description (optional)</label>
-                    <textarea name="description" class="rv-textarea" placeholder="Brief description of the class..."></textarea>
+                <div class="rv-form-group" style="margin-bottom: 16px;">
+                    <label class="rv-label" style="display:block; margin-bottom: 6px; font-weight: 500;">Description (optional)</label>
+                    <textarea name="description" class="rv-textarea" placeholder="Brief description of the class..." style="width: 100%;"></textarea>
                 </div>
             </form>
         </div>
 
         <div class="rv-drawer-footer">
-            <button class="rv-btn rv-btn-secondary" onclick="document.getElementById('dialogCreate').close()">Cancel</button>
-            <button class="rv-btn rv-btn-primary" onclick="document.getElementById('createClassForm').submit()">
+            <button type="button" class="rv-btn rv-btn-secondary" onclick="document.getElementById('dialogCreate').close()" style="min-width: 90px;">Cancel</button>
+            <button type="submit" form="createClassForm" class="rv-btn rv-btn-primary" style="min-width: 140px; display: inline-flex; align-items: center; gap: 8px; justify-content: center;">
                 <i class="fas fa-plus"></i> Create Class
             </button>
         </div>
