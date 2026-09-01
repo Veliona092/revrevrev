@@ -1862,6 +1862,44 @@ POWERSHELL;
         });
     }
 
+    /**
+     * Teacher/Admin: Manually end/close or reopen an assessment/quiz.
+     */
+    public function toggleModuleStatus(Request $request, Module $module)
+    {
+        $class = $module->class;
+        $actor = Auth::user();
+
+        if ($class && $class->created_by !== $actor->id && ! in_array($actor->role, ['admin', 'superadmin'], true)) {
+            abort(403, 'Unauthorized to modify this module.');
+        }
+
+        $action = $request->input('action'); // 'end' | 'reopen'
+
+        if ($action === 'reopen') {
+            $module->update([
+                'is_active' => true,
+                'due_date' => null,
+                'available_at' => now(),
+            ]);
+            $message = 'Exam reopened successfully.';
+        } else {
+            $module->update([
+                'is_active' => false,
+                'due_date' => now(),
+            ]);
+            $message = 'Exam ended / closed successfully.';
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'is_open' => $module->isOpen(),
+            'is_closed' => $module->isClosed(),
+            'status_label' => $module->statusLabel(),
+        ]);
+    }
+
     public function updateProgress(Request $request, Module $module)
     {
         $user = Auth::user();

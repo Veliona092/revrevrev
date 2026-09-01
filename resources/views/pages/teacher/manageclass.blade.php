@@ -2264,7 +2264,7 @@ function loadModulesForTab(classId, type, containerId) {
 
             let editBtn = '';
             if (m.edit_url) {
-                editBtn = '<a href="' + m.edit_url + '" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size:16px;text-decoration:none;"><i class="fas fa-pen"></i></a>';
+                editBtn = '<a href="' + m.edit_url + '" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size:16px;text-decoration:none;" title="Edit Questions"><i class="fas fa-pen"></i></a>';
             }
 
             let viewBtn = '';
@@ -2273,6 +2273,15 @@ function loadModulesForTab(classId, type, containerId) {
             }
 
             let duplicateBtn = '<button class="rv-btn rv-btn-secondary" title="Duplicate (New clean copy)" style="height:28px;padding:0 10px;font-size:16px;" onclick="duplicateModuleFromTab(' + m.id + ', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-copy"></i></button>';
+
+            let toggleStatusBtn = '';
+            if (m.is_quiz || m.is_formal_assessment) {
+                if (m.is_open) {
+                    toggleStatusBtn = '<button class="rv-btn rv-btn-secondary" title="End / Close Exam Now" style="height:28px;padding:0 8px;font-size:12px;font-weight:600;color:#dc2626;border-color:#fca5a5;background:#fef2f2;" onclick="toggleModuleStatusFromTab(' + m.id + ', \'end\', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-stop-circle"></i> End Exam</button>';
+                } else if (m.is_closed) {
+                    toggleStatusBtn = '<button class="rv-btn rv-btn-secondary" title="Reopen Exam" style="height:28px;padding:0 8px;font-size:12px;font-weight:600;color:#16a34a;border-color:#bbf7d0;background:#f0fdf4;" onclick="toggleModuleStatusFromTab(' + m.id + ', \'reopen\', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-play-circle"></i> Reopen</button>';
+                }
+            }
 
             let statusBadge = '';
             if (m.is_quiz || m.is_formal_assessment) {
@@ -2303,6 +2312,7 @@ function loadModulesForTab(classId, type, containerId) {
                     '<div class="rv-module-meta">' + m.created_at + dateMeta + '</div>' +
                 '</div>' +
                 '<div style="display:flex;align-items:center;gap:6px;">' +
+                    toggleStatusBtn +
                     editBtn +
                     duplicateBtn +
                     viewBtn +
@@ -2316,6 +2326,29 @@ function loadModulesForTab(classId, type, containerId) {
         $('#' + containerId).html(html);
     }).fail(function () {
         $('#' + containerId).html('<p style="font-size: 16px;color:#e24b4a;text-align:center;">Failed to load.</p>');
+    });
+}
+
+// ── Toggle exam status (End / Reopen) ──
+function toggleModuleStatusFromTab(moduleId, action, type, containerId) {
+    const promptText = action === 'end'
+        ? 'End and close this exam now? Students will no longer be able to take it.'
+        : 'Reopen this exam now? Students will be able to take it again.';
+
+    openManageConfirm(promptText, function () {
+        $.ajax({
+            url: "{{ url('/modules') }}/" + moduleId + "/toggle-status",
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                action: action
+            }
+        }).done(function (res) {
+            loadModulesForTab(currentClassId, type, containerId);
+            showUploadValidationToast(res.message || 'Status updated.', 'success');
+        }).fail(function (xhr) {
+            showUploadValidationToast(xhr.responseJSON?.message || 'Failed to update exam status.', 'error');
+        });
     });
 }
 
