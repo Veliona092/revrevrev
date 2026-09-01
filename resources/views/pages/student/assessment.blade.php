@@ -285,6 +285,12 @@
                                 $isOverdue  = $assessment->isOverdue();
                                 $isDueSoon  = !$isOverdue && !$isUpcoming && $assessment->due_date && $assessment->due_date->isFuture()
                                     && $assessment->due_date->diffInHours(now()) <= 48;
+                                $rowClass = '';
+                                if ($isOverdue || $isInactive) {
+                                    $rowClass = 'overdue';
+                                } elseif ($isUpcoming || $isDueSoon) {
+                                    $rowClass = 'due-soon';
+                                }
                             @endphp
                             <div class="as-row">
                                 <p class="as-row-title">{{ $assessment->title }}</p>
@@ -293,7 +299,7 @@
 
                                 <span class="as-row-info">{{ $timeLabel }} · {{ $qCount }} items</span>
 
-                                <span class="as-row-info {{ $isOverdue ? 'overdue' : ($isInactive ? 'overdue' : ($isUpcoming ? 'due-soon' : ($isDueSoon ? 'due-soon' : '')) }}">
+                                <span class="as-row-info {{ $rowClass }}">
                                     @if($isInactive)
                                         <span style="color:#dc2626;"><i class="fas fa-lock"></i> Closed</span>
                                     @elseif($isUpcoming)
