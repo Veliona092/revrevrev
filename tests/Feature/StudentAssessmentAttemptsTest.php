@@ -74,6 +74,7 @@ class StudentAssessmentAttemptsTest extends TestCase
             'title' => 'Assessment '.$n,
             'description' => 'Test assessment',
             'is_formal_assessment' => true,
+            'is_active' => true,
             'passing_grade' => 75,
             'time_limit' => 60,
             'max_attempts' => 3,
