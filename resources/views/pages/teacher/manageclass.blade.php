@@ -2277,24 +2277,20 @@ function loadModulesForTab(classId, type, containerId) {
             let toggleStatusBtn = '';
             if (m.is_quiz || m.is_formal_assessment) {
                 if (m.is_open) {
-                    toggleStatusBtn = '<button class="rv-btn rv-btn-secondary" title="End / Close Exam Now" style="height:28px;padding:0 8px;font-size:12px;font-weight:600;color:#dc2626;border-color:#fca5a5;background:#fef2f2;" onclick="toggleModuleStatusFromTab(' + m.id + ', \'end\', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-stop-circle"></i> End Exam</button>';
-                } else if (m.is_closed) {
-                    toggleStatusBtn = '<button class="rv-btn rv-btn-secondary" title="Reopen Exam" style="height:28px;padding:0 8px;font-size:12px;font-weight:600;color:#16a34a;border-color:#bbf7d0;background:#f0fdf4;" onclick="toggleModuleStatusFromTab(' + m.id + ', \'reopen\', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-play-circle"></i> Reopen</button>';
+                    toggleStatusBtn = '<button class="rv-btn rv-btn-secondary" title="Close Exam" style="height:28px;padding:0 8px;font-size:12px;font-weight:600;color:#dc2626;border-color:#fca5a5;background:#fef2f2;" onclick="toggleModuleStatusFromTab(' + m.id + ', \'close\', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-lock"></i> Close</button>';
+                } else {
+                    toggleStatusBtn = '<button class="rv-btn rv-btn-secondary" title="Open Exam" style="height:28px;padding:0 8px;font-size:12px;font-weight:600;color:#16a34a;border-color:#bbf7d0;background:#f0fdf4;" onclick="toggleModuleStatusFromTab(' + m.id + ', \'open\', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-unlock"></i> Open</button>';
                 }
             }
 
             let statusBadge = '';
             if (m.is_quiz || m.is_formal_assessment) {
-                if (!m.is_active) {
-                    statusBadge = '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#f3f4f6;color:#6b7280;margin-left:6px;">Inactive</span>';
+                if (m.is_open) {
+                    statusBadge = '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#dcfce7;color:#166534;margin-left:6px;"><i class="fas fa-check-circle"></i> Open</span>';
                 } else if (m.is_upcoming) {
-                    statusBadge = '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#fef3c7;color:#92400e;margin-left:6px;"><i class="fas fa-clock"></i> Opens ' + (m.available_at || 'Soon') + '</span>';
-                } else if (m.is_closed) {
-                    statusBadge = '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#fee2e2;color:#991b1b;margin-left:6px;"><i class="fas fa-lock"></i> Closed</span>';
-                } else if (m.due_date) {
-                    statusBadge = '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#dcfce7;color:#166534;margin-left:6px;"><i class="fas fa-check-circle"></i> Active · Due ' + m.due_date + '</span>';
+                    statusBadge = '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#fef3c7;color:#92400e;margin-left:6px;"><i class="fas fa-clock"></i> Opens ' + (m.available_at || 'Soon') + '</span>';
                 } else {
-                    statusBadge = '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#dcfce7;color:#166534;margin-left:6px;"><i class="fas fa-check-circle"></i> Active</span>';
+                    statusBadge = '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#fee2e2;color:#991b1b;margin-left:6px;"><i class="fas fa-lock"></i> Closed</span>';
                 }
             }
 
@@ -2302,7 +2298,7 @@ function loadModulesForTab(classId, type, containerId) {
             if (m.available_at && !m.is_upcoming) {
                 dateMeta += ' · Opened ' + m.available_at;
             }
-            if (m.due_date && !statusBadge.includes('Due')) {
+            if (m.due_date) {
                 dateMeta += ' · Due ' + m.due_date;
             }
 
@@ -2329,11 +2325,11 @@ function loadModulesForTab(classId, type, containerId) {
     });
 }
 
-// ── Toggle exam status (End / Reopen) ──
+// ── Toggle exam status (Open / Close with Confirmation) ──
 function toggleModuleStatusFromTab(moduleId, action, type, containerId) {
-    const promptText = action === 'end'
-        ? 'End and close this exam now? Students will no longer be able to take it.'
-        : 'Reopen this exam now? Students will be able to take it again.';
+    const promptText = (action === 'open' || action === 'reopen')
+        ? 'Are you sure you want to OPEN this exam now? Students will immediately be able to take it.'
+        : 'Are you sure you want to CLOSE this exam now? Students will no longer be able to take it.';
 
     openManageConfirm(promptText, function () {
         $.ajax({
@@ -2345,7 +2341,7 @@ function toggleModuleStatusFromTab(moduleId, action, type, containerId) {
             }
         }).done(function (res) {
             loadModulesForTab(currentClassId, type, containerId);
-            showUploadValidationToast(res.message || 'Status updated.', 'success');
+            showUploadValidationToast(res.message || 'Exam status updated.', 'success');
         }).fail(function (xhr) {
             showUploadValidationToast(xhr.responseJSON?.message || 'Failed to update exam status.', 'error');
         });
