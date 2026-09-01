@@ -697,6 +697,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/modules/{module}/quiz/submit', [QuizController::class, 'submitQuiz'])->name('quiz.submit');
     Route::post('/modules/{module}/quiz/insights', [QuizController::class, 'generateInsights'])->name('quiz.insights');
     Route::get('/modules/{module}/quiz/history', [QuizController::class, 'attemptHistory'])->name('quiz.history');
+    Route::get('/modules/{module}/quiz/analysis', [QuizController::class, 'latestAttemptAnalysis'])->name('quiz.analysis');
     Route::get('/quiz/attempts/{snapshot}/detail', [QuizController::class, 'attemptSnapshotDetail'])->name('quiz.attempt.detail');
     Route::post('/quiz/{module}/answer', [QuizController::class, 'submitAnswer'])->name('quiz.answer');
     Route::post('/quiz/create-draft/{class}', [QuizController::class, 'createQuizDraft'])->name('quiz.create.draft');
