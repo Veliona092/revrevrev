@@ -1840,6 +1840,10 @@
                 ? new Date(a.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                 : '';
 
+            var detailContent = cachedHistoryDetailHtml[a.id]
+                ? cachedHistoryDetailHtml[a.id]
+                : '<p class="qz-history-empty"><i class="fas fa-spinner fa-spin"></i> Loading details...</p>';
+
             return '<div class="qz-history-item" id="historyItem_' + a.id + '">' +
                 '<div class="qz-history-row" onclick="toggleAttemptHistory(' + a.id + ')">' +
                 '<div class="qz-history-left">' +
@@ -1852,7 +1856,7 @@
                 '</div>' +
                 '</div>' +
                 '<div class="qz-history-detail" id="historyDetail_' + a.id + '">' +
-                '<p class="qz-history-empty">Loading...</p>' +
+                detailContent +
                 '</div>' +
                 '</div>';
         }).join('');
@@ -1867,25 +1871,38 @@
         return d.innerHTML;
     }
 
-    var loadedHistoryDetails = {};
+    var cachedHistoryDetailHtml = {};
 
     function toggleAttemptHistory(snapshotId) {
         var item = document.getElementById('historyItem_' + snapshotId);
         if (!item) { return; }
-        var wasOpen = item.classList.contains('open');
-        item.classList.toggle('open');
-        if (wasOpen || loadedHistoryDetails[snapshotId]) { return; }
+
+        var isCurrentlyOpen = item.classList.contains('open');
+
+        if (isCurrentlyOpen) {
+            item.classList.remove('open');
+            return;
+        }
+
+        item.classList.add('open');
+
+        var detailEl = document.getElementById('historyDetail_' + snapshotId);
+        if (!detailEl) { return; }
+
+        if (cachedHistoryDetailHtml[snapshotId]) {
+            detailEl.innerHTML = cachedHistoryDetailHtml[snapshotId];
+            return;
+        }
+
+        detailEl.innerHTML = '<p class="qz-history-empty"><i class="fas fa-spinner fa-spin"></i> Loading details...</p>';
 
         fetch('/quiz/attempts/' + snapshotId + '/detail', {
             headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
         })
         .then(function (r) { return r.json(); })
         .then(function (res) {
-            var detailEl = document.getElementById('historyDetail_' + snapshotId);
-            if (!detailEl) { return; }
             if (res.success && res.questions && res.questions.length) {
-                loadedHistoryDetails[snapshotId] = true;
-                detailEl.innerHTML = res.questions.map(function (q, i) {
+                var html = res.questions.map(function (q, i) {
                     var cls = q.is_correct ? 'correct' : 'incorrect';
                     var yourAns = q.selected_option
                         ? q.selected_option + (q.options && q.options[q.selected_option] ? ' - ' + q.options[q.selected_option] : '')
@@ -1901,16 +1918,16 @@
                             : '') +
                         '</div>';
                 }).join('');
+
+                cachedHistoryDetailHtml[snapshotId] = html;
+                detailEl.innerHTML = html;
             } else {
                 detailEl.innerHTML = '<p class="qz-history-empty">No details available for this attempt.</p>';
             }
         })
         .catch(function (err) {
             console.error('Error loading attempt details:', err);
-            var detailEl = document.getElementById('historyDetail_' + snapshotId);
-            if (detailEl) {
-                detailEl.innerHTML = '<p class="qz-history-empty">Failed to load details.</p>';
-            }
+            detailEl.innerHTML = '<p class="qz-history-empty">Failed to load details.</p>';
         });
     }
 
