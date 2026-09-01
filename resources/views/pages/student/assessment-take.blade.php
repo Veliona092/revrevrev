@@ -1317,124 +1317,90 @@ function beginQuizUi() {
             var scoreClass = a.passed ? 'pass' : 'fail';
 
             var dateStr = a.completed_at
-
                 ? new Date(a.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-
                 : '';
 
+            var detailContent = cachedHistoryDetailHtml[a.id]
+                ? cachedHistoryDetailHtml[a.id]
+                : '<p class="qz-history-empty"><i class="fas fa-spinner fa-spin"></i> Loading details...</p>';
+
             return '<div class="qz-history-item" id="historyItem_' + a.id + '">' +
-
                 '<div class="qz-history-row" onclick="toggleAttemptHistory(' + a.id + ')">' +
-
                 '<div class="qz-history-left">' +
-
                 '<span class="qz-history-num">Attempt ' + a.attempt_number + '</span>' +
-
                 '<span class="qz-history-score ' + scoreClass + '">' + pct + '% &bull; ' + a.score + '/' + a.total + '</span>' +
-
                 '</div>' +
-
                 '<div style="display:flex;align-items:center;gap:8px;">' +
-
                 '<span class="qz-history-date">' + dateStr + '</span>' +
-
                 '<i class="fas fa-chevron-down qz-history-chevron"></i>' +
-
                 '</div>' +
-
                 '</div>' +
-
                 '<div class="qz-history-detail" id="historyDetail_' + a.id + '">' +
-
-                '<p class="qz-history-empty">Loading...</p>' +
-
+                detailContent +
                 '</div>' +
-
                 '</div>';
-
         }).join('');
 
         box.innerHTML = '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>' + rows;
-
     }
 
-
-
-    var loadedHistoryDetails = {};
-
-
+    var cachedHistoryDetailHtml = {};
 
     function toggleAttemptHistory(snapshotId) {
-
         var item = document.getElementById('historyItem_' + snapshotId);
-
         if (!item) { return; }
 
-        var wasOpen = item.classList.contains('open');
+        var isCurrentlyOpen = item.classList.contains('open');
 
-        item.classList.toggle('open');
+        if (isCurrentlyOpen) {
+            item.classList.remove('open');
+            return;
+        }
 
-        if (wasOpen || loadedHistoryDetails[snapshotId]) { return; }
+        item.classList.add('open');
 
-        loadedHistoryDetails[snapshotId] = true;
+        var detailEl = document.getElementById('historyDetail_' + snapshotId);
+        if (!detailEl) { return; }
+
+        if (cachedHistoryDetailHtml[snapshotId]) {
+            detailEl.innerHTML = cachedHistoryDetailHtml[snapshotId];
+            return;
+        }
+
+        detailEl.innerHTML = '<p class="qz-history-empty"><i class="fas fa-spinner fa-spin"></i> Loading details...</p>';
 
         fetch('/quiz/attempts/' + snapshotId + '/detail', {
-
             headers: { 'X-CSRF-TOKEN': csrfToken },
-
         })
-
         .then(function (r) { return r.json(); })
-
         .then(function (res) {
-
-            var detailEl = document.getElementById('historyDetail_' + snapshotId);
-
-            if (!detailEl) { return; }
-
             if (res.success && res.questions && res.questions.length) {
-
-                detailEl.innerHTML = res.questions.map(function (q, i) {
-
+                var html = res.questions.map(function (q, i) {
                     var cls = q.is_correct ? 'correct' : 'incorrect';
-
                     var yourAns = q.selected_option
-
                         ? q.selected_option + (q.options && q.options[q.selected_option] ? ' - ' + q.options[q.selected_option] : '')
-
                         : 'No answer';
-
                     var correctAns = q.correct_option
-
                         ? q.correct_option + (q.options && q.options[q.correct_option] ? ' - ' + q.options[q.correct_option] : '')
-
                         : '-';
-
                     return '<div class="qz-history-q ' + cls + '">' +
-
                         '<p class="qz-history-q-text">' + (i + 1) + '. ' + escHtml(q.question_text || '') + '</p>' +
-
                         '<p class="qz-history-q-ans"><i class="fas fa-' + (q.is_correct ? 'check' : 'times') + '"></i> Your answer: ' + escHtml(yourAns) + '</p>' +
-
                         (!q.is_correct
-
                             ? '<p class="qz-history-q-ans"><i class="fas fa-check"></i> Correct answer: ' + escHtml(correctAns) + '</p>'
-
                             : '') +
-
                         '</div>';
-
                 }).join('');
 
+                cachedHistoryDetailHtml[snapshotId] = html;
+                detailEl.innerHTML = html;
             } else {
                 detailEl.innerHTML = '<p class="qz-history-empty">No details available for this attempt.</p>';
             }
         })
-        .catch(function () {
-            var detailEl = document.getElementById('historyDetail_' + snapshotId);
-            if (detailEl) {
-                detailEl.innerHTML = '<p class="qz-history-empty">Failed to load details.</p>';
-            }
+        .catch(function (err) {
+            console.error('Error loading attempt details:', err);
+            detailEl.innerHTML = '<p class="qz-history-empty">Failed to load details.</p>';
         });
     }
 
