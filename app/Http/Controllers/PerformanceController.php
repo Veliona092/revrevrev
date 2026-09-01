@@ -32,48 +32,58 @@ class PerformanceController extends Controller
     /**
      * Build analytics payload for pre-assessment quizzes in a class.
      */
-    private function buildPerformancePayload(ClassModel $class): array
+    private function buildPerformancePayload(ClassModel $class, ?int $moduleId = null): array
     {
         $settingsResolver = app(AiSettingsResolver::class);
         $isClassSummaryEnabled = $settingsResolver->isFeatureEnabled('class_summary', $class);
 
-        // Class Average (pre-assessment quizzes only)
-        $classAverage = QuizAttempt::whereHas('module', function ($q) use ($class) {
+        $applyModuleScope = function ($q) use ($class, $moduleId) {
             $q->where('class_id', $class->id)->where('is_formal_assessment', false);
-        })->avg('percentage') ?? 0;
+            if ($moduleId) {
+                $q->where('id', $moduleId);
+            }
+        };
+
+        // Class Average (pre-assessment quizzes only)
+        $classAverage = QuizAttempt::whereHas('module', $applyModuleScope)->avg('percentage') ?? 0;
 
         // Pass / Fail
-        $totalAttempts = QuizAttempt::whereHas('module', function ($q) use ($class) {
-            $q->where('class_id', $class->id)->where('is_formal_assessment', false);
-        })->count();
+        $totalAttempts = QuizAttempt::whereHas('module', $applyModuleScope)->count();
 
-        $passCount = QuizAttempt::whereHas('module', function ($q) use ($class) {
-            $q->where('class_id', $class->id)->where('is_formal_assessment', false);
-        })->where('percentage', '>=', 50)->count();
+        $passCount = QuizAttempt::whereHas('module', $applyModuleScope)
+            ->where('percentage', '>=', 50)->count();
 
         $failCount = $totalAttempts - $passCount;
 
         // Per-question breakdown
-        $questionStats = DB::table('quiz_answers')
+        $questionStatsQuery = DB::table('quiz_answers')
             ->join('quiz_questions', 'quiz_answers.question_id', '=', 'quiz_questions.id')
             ->join('quiz_attempts', 'quiz_answers.attempt_id', '=', 'quiz_attempts.id')
             ->join('modules', 'quiz_attempts.module_id', '=', 'modules.id')
             ->where('modules.class_id', $class->id)
-            ->where('modules.is_formal_assessment', false)
+            ->where('modules.is_formal_assessment', false);
+
+        if ($moduleId) {
+            $questionStatsQuery->where('modules.id', $moduleId);
+        }
+
+        $questionStats = $questionStatsQuery
             ->select(
                 'quiz_questions.id as question_id',
                 'quiz_questions.question_text',
+                'modules.id as module_id',
+                'modules.title as module_title',
                 DB::raw('COUNT(quiz_answers.id) as total_answers'),
                 DB::raw('SUM(quiz_answers.is_correct) as correct_count'),
                 DB::raw('COUNT(quiz_answers.id) - SUM(quiz_answers.is_correct) as wrong_count'),
                 DB::raw('ROUND(AVG(quiz_answers.is_correct) * 100, 1) as pct_correct')
             )
-            ->groupBy('quiz_questions.id', 'quiz_questions.question_text')
+            ->groupBy('quiz_questions.id', 'quiz_questions.question_text', 'modules.id', 'modules.title')
             ->orderBy('pct_correct', 'asc')
             ->get();
 
         // All Ranked Students
-        $topStudents = User::select(
+        $topStudentsQuery = User::select(
             'users.id',
             'users.name',
             'users.program',
@@ -82,7 +92,13 @@ class PerformanceController extends Controller
             ->join('quiz_attempts', 'users.id', '=', 'quiz_attempts.user_id')
             ->join('modules', 'quiz_attempts.module_id', '=', 'modules.id')
             ->where('modules.class_id', $class->id)
-            ->where('modules.is_formal_assessment', false)
+            ->where('modules.is_formal_assessment', false);
+
+        if ($moduleId) {
+            $topStudentsQuery->where('modules.id', $moduleId);
+        }
+
+        $topStudents = $topStudentsQuery
             ->groupBy('users.id', 'users.name', 'users.program')
             ->orderByDesc('average_score')
             ->get();
@@ -92,6 +108,7 @@ class PerformanceController extends Controller
         $aiSummary = $class->ai_summary ?? 'No AI summary yet. Click refresh to generate one.';
 
         return [
+            'selectedModuleId' => $moduleId,
             'classAverage' => (float) $classAverage,
             'passCount' => (int) $passCount,
             'failCount' => (int) $failCount,
@@ -107,44 +124,54 @@ class PerformanceController extends Controller
     /**
      * Build analytics payload for formal assessments in a class.
      */
-    private function buildAssessmentPayload(ClassModel $class): array
+    private function buildAssessmentPayload(ClassModel $class, ?int $moduleId = null): array
     {
         $settingsResolver = app(AiSettingsResolver::class);
         $isAssessmentAnalysisEnabled = $settingsResolver->isFeatureEnabled('assessment_analysis', $class);
 
-        $classAverage = QuizAttempt::whereHas('module', function ($q) use ($class) {
+        $applyModuleScope = function ($q) use ($class, $moduleId) {
             $q->where('class_id', $class->id)->where('is_formal_assessment', true);
-        })->avg('percentage') ?? 0;
+            if ($moduleId) {
+                $q->where('id', $moduleId);
+            }
+        };
 
-        $totalAttempts = QuizAttempt::whereHas('module', function ($q) use ($class) {
-            $q->where('class_id', $class->id)->where('is_formal_assessment', true);
-        })->count();
+        $classAverage = QuizAttempt::whereHas('module', $applyModuleScope)->avg('percentage') ?? 0;
 
-        $passCount = QuizAttempt::whereHas('module', function ($q) use ($class) {
-            $q->where('class_id', $class->id)->where('is_formal_assessment', true);
-        })->where('percentage', '>=', 50)->count();
+        $totalAttempts = QuizAttempt::whereHas('module', $applyModuleScope)->count();
+
+        $passCount = QuizAttempt::whereHas('module', $applyModuleScope)
+            ->where('percentage', '>=', 50)->count();
 
         $failCount = $totalAttempts - $passCount;
 
-        $questionStats = DB::table('quiz_answers')
+        $questionStatsQuery = DB::table('quiz_answers')
             ->join('quiz_questions', 'quiz_answers.question_id', '=', 'quiz_questions.id')
             ->join('quiz_attempts', 'quiz_answers.attempt_id', '=', 'quiz_attempts.id')
             ->join('modules', 'quiz_attempts.module_id', '=', 'modules.id')
             ->where('modules.class_id', $class->id)
-            ->where('modules.is_formal_assessment', true)
+            ->where('modules.is_formal_assessment', true);
+
+        if ($moduleId) {
+            $questionStatsQuery->where('modules.id', $moduleId);
+        }
+
+        $questionStats = $questionStatsQuery
             ->select(
                 'quiz_questions.id as question_id',
                 'quiz_questions.question_text',
+                'modules.id as module_id',
+                'modules.title as module_title',
                 DB::raw('COUNT(quiz_answers.id) as total_answers'),
                 DB::raw('SUM(quiz_answers.is_correct) as correct_count'),
                 DB::raw('COUNT(quiz_answers.id) - SUM(quiz_answers.is_correct) as wrong_count'),
                 DB::raw('ROUND(AVG(quiz_answers.is_correct) * 100, 1) as pct_correct')
             )
-            ->groupBy('quiz_questions.id', 'quiz_questions.question_text')
+            ->groupBy('quiz_questions.id', 'quiz_questions.question_text', 'modules.id', 'modules.title')
             ->orderBy('pct_correct', 'asc')
             ->get();
 
-        $topStudents = User::select(
+        $topStudentsQuery = User::select(
             'users.id',
             'users.name',
             'users.program',
@@ -153,7 +180,13 @@ class PerformanceController extends Controller
             ->join('quiz_attempts', 'users.id', '=', 'quiz_attempts.user_id')
             ->join('modules', 'quiz_attempts.module_id', '=', 'modules.id')
             ->where('modules.class_id', $class->id)
-            ->where('modules.is_formal_assessment', true)
+            ->where('modules.is_formal_assessment', true);
+
+        if ($moduleId) {
+            $topStudentsQuery->where('modules.id', $moduleId);
+        }
+
+        $topStudents = $topStudentsQuery
             ->groupBy('users.id', 'users.name', 'users.program')
             ->orderByDesc('average_score')
             ->get();
@@ -163,6 +196,7 @@ class PerformanceController extends Controller
         $assessmentAiSummary = $class->assessment_ai_summary ?? 'No assessment AI summary yet. Click refresh to generate one.';
 
         return [
+            'selectedModuleId' => $moduleId,
             'classAverage' => (float) $classAverage,
             'passCount' => (int) $passCount,
             'failCount' => (int) $failCount,
@@ -186,8 +220,28 @@ class PerformanceController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']);
 
-        $payload = $this->buildPerformancePayload($class);
-        $assessmentPayload = $this->buildAssessmentPayload($class);
+        $preAssessmentModules = Module::where('class_id', $class->id)
+            ->where('is_formal_assessment', false)
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get(['id', 'title']);
+
+        $formalAssessmentModules = Module::where('class_id', $class->id)
+            ->where('is_formal_assessment', true)
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get(['id', 'title']);
+
+        $quizModuleId = request()->filled('quiz_module_id') && request('quiz_module_id') !== 'all'
+            ? (int) request('quiz_module_id')
+            : null;
+
+        $assessModuleId = request()->filled('assess_module_id') && request('assess_module_id') !== 'all'
+            ? (int) request('assess_module_id')
+            : null;
+
+        $payload = $this->buildPerformancePayload($class, $quizModuleId);
+        $assessmentPayload = $this->buildAssessmentPayload($class, $assessModuleId);
 
         if (request()->expectsJson()) {
             return response()->json([
@@ -203,6 +257,8 @@ class PerformanceController extends Controller
                 'remainingCount' => $payload['remainingCount'],
                 'aiSummary' => $payload['aiSummary'],
                 'classSummaryEnabled' => $payload['classSummaryEnabled'],
+                'selectedModuleId' => $payload['selectedModuleId'],
+                'preAssessmentModules' => $preAssessmentModules,
                 'assessment' => [
                     'classAverage' => $assessmentPayload['classAverage'],
                     'passCount' => $assessmentPayload['passCount'],
@@ -212,6 +268,8 @@ class PerformanceController extends Controller
                     'remainingCount' => $assessmentPayload['remainingCount'],
                     'aiSummary' => $assessmentPayload['aiSummary'],
                     'assessmentAnalysisEnabled' => $assessmentPayload['assessmentAnalysisEnabled'],
+                    'selectedModuleId' => $assessmentPayload['selectedModuleId'],
+                    'formalAssessmentModules' => $formalAssessmentModules,
                 ],
             ]);
         }
@@ -220,7 +278,9 @@ class PerformanceController extends Controller
             'class',
             'teacherClasses',
             'payload',
-            'assessmentPayload'
+            'assessmentPayload',
+            'preAssessmentModules',
+            'formalAssessmentModules'
         ));
     }
 
@@ -234,6 +294,7 @@ class PerformanceController extends Controller
         }
 
         $isAssessment = request()->query('type') === 'assessment';
+        $selectedModuleId = request()->query('module_id');
 
         $attemptQuery = QuizAttempt::query()
             ->where('user_id', $student->id)
@@ -241,6 +302,10 @@ class PerformanceController extends Controller
                 $q->where('class_id', $class->id)
                     ->where('is_formal_assessment', $isAssessment);
             });
+
+        if ($selectedModuleId && $selectedModuleId !== 'all') {
+            $attemptQuery->where('module_id', (int) $selectedModuleId);
+        }
 
         if ($isAssessment) {
             // Keep assessment behavior unchanged.
