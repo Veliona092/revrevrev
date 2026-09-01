@@ -293,9 +293,9 @@
 
                                 <span class="as-row-info">{{ $timeLabel }} · {{ $qCount }} items</span>
 
-                                <span class="as-row-info {{ $isOverdue ? 'overdue' : ($isUpcoming ? 'due-soon' : ($isDueSoon ? 'due-soon' : '')) }}">
+                                <span class="as-row-info {{ $isOverdue ? 'overdue' : ($isInactive ? 'overdue' : ($isUpcoming ? 'due-soon' : ($isDueSoon ? 'due-soon' : '')) }}">
                                     @if($isInactive)
-                                        <span style="color:#6b7280;">Inactive</span>
+                                        <span style="color:#dc2626;"><i class="fas fa-lock"></i> Closed</span>
                                     @elseif($isUpcoming)
                                         <span style="color:#d97706;"><i class="fas fa-clock"></i> Opens {{ $assessment->available_at->format('M d, g:i A') }}</span>
                                     @elseif($assessment->due_date)
@@ -319,7 +319,7 @@
                                     @endif
 
                                     @if($isInactive)
-                                        <span class="as-btn-pill disabled"><i class="fas fa-lock"></i> Inactive</span>
+                                        <span class="as-btn-pill disabled"><i class="fas fa-lock"></i> Closed</span>
                                     @elseif($isUpcoming)
                                         <span class="as-btn-pill disabled" title="Available on {{ $assessment->available_at->format('M d, Y g:i A') }}"><i class="fas fa-clock"></i> Opens {{ $assessment->available_at->format('M d, g:i A') }}</span>
                                     @elseif($isOverdue)
