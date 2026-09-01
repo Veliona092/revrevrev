@@ -63,6 +63,10 @@ class StudentAssessmentController extends Controller
                 $module->student_attempt = $module->attempts->first();
                 $module->attempts_used = $module->student_attempt?->attempt_count ?? 0;
                 $module->attempts_allowed = $module->allowedAttemptsFor($user->id);
+                $module->is_upcoming = $module->isUpcoming();
+                $module->is_open = $module->isOpen();
+                $module->is_closed = $module->isClosed();
+                $module->status_label = $module->statusLabel();
             });
 
         return view('pages.student.assessment', compact('assessments', 'classes', 'layout'));
@@ -78,6 +82,14 @@ class StudentAssessmentController extends Controller
 
         if (! $module->class->users()->where('user_id', $user->id)->exists()) {
             abort(403, 'You are not enrolled in this class.');
+        }
+
+        if ($module->isUpcoming()) {
+            abort(403, 'This assessment is not active yet. It will open on '.($module->available_at?->format('M d, Y g:i A') ?? 'the scheduled date').'.');
+        }
+
+        if (! ($module->is_active ?? true)) {
+            abort(403, 'This assessment is currently inactive.');
         }
 
         if ($module->isOverdue()) {

@@ -2274,12 +2274,33 @@ function loadModulesForTab(classId, type, containerId) {
 
             let duplicateBtn = '<button class="rv-btn rv-btn-secondary" title="Duplicate (New clean copy)" style="height:28px;padding:0 10px;font-size:16px;" onclick="duplicateModuleFromTab(' + m.id + ', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-copy"></i></button>';
 
-            let dueMeta = m.due_date ? ' · Due ' + m.due_date : '';
+            let statusBadge = '';
+            if (m.is_quiz || m.is_formal_assessment) {
+                if (!m.is_active) {
+                    statusBadge = '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#f3f4f6;color:#6b7280;margin-left:6px;">Inactive</span>';
+                } else if (m.is_upcoming) {
+                    statusBadge = '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#fef3c7;color:#92400e;margin-left:6px;"><i class="fas fa-clock"></i> Opens ' + (m.available_at || 'Soon') + '</span>';
+                } else if (m.is_closed) {
+                    statusBadge = '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#fee2e2;color:#991b1b;margin-left:6px;"><i class="fas fa-lock"></i> Closed</span>';
+                } else if (m.due_date) {
+                    statusBadge = '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#dcfce7;color:#166534;margin-left:6px;"><i class="fas fa-check-circle"></i> Active · Due ' + m.due_date + '</span>';
+                } else {
+                    statusBadge = '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#dcfce7;color:#166534;margin-left:6px;"><i class="fas fa-check-circle"></i> Active</span>';
+                }
+            }
+
+            let dateMeta = '';
+            if (m.available_at && !m.is_upcoming) {
+                dateMeta += ' · Opened ' + m.available_at;
+            }
+            if (m.due_date && !statusBadge.includes('Due')) {
+                dateMeta += ' · Due ' + m.due_date;
+            }
 
             html += '<div class="rv-module-item">' +
                 '<div style="flex:1;">' +
-                    '<div class="rv-module-title">' + m.title + ' ' + badge + '</div>' +
-                    '<div class="rv-module-meta">' + m.created_at + dueMeta + '</div>' +
+                    '<div class="rv-module-title">' + m.title + ' ' + badge + ' ' + statusBadge + '</div>' +
+                    '<div class="rv-module-meta">' + m.created_at + dateMeta + '</div>' +
                 '</div>' +
                 '<div style="display:flex;align-items:center;gap:6px;">' +
                     editBtn +
@@ -2289,7 +2310,7 @@ function loadModulesForTab(classId, type, containerId) {
                         '<i class="fas fa-trash"></i>' +
                     '</button>' +
                 '</div>' +
-            '</div>';
+                '</div>';
         });
 
         $('#' + containerId).html(html);

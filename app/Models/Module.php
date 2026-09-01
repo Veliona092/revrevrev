@@ -15,7 +15,7 @@ class Module extends Model
     protected $fillable = [
         'class_id', 'title', 'description', 'file_path', 'file_type', 'order',
         'is_quiz', 'is_assignment', 'is_lecture', 'is_formal_assessment', 'time_limit', 'passing_grade', 'visibility',
-        'created_by', 'is_mock_board', 'due_date', 'max_attempts', 'quiz_stage',
+        'created_by', 'is_mock_board', 'due_date', 'available_at', 'is_active', 'max_attempts', 'quiz_stage',
     ];
 
     protected $casts = [
@@ -27,6 +27,8 @@ class Module extends Model
         'passing_grade' => 'integer',
         'max_attempts' => 'integer',
         'due_date' => 'datetime',
+        'available_at' => 'datetime',
+        'is_active' => 'boolean',
     ];
 
     /**
@@ -35,6 +37,50 @@ class Module extends Model
     public function isOverdue(): bool
     {
         return $this->due_date !== null && $this->due_date->isPast();
+    }
+
+    /**
+     * True kung ang activation date ay sa hinaharap pa (hindi pa bukas).
+     */
+    public function isUpcoming(): bool
+    {
+        return ($this->is_active ?? true) && $this->available_at !== null && $this->available_at->isFuture();
+    }
+
+    /**
+     * True kung bukas at active ang assessment/quiz para sagutan.
+     */
+    public function isOpen(): bool
+    {
+        return ($this->is_active ?? true) && ($this->available_at === null || $this->available_at->isPast()) && ! $this->isOverdue();
+    }
+
+    /**
+     * True kung sarado na o inactive.
+     */
+    public function isClosed(): bool
+    {
+        return ! ($this->is_active ?? true) || $this->isOverdue();
+    }
+
+    /**
+     * Human-readable status label.
+     */
+    public function statusLabel(): string
+    {
+        if (! ($this->is_active ?? true)) {
+            return 'Inactive';
+        }
+
+        if ($this->isOverdue()) {
+            return 'Closed';
+        }
+
+        if ($this->isUpcoming()) {
+            return 'Upcoming';
+        }
+
+        return 'Active';
     }
 
     public function class(): BelongsTo

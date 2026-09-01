@@ -280,8 +280,10 @@
                                     ? $assessment->time_limit . ' min'
                                     : 'No limit';
                                 $qCount    = $assessment->quiz_questions_count;
-                                $isOverdue = $assessment->isOverdue();
-                                $isDueSoon = !$isOverdue && $assessment->due_date && $assessment->due_date->isFuture()
+                                $isUpcoming = $assessment->isUpcoming();
+                                $isInactive = ! ($assessment->is_active ?? true);
+                                $isOverdue  = $assessment->isOverdue();
+                                $isDueSoon  = !$isOverdue && !$isUpcoming && $assessment->due_date && $assessment->due_date->isFuture()
                                     && $assessment->due_date->diffInHours(now()) <= 48;
                             @endphp
                             <div class="as-row">
@@ -291,8 +293,12 @@
 
                                 <span class="as-row-info">{{ $timeLabel }} · {{ $qCount }} items</span>
 
-                                <span class="as-row-info {{ $isOverdue ? 'overdue' : ($isDueSoon ? 'due-soon' : '') }}">
-                                    @if($assessment->due_date)
+                                <span class="as-row-info {{ $isOverdue ? 'overdue' : ($isUpcoming ? 'due-soon' : ($isDueSoon ? 'due-soon' : '')) }}">
+                                    @if($isInactive)
+                                        <span style="color:#6b7280;">Inactive</span>
+                                    @elseif($isUpcoming)
+                                        <span style="color:#d97706;"><i class="fas fa-clock"></i> Opens {{ $assessment->available_at->format('M d, g:i A') }}</span>
+                                    @elseif($assessment->due_date)
                                         Due {{ $assessment->due_date->format('M d, g:i A') }}
                                     @else
                                         Attempts: {{ $assessment->attempts_used }} / {{ $assessment->attempts_allowed }}
@@ -312,7 +318,11 @@
                                         <a href="{{ route('assessment.results', $assessment) }}" class="as-btn-pill outline"><i class="fas fa-clipboard-check"></i> Review</a>
                                     @endif
 
-                                    @if($isOverdue)
+                                    @if($isInactive)
+                                        <span class="as-btn-pill disabled"><i class="fas fa-lock"></i> Inactive</span>
+                                    @elseif($isUpcoming)
+                                        <span class="as-btn-pill disabled" title="Available on {{ $assessment->available_at->format('M d, Y g:i A') }}"><i class="fas fa-clock"></i> Opens {{ $assessment->available_at->format('M d, g:i A') }}</span>
+                                    @elseif($isOverdue)
                                         <span class="as-btn-pill disabled"><i class="fas fa-lock"></i> Past Due</span>
                                     @elseif($attempt?->status === 'in_progress')
                                         <a href="{{ route('assessment.take', $assessment) }}" class="as-btn-pill">Resume Assessment</a>

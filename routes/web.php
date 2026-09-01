@@ -798,6 +798,7 @@ Route::middleware(['auth'])->group(function () {
 
 Route::post('/modules/{module}/quiz/start', [QuizController::class, 'startAttempt'])->name('quiz.start');
 Route::put('/modules/{module}/quiz/max-attempts', [QuizController::class, 'updateMaxAttempts'])->name('quiz.max-attempts.update');
+Route::put('/modules/{module}/settings', [QuizController::class, 'updateModuleSettings'])->name('modules.settings.update');
 Route::post('/modules/{module}/quiz/grant-attempt/{student}', [QuizController::class, 'grantExtraAttempt'])->name('quiz.grant.attempt');
 
 // ── Module Sub-Parts (teacher management) ──
