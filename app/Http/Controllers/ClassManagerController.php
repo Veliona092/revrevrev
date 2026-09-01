@@ -1722,6 +1722,116 @@ POWERSHELL;
         return response()->json(['success' => 'Module deleted']);
     }
 
+    public function duplicateModule(Request $request, Module $module)
+    {
+        $class = $module->class;
+        $actor = Auth::user();
+
+        if (! $actor) {
+            abort(401);
+        }
+
+        if ($class->created_by !== $actor->id && ! in_array($actor->role, ['admin', 'superadmin'], true)) {
+            abort(403, 'Unauthorized to duplicate this module.');
+        }
+
+        return DB::transaction(function () use ($module, $class, $actor, $request) {
+            $baseTitle = trim((string) preg_replace('/\s*\(Copy(\s+\d+)?\)$/i', '', $module->title));
+            $existingCopies = Module::where('class_id', $class->id)
+                ->where(function ($q) use ($baseTitle) {
+                    $q->where('title', $baseTitle)
+                        ->orWhere('title', 'LIKE', "{$baseTitle} (Copy%");
+                })
+                ->count();
+
+            $newTitle = $existingCopies <= 1
+                ? "{$baseTitle} (Copy)"
+                : "{$baseTitle} (Copy {$existingCopies})";
+            $maxOrder = (int) Module::where('class_id', $class->id)->max('order');
+
+            $newModule = Module::create([
+                'class_id' => $class->id,
+                'title' => $newTitle,
+                'description' => $module->description,
+                'file_path' => $module->file_path,
+                'file_type' => $module->file_type,
+                'order' => $maxOrder + 1,
+                'is_quiz' => $module->is_quiz,
+                'is_assignment' => $module->is_assignment,
+                'is_lecture' => $module->is_lecture,
+                'is_formal_assessment' => $module->is_formal_assessment,
+                'time_limit' => $module->time_limit,
+                'passing_grade' => $module->passing_grade,
+                'visibility' => $module->visibility ?? 'all',
+                'created_by' => $actor->id,
+                'is_mock_board' => $module->is_mock_board,
+                'due_date' => null,
+                'max_attempts' => $module->max_attempts ?? 1,
+                'quiz_stage' => $module->quiz_stage,
+            ]);
+
+            if (in_array($module->visibility, ['selected', 'except'], true)) {
+                $userIds = $module->visibleTo()->pluck('users.id')->toArray();
+                if (! empty($userIds)) {
+                    $newModule->visibleTo()->sync($userIds);
+                }
+            }
+
+            foreach ($module->quizQuestions()->orderBy('order')->get() as $q) {
+                QuizQuestion::create([
+                    'module_id' => $newModule->id,
+                    'quiz_stage' => $q->quiz_stage,
+                    'question_text' => $q->question_text,
+                    'options' => $q->options,
+                    'correct_option' => $q->correct_option,
+                    'points' => $q->points,
+                    'order' => $q->order,
+                    'difficulty' => $q->difficulty,
+                    'domain' => $q->domain,
+                    'explanation' => $q->explanation,
+                    'test_bank_question_id' => $q->test_bank_question_id,
+                ]);
+            }
+
+            if ($module->is_lecture) {
+                foreach ($module->subparts()->with('lessons')->orderBy('order')->get() as $sp) {
+                    $newSubpart = ModuleSubpart::create([
+                        'module_id' => $newModule->id,
+                        'title' => $sp->title,
+                        'description' => $sp->description,
+                        'body' => $sp->body,
+                        'file_path' => $sp->file_path,
+                        'file_type' => $sp->file_type,
+                        'order' => $sp->order,
+                    ]);
+
+                    foreach ($sp->lessons as $lesson) {
+                        $newSubpart->lessons()->create([
+                            'title' => $lesson->title,
+                            'description' => $lesson->description,
+                            'body' => $lesson->body,
+                            'file_path' => $lesson->file_path,
+                            'file_type' => $lesson->file_type,
+                            'order' => $lesson->order,
+                        ]);
+                    }
+                }
+            }
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Module duplicated successfully.',
+                    'module' => $newModule,
+                    'edit_url' => $newModule->is_quiz ? route('quiz.create', $newModule) : null,
+                ]);
+            }
+
+            return redirect()->route('quiz.create', $newModule)
+                ->with('success', 'Assessment/Quiz duplicated successfully with clean data!');
+        });
+    }
+
     public function updateProgress(Request $request, Module $module)
     {
         $user = Auth::user();

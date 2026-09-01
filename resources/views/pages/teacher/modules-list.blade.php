@@ -1,4 +1,4 @@
-﻿@extends('layouts.appTeach')
+@extends('layouts.appTeach')
 
 @section('title', 'Modules - ' . $class->name)
 @section('page-heading', 'Modules')
@@ -213,6 +213,12 @@
                         <i class="fas fa-edit"></i> Edit
                     </a>
                 @endif
+                <button type="button" class="rv-btn rv-btn-secondary duplicate-module"
+                        data-id="{{ $module->id }}"
+                        title="Duplicate (New clean copy)"
+                        style="height:32px;padding:0 12px;font-size: 16px;">
+                    <i class="fas fa-copy"></i>
+                </button>
                 <button type="button" class="rv-btn rv-btn-danger delete-module"
                         data-id="{{ $module->id }}"
                         style="height:32px;padding:0 12px;font-size: 16px;">
@@ -234,7 +240,7 @@
         <p id="mlConfirmMessage">Are you sure?</p>
         <div class="ml-confirm-actions">
             <button type="button" class="rv-btn rv-btn-secondary" id="mlConfirmCancel">Cancel</button>
-            <button type="button" class="rv-btn rv-btn-danger" id="mlConfirmProceed">Delete</button>
+            <button type="button" class="rv-btn rv-btn-danger" id="mlConfirmProceed">Confirm</button>
         </div>
     </div>
 </div>
@@ -301,6 +307,32 @@ document.getElementById('mlConfirmProceed')?.addEventListener('click', function 
     if (typeof action === 'function') {
         action();
     }
+});
+
+document.querySelectorAll('.duplicate-module').forEach(btn => {
+    btn.addEventListener('click', function () {
+        const id = this.dataset.id;
+        openModulesListConfirm('Duplicate this module? A fresh reusable copy with no student data will be created.', function () {
+            fetch('/modules/' + id + '/duplicate', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showModulesListToast('Module duplicated successfully.', 'success');
+                    setTimeout(() => location.reload(), 400);
+                } else {
+                    showModulesListToast(data.message || 'Failed to duplicate module.', 'error');
+                }
+            })
+            .catch(() => showModulesListToast('Failed to duplicate module.', 'error'));
+        });
+    });
 });
 
 document.querySelectorAll('.delete-module').forEach(btn => {
