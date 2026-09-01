@@ -473,6 +473,83 @@
     .sp-tab-panel.active { display: flex; }
 
     .sp-bottom-grid--full { grid-template-columns: 1fr; }
+
+    .sp-table-header-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+    }
+    .sp-search-box {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+    }
+    .sp-search-box i {
+        position: absolute;
+        left: 10px;
+        color: #9ca3af;
+        font-size: 13px;
+        pointer-events: none;
+    }
+    .sp-search-input {
+        padding: 6px 12px 6px 30px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        font-size: 13px;
+        background: #f9fafb;
+        color: #1f2937;
+        outline: none;
+        transition: border-color 0.15s, background-color 0.15s;
+    }
+    .sp-search-input:focus {
+        border-color: #3b82f6;
+        background: #fff;
+    }
+    .sp-pagination-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 14px;
+        margin-top: 10px;
+        border-top: 1px solid #f1f5f9;
+        font-size: 13px;
+        color: #64748b;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .sp-pagination-nav {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .sp-page-btn {
+        padding: 4px 10px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .sp-page-btn:hover:not(:disabled) {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+        color: #1e293b;
+    }
+    .sp-page-btn.active {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: #fff;
+    }
+    .sp-page-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 </style>
 
 @php
@@ -603,10 +680,15 @@
 
     {{-- Bottom row --}}
     <div class="sp-bottom-grid">
-
-        <div class="sp-card">
-            <p class="sp-section-title">Student Rankings</p>
-            @if($topStudents->isNotEmpty())
+        <div class="sp-card" id="quizStudentsCard">
+            <div class="sp-table-header-bar">
+                <p class="sp-section-title" style="margin-bottom:0;">Student Rankings</p>
+                <div class="sp-search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="quizStudentSearch" class="sp-search-input" placeholder="Search student..." oninput="onQuizStudentSearch(this.value)">
+                </div>
+            </div>
+            <div id="quizStudentsTableWrap">
                 <table class="sp-table">
                     <thead>
                         <tr>
@@ -616,50 +698,10 @@
                             <th style="text-align:right"></th>
                         </tr>
                     </thead>
-                    <tbody id="topStudentsBody">
-                        @foreach($topStudents as $i => $student)
-                            @php
-                                $avg        = (float) $student->average_score;
-                                $pillClass  = $avg >= 75 ? 'high' : ($avg >= 50 ? 'mid' : 'low');
-                                $medalClass = $i === 0 ? 'gold' : ($i === 1 ? 'silver' : ($i === 2 ? 'bronze' : ''));
-                            @endphp
-                            <tr>
-                                <td>
-                                    @if($medalClass)
-                                        <span class="sp-rank-medal {{ $medalClass }}">{{ $i + 1 }}</span>
-                                    @else
-                                        <span class="sp-rank-num">{{ $i + 1 }}</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    {{ $student->name }}
-                                    @if(!empty($student->program))
-                                        <span style="font-size: 16px;color:#bbb;margin-left:4px;">{{ $student->program }}</span>
-                                    @endif
-                                </td>
-                                <td style="text-align:right">
-                                    <span class="sp-score-pill {{ $pillClass }}">
-                                        {{ number_format($avg, 1) }}%
-                                    </span>
-                                </td>
-                                <td style="text-align:right">
-                                    <button class="sp-refresh-btn sp-analysis-btn" type="button"
-                                            onclick="openItemAnalysis({{ $student->id }}, '{{ addslashes($student->name) }}')">
-                                        <i class="fas fa-chart-bar"></i> Analysis
-                                    </button>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
+                    <tbody id="topStudentsBody"></tbody>
                 </table>
-                @if(isset($remainingCount) && $remainingCount > 0)
-                    <p style="font-size: 16px;color:#bbb;margin-top:10px;" id="remainingStudentsLabel">
-                        +{{ $remainingCount }} more students
-                    </p>
-                @endif
-            @else
-                <p class="sp-empty">No student data yet.</p>
-            @endif
+                <div class="sp-pagination-bar" id="quizStudentsPagination"></div>
+            </div>
         </div>
 
         <div class="sp-card sp-ai-card">
@@ -725,9 +767,15 @@
 
     {{-- Assessment bottom row --}}
     <div class="sp-bottom-grid">
-        <div class="sp-card">
-            <p class="sp-section-title">Student Rankings</p>
-            @if($aTopStudents->isNotEmpty())
+        <div class="sp-card" id="assessStudentsCard">
+            <div class="sp-table-header-bar">
+                <p class="sp-section-title" style="margin-bottom:0;">Student Rankings</p>
+                <div class="sp-search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="assessStudentSearch" class="sp-search-input" placeholder="Search student..." oninput="onAssessStudentSearch(this.value)">
+                </div>
+            </div>
+            <div id="assessStudentsTableWrap">
                 <table class="sp-table">
                     <thead>
                         <tr>
@@ -737,57 +785,10 @@
                             <th style="text-align:right"></th>
                         </tr>
                     </thead>
-                    <tbody id="assessTopStudentsBody">
-                        @foreach($aTopStudents as $aIdx => $aStudent)
-                            @php
-                                $aAvg        = (float) $aStudent->average_score;
-                                $aPillClass  = $aAvg >= 75 ? 'high' : ($aAvg >= 50 ? 'mid' : 'low');
-                                $aMedalClass = $aIdx === 0 ? 'gold' : ($aIdx === 1 ? 'silver' : ($aIdx === 2 ? 'bronze' : ''));
-                            @endphp
-                            <tr>
-                                <td>
-                                    @if($aMedalClass)
-                                        <span class="sp-rank-medal {{ $aMedalClass }}">{{ $aIdx + 1 }}</span>
-                                    @else
-                                        <span class="sp-rank-num">{{ $aIdx + 1 }}</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    {{ $aStudent->name }}
-                                    @if(!empty($aStudent->program))
-                                        <span style="font-size: 16px;color:#bbb;margin-left:4px;">{{ $aStudent->program }}</span>
-                                    @endif
-                                </td>
-                                <td style="text-align:right">
-                                    <span class="sp-score-pill {{ $aPillClass }}">
-                                        {{ number_format($aAvg, 1) }}%
-                                    </span>
-                                </td>
-                                <td style="text-align:right;white-space:nowrap;">
-                                    <div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">
-                                        <button class="sp-refresh-btn sp-analysis-btn" type="button"
-                                                onclick="openItemAnalysis({{ $aStudent->id }}, '{{ addslashes($aStudent->name) }}', true)">
-                                            <i class="fas fa-chart-bar"></i> Latest
-                                        </button>
-                                        <a href="{{ route('student.assessment.analysis', [$class, $aStudent->id]) }}"
-                                           class="sp-refresh-btn sp-analysis-btn"
-                                           style="text-decoration:none;">
-                                            <i class="fas fa-robot"></i> AI Analysis
-                                        </a>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
+                    <tbody id="assessTopStudentsBody"></tbody>
                 </table>
-                @if($aRemainingCount > 0)
-                    <p style="font-size: 16px;color:#bbb;margin-top:10px;" id="assessRemainingStudentsLabel">
-                        +{{ $aRemainingCount }} more students
-                    </p>
-                @endif
-            @else
-                <p class="sp-empty">No student data yet.</p>
-            @endif
+                <div class="sp-pagination-bar" id="assessStudentsPagination"></div>
+            </div>
         </div>
 
         <div class="sp-card sp-ai-card">
@@ -1126,47 +1127,76 @@ function renderQuestionStats(items) {
     buildQuestionChart(stats);
 }
 
-function renderTopStudents(items, remainingCount) {
+var quizStudentsState = {
+    items: @json($topStudents->values()),
+    search: '',
+    page: 1,
+    perPage: 10
+};
+
+function onQuizStudentSearch(val) {
+    quizStudentsState.search = val || '';
+    quizStudentsState.page = 1;
+    renderTopStudents();
+}
+
+function setQuizPage(p) {
+    quizStudentsState.page = p;
+    renderTopStudents();
+}
+
+function renderTopStudents(newItems) {
+    if (newItems !== undefined) {
+        quizStudentsState.items = Array.isArray(newItems) ? newItems : [];
+        quizStudentsState.page = 1;
+        var searchInput = document.getElementById('quizStudentSearch');
+        if (searchInput) searchInput.value = '';
+        quizStudentsState.search = '';
+    }
+
     var body = document.getElementById('topStudentsBody');
-    var card = document.querySelector('.sp-bottom-grid .sp-card:first-child');
-    if (!card) {
+    var pagination = document.getElementById('quizStudentsPagination');
+    if (!body) return;
+
+    var rankedItems = quizStudentsState.items.map(function(item, idx) {
+        return Object.assign({}, item, { _originalRank: idx + 1 });
+    });
+
+    var filtered = rankedItems;
+    if (quizStudentsState.search.trim()) {
+        var q = quizStudentsState.search.trim().toLowerCase();
+        filtered = rankedItems.filter(function(st) {
+            return (st.name && st.name.toLowerCase().includes(q)) ||
+                   (st.program && st.program.toLowerCase().includes(q));
+        });
+    }
+
+    if (!filtered.length) {
+        body.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:#94a3b8;">${quizStudentsState.search ? 'No students matching "' + escapeHtml(quizStudentsState.search) + '"' : 'No student data yet.'}</td></tr>`;
+        if (pagination) pagination.innerHTML = '';
         return;
     }
 
-    var students = Array.isArray(items) ? items : [];
-    if (!students.length) {
-        card.innerHTML = '<p class="sp-section-title">Student Rankings</p><p class="sp-empty">No student data yet.</p>';
-        return;
-    }
+    var total = filtered.length;
+    var perPage = quizStudentsState.perPage;
+    var totalPages = Math.max(1, Math.ceil(total / perPage));
+    if (quizStudentsState.page > totalPages) quizStudentsState.page = totalPages;
+    if (quizStudentsState.page < 1) quizStudentsState.page = 1;
 
-    if (!body) {
-        card.innerHTML = `
-            <p class="sp-section-title">Student Rankings</p>
-            <table class="sp-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Student</th>
-                        <th style="text-align:right">Avg Score</th>
-                        <th style="text-align:right"></th>
-                    </tr>
-                </thead>
-                <tbody id="topStudentsBody"></tbody>
-            </table>
-            <p style="font-size: 16px;color:#bbb;margin-top:10px;display:none;" id="remainingStudentsLabel"></p>
-        `;
-        body = document.getElementById('topStudentsBody');
-    }
+    var startIdx = (quizStudentsState.page - 1) * perPage;
+    var endIdx = Math.min(startIdx + perPage, total);
+    var pageItems = filtered.slice(startIdx, endIdx);
 
-    body.innerHTML = students.map(function (student, i) {
+    body.innerHTML = pageItems.map(function (student) {
         var avg = Number(student.average_score || 0);
         var pillClass = scoreClass(avg);
-        var medalClass = i === 0 ? 'gold' : (i === 1 ? 'silver' : (i === 2 ? 'bronze' : ''));
+        var rank = student._originalRank;
+        var medalClass = rank === 1 ? 'gold' : (rank === 2 ? 'silver' : (rank === 3 ? 'bronze' : ''));
         var studentId = Number(student.id || 0);
         var safeName = String(student.name || 'Student').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         var rankBadge = medalClass
-            ? `<span class="sp-rank-medal ${medalClass}">${i + 1}</span>`
-            : `<span class="sp-rank-num">${i + 1}</span>`;
+            ? `<span class="sp-rank-medal ${medalClass}">${rank}</span>`
+            : `<span class="sp-rank-num">${rank}</span>`;
         var program = student.program
             ? `<span style="font-size: 16px;color:#bbb;margin-left:4px;">${escapeHtml(student.program)}</span>`
             : '';
@@ -1190,18 +1220,39 @@ function renderTopStudents(items, remainingCount) {
         `;
     }).join('');
 
-    var remainingLabel = document.getElementById('remainingStudentsLabel');
-    var remaining = Number(remainingCount || 0);
-    if (remainingLabel) {
-        if (remaining > 0) {
-            remainingLabel.style.display = '';
-            remainingLabel.textContent = '+' + remaining + ' more students';
+    if (pagination) {
+        if (totalPages <= 1 && total <= perPage) {
+            pagination.innerHTML = `<span style="color:#94a3b8;">Showing all ${total} students</span>`;
         } else {
-            remainingLabel.style.display = 'none';
-            remainingLabel.textContent = '';
+            var paginationBtns = '';
+            for (var p = 1; p <= totalPages; p++) {
+                if (totalPages > 7) {
+                    if (p > 1 && p < totalPages && Math.abs(p - quizStudentsState.page) > 2) {
+                        if (p === 2 || p === totalPages - 1) {
+                            paginationBtns += `<span style="padding:0 4px;color:#94a3b8;">...</span>`;
+                        }
+                        continue;
+                    }
+                }
+                paginationBtns += `<button type="button" class="sp-page-btn ${p === quizStudentsState.page ? 'active' : ''}" onclick="setQuizPage(${p})">${p}</button>`;
+            }
+
+            pagination.innerHTML = `
+                <div>Showing <strong>${startIdx + 1}</strong> to <strong>${endIdx}</strong> of <strong>${total}</strong> students</div>
+                <div class="sp-pagination-nav">
+                    <button type="button" class="sp-page-btn" ${quizStudentsState.page <= 1 ? 'disabled' : ''} onclick="setQuizPage(${quizStudentsState.page - 1})">
+                        <i class="fas fa-chevron-left" style="font-size:10px;"></i> Prev
+                    </button>
+                    ${paginationBtns}
+                    <button type="button" class="sp-page-btn" ${quizStudentsState.page >= totalPages ? 'disabled' : ''} onclick="setQuizPage(${quizStudentsState.page + 1})">
+                        Next <i class="fas fa-chevron-right" style="font-size:10px;"></i>
+                    </button>
+                </div>
+            `;
         }
     }
 }
+renderTopStudents();
 
 function renderAiSummary(summaryText) {
     var rawEl = document.getElementById('aiRawText');
@@ -1397,40 +1448,76 @@ function renderAssessmentQuestionStats(items) {
     buildAssessmentQuestionChart(stats);
 }
 
-function renderAssessmentTopStudents(items, remainingCount) {
-    var body = document.getElementById('assessTopStudentsBody');
-    var card = document.querySelector('#tab-assessment .sp-bottom-grid .sp-card');
-    if (!card) { return; }
+var assessStudentsState = {
+    items: @json($aTopStudents->values()),
+    search: '',
+    page: 1,
+    perPage: 10
+};
 
-    var students = Array.isArray(items) ? items : [];
-    if (!students.length) {
-        card.innerHTML = '<p class="sp-section-title">Student Rankings</p><p class="sp-empty">No student data yet.</p>';
+function onAssessStudentSearch(val) {
+    assessStudentsState.search = val || '';
+    assessStudentsState.page = 1;
+    renderAssessmentTopStudents();
+}
+
+function setAssessPage(p) {
+    assessStudentsState.page = p;
+    renderAssessmentTopStudents();
+}
+
+function renderAssessmentTopStudents(newItems) {
+    if (newItems !== undefined) {
+        assessStudentsState.items = Array.isArray(newItems) ? newItems : [];
+        assessStudentsState.page = 1;
+        var searchInput = document.getElementById('assessStudentSearch');
+        if (searchInput) searchInput.value = '';
+        assessStudentsState.search = '';
+    }
+
+    var body = document.getElementById('assessTopStudentsBody');
+    var pagination = document.getElementById('assessStudentsPagination');
+    if (!body) return;
+
+    var rankedItems = assessStudentsState.items.map(function(item, idx) {
+        return Object.assign({}, item, { _originalRank: idx + 1 });
+    });
+
+    var filtered = rankedItems;
+    if (assessStudentsState.search.trim()) {
+        var q = assessStudentsState.search.trim().toLowerCase();
+        filtered = rankedItems.filter(function(st) {
+            return (st.name && st.name.toLowerCase().includes(q)) ||
+                   (st.program && st.program.toLowerCase().includes(q));
+        });
+    }
+
+    if (!filtered.length) {
+        body.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:#94a3b8;">${assessStudentsState.search ? 'No students matching "' + escapeHtml(assessStudentsState.search) + '"' : 'No student data yet.'}</td></tr>`;
+        if (pagination) pagination.innerHTML = '';
         return;
     }
 
-    if (!body) {
-        card.innerHTML = `
-            <p class="sp-section-title">Student Rankings</p>
-            <table class="sp-table">
-                <thead>
-                    <tr><th>#</th><th>Student</th><th style="text-align:right">Avg Score</th><th style="text-align:right"></th></tr>
-                </thead>
-                <tbody id="assessTopStudentsBody"></tbody>
-            </table>
-            <p style="font-size: 16px;color:#bbb;margin-top:10px;display:none;" id="assessRemainingStudentsLabel"></p>
-        `;
-        body = document.getElementById('assessTopStudentsBody');
-    }
+    var total = filtered.length;
+    var perPage = assessStudentsState.perPage;
+    var totalPages = Math.max(1, Math.ceil(total / perPage));
+    if (assessStudentsState.page > totalPages) assessStudentsState.page = totalPages;
+    if (assessStudentsState.page < 1) assessStudentsState.page = 1;
 
-    body.innerHTML = students.map(function (student, i) {
+    var startIdx = (assessStudentsState.page - 1) * perPage;
+    var endIdx = Math.min(startIdx + perPage, total);
+    var pageItems = filtered.slice(startIdx, endIdx);
+
+    body.innerHTML = pageItems.map(function (student) {
         var avg = Number(student.average_score || 0);
         var pillClass = scoreClass(avg);
-        var medalClass = i === 0 ? 'gold' : (i === 1 ? 'silver' : (i === 2 ? 'bronze' : ''));
+        var rank = student._originalRank;
+        var medalClass = rank === 1 ? 'gold' : (rank === 2 ? 'silver' : (rank === 3 ? 'bronze' : ''));
         var studentId = Number(student.id || 0);
         var safeName = String(student.name || 'Student').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         var rankBadge = medalClass
-            ? `<span class="sp-rank-medal ${medalClass}">${i + 1}</span>`
-            : `<span class="sp-rank-num">${i + 1}</span>`;
+            ? `<span class="sp-rank-medal ${medalClass}">${rank}</span>`
+            : `<span class="sp-rank-num">${rank}</span>`;
         var program = student.program
             ? `<span style="font-size: 16px;color:#bbb;margin-left:4px;">${escapeHtml(student.program)}</span>`
             : '';
@@ -1458,17 +1545,39 @@ function renderAssessmentTopStudents(items, remainingCount) {
         `;
     }).join('');
 
-    var remainingLabel = document.getElementById('assessRemainingStudentsLabel');
-    var remaining = Number(remainingCount || 0);
-    if (remainingLabel) {
-        if (remaining > 0) {
-            remainingLabel.style.display = '';
-            remainingLabel.textContent = '+' + remaining + ' more students';
+    if (pagination) {
+        if (totalPages <= 1 && total <= perPage) {
+            pagination.innerHTML = `<span style="color:#94a3b8;">Showing all ${total} students</span>`;
         } else {
-            remainingLabel.style.display = 'none';
+            var paginationBtns = '';
+            for (var p = 1; p <= totalPages; p++) {
+                if (totalPages > 7) {
+                    if (p > 1 && p < totalPages && Math.abs(p - assessStudentsState.page) > 2) {
+                        if (p === 2 || p === totalPages - 1) {
+                            paginationBtns += `<span style="padding:0 4px;color:#94a3b8;">...</span>`;
+                        }
+                        continue;
+                    }
+                }
+                paginationBtns += `<button type="button" class="sp-page-btn ${p === assessStudentsState.page ? 'active' : ''}" onclick="setAssessPage(${p})">${p}</button>`;
+            }
+
+            pagination.innerHTML = `
+                <div>Showing <strong>${startIdx + 1}</strong> to <strong>${endIdx}</strong> of <strong>${total}</strong> students</div>
+                <div class="sp-pagination-nav">
+                    <button type="button" class="sp-page-btn" ${assessStudentsState.page <= 1 ? 'disabled' : ''} onclick="setAssessPage(${assessStudentsState.page - 1})">
+                        <i class="fas fa-chevron-left" style="font-size:10px;"></i> Prev
+                    </button>
+                    ${paginationBtns}
+                    <button type="button" class="sp-page-btn" ${assessStudentsState.page >= totalPages ? 'disabled' : ''} onclick="setAssessPage(${assessStudentsState.page + 1})">
+                        Next <i class="fas fa-chevron-right" style="font-size:10px;"></i>
+                    </button>
+                </div>
+            `;
         }
     }
 }
+renderAssessmentTopStudents();
 
 /* Tab switching */
 document.querySelectorAll('.sp-tab-btn').forEach(function (btn) {
