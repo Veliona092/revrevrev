@@ -18,6 +18,12 @@
 
 @section('header-actions')
     @if($existingQuestions->isNotEmpty())
+        <form method="POST" action="{{ route('modules.duplicate', $module) }}" style="display:inline-flex;">
+            @csrf
+            <button type="submit" class="rv-btn rv-btn-secondary" title="Create a fresh reusable copy with no student data">
+                <i class="fas fa-copy"></i> Duplicate
+            </button>
+        </form>
         <form method="POST" action="{{ route('test-bank.modules.import', $module) }}"
               style="display:inline-flex;align-items:center;gap:6px;">
             @csrf

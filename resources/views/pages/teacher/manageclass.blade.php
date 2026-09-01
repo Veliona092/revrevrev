@@ -2272,6 +2272,8 @@ function loadModulesForTab(classId, type, containerId) {
                 viewBtn = '<a href="' + m.file_path + '" target="_blank" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size:16px;text-decoration:none;"><i class="fas fa-eye"></i></a>';
             }
 
+            let duplicateBtn = '<button class="rv-btn rv-btn-secondary" title="Duplicate (New clean copy)" style="height:28px;padding:0 10px;font-size:16px;" onclick="duplicateModuleFromTab(' + m.id + ', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-copy"></i></button>';
+
             let dueMeta = m.due_date ? ' · Due ' + m.due_date : '';
 
             html += '<div class="rv-module-item">' +
@@ -2281,6 +2283,7 @@ function loadModulesForTab(classId, type, containerId) {
                 '</div>' +
                 '<div style="display:flex;align-items:center;gap:6px;">' +
                     editBtn +
+                    duplicateBtn +
                     viewBtn +
                     '<button class="rv-btn rv-btn-danger" style="height:28px;padding:0 10px;font-size:16px;" onclick="deleteModuleFromTab(' + m.id + ', \'' + type + '\', \'' + containerId + '\')">' +
                         '<i class="fas fa-trash"></i>' +
@@ -2295,34 +2298,35 @@ function loadModulesForTab(classId, type, containerId) {
     });
 }
 
-
-
-// -”€-”€ Delete module from a typed tab -”€-”€
-
-function deleteModuleFromTab(moduleId, type, containerId) {
-
-    openManageConfirm('Delete this item? This cannot be undone.', function () {
-
+// ── Duplicate module from a typed tab ──
+function duplicateModuleFromTab(moduleId, type, containerId) {
+    openManageConfirm('Duplicate this item? A fresh reusable copy with no student data will be created.', function () {
         $.ajax({
-
-            url: "{{ url('/modules') }}/" + moduleId,
-
-            type: 'DELETE',
-
+            url: "{{ url('/modules') }}/" + moduleId + "/duplicate",
+            type: 'POST',
             data: { _token: '{{ csrf_token() }}' }
-
-        }).done(() => {
-
+        }).done(function () {
             loadModulesForTab(currentClassId, type, containerId);
-
-            showUploadValidationToast('Item deleted.', 'success');
-
-        })
-
-          .fail(xhr => showUploadValidationToast(xhr.responseJSON?.message || 'Failed to delete.', 'error'));
-
+            showUploadValidationToast('Item duplicated successfully.', 'success');
+        }).fail(function (xhr) {
+            showUploadValidationToast(xhr.responseJSON?.message || 'Failed to duplicate.', 'error');
+        });
     });
+}
 
+// ── Delete module from a typed tab ──
+function deleteModuleFromTab(moduleId, type, containerId) {
+    openManageConfirm('Delete this item? This cannot be undone.', function () {
+        $.ajax({
+            url: "{{ url('/modules') }}/" + moduleId,
+            type: 'DELETE',
+            data: { _token: '{{ csrf_token() }}' }
+        }).done(() => {
+            loadModulesForTab(currentClassId, type, containerId);
+            showUploadValidationToast('Item deleted.', 'success');
+        })
+          .fail(xhr => showUploadValidationToast(xhr.responseJSON?.message || 'Failed to delete.', 'error'));
+    });
 }
 
 
