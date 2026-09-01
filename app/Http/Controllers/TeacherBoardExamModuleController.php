@@ -149,7 +149,7 @@ class TeacherBoardExamModuleController extends Controller
 
         $validated = $request->validate([
             'files' => 'required|array|min:1',
-            'files.*' => 'file|max:102400|mimes:pdf,ppt,pptx,docx,mov',
+            'files.*' => 'file|max:102400|mimes:pdf,doc,docx,ppt,pptx,mov',
         ]);
 
         $maxOrder = $material->files()->max('order') ?? 0;
@@ -165,7 +165,7 @@ class TeacherBoardExamModuleController extends Controller
                 'pdf' => 'pdf',
                 'ppt' => 'ppt',
                 'pptx' => 'pptx',
-                'docx' => 'docx',
+                'doc', 'docx' => 'docx',
                 'mov' => 'mov',
                 default => null,
             };
