@@ -701,7 +701,7 @@
             <div class="sp-filter-group">
                 <label for="quizModuleSelect" class="sp-filter-label"><i class="fas fa-layer-group"></i> Module / Pre-Assessment:</label>
                 <select id="quizModuleSelect" class="sp-filter-select" onchange="onQuizModuleSelect(this.value)">
-                    <option value="all">📊 All Modules / Topics (Class Overview)</option>
+                    <option value="all">All Modules / Topics (Class Overview)</option>
                     @foreach($preAssessmentModules as $pm)
                         <option value="{{ $pm->id }}" {{ (isset($selectedQuizModuleId) && (string)$selectedQuizModuleId === (string)$pm->id) ? 'selected' : '' }}>
                             {{ $pm->title }}
@@ -805,7 +805,7 @@
         <div class="sp-filter-group">
             <label for="assessModuleSelect" class="sp-filter-label"><i class="fas fa-clipboard-check"></i> Formal Assessment:</label>
             <select id="assessModuleSelect" class="sp-filter-select" onchange="onAssessModuleSelect(this.value)">
-                <option value="all">📊 All Formal Assessments (Class Overview)</option>
+                <option value="all">All Formal Assessments (Class Overview)</option>
                 @foreach($formalAssessmentModules as $fm)
                     <option value="{{ $fm->id }}" {{ (isset($selectedAssessModuleId) && (string)$selectedAssessModuleId === (string)$fm->id) ? 'selected' : '' }}>
                         {{ $fm->title }}
@@ -1007,7 +1007,7 @@ function populateModuleSelect(selectId, modules, defaultLabel) {
     var sel = document.getElementById(selectId);
     if (!sel) return;
     var list = Array.isArray(modules) ? modules : [];
-    var html = `<option value="all">📊 ${defaultLabel}</option>`;
+    var html = `<option value="all">${defaultLabel}</option>`;
     list.forEach(function(m) {
         html += `<option value="${m.id}">${escapeHtml(m.title)}</option>`;
     });
