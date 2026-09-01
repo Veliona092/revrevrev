@@ -226,31 +226,6 @@
     @csrf
 
     <div class="form-group">
-        <label class="form-control-label" for="email">Email</label>
-        <div class="input-group input-group-alternative mb-3">
-            <div class="input-group-prepend">
-                <span class="input-group-text">
-                    <i class="ni ni-email-83"></i>
-                </span>
-            </div>
-            <input type="email" 
-                   id="email" 
-                   name="email" 
-                   class="form-control @error('email') is-invalid @enderror"
-                   placeholder="Enter your email"
-                   value="{{ old('email') }}"
-                   required
-                   autofocus
-                   autocomplete="email">
-        </div>
-        @error('email')
-            <span class="invalid-feedback" role="alert">
-                <strong>{{ $message }}</strong>
-            </span>
-        @enderror
-    </div>
-
-    <div class="form-group">
         <label class="form-control-label" for="idnumber">ID Number</label>
         <div class="input-group input-group-alternative mb-3">
             <div class="input-group-prepend">
@@ -265,6 +240,7 @@
                    placeholder="Enter your ID number"
                    value="{{ old('idnumber') }}"
                    required
+                   autofocus
                    autocomplete="off">
         </div>
         @error('idnumber')

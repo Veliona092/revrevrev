@@ -106,7 +106,10 @@
     .mod-tree-progress-track { height: 3px; margin: 2px 8px 5px 28px; background: rgba(255,255,255,0.1); border-radius: 99px; overflow: hidden; }
     .mod-tree-progress-fill { height: 100%; width: 0; background: #1d9e75; border-radius: 99px; transition: width 0.3s ease; }
     .mod-tree-lessons { display: none; padding-left: 14px; }
-    .mod-tree-node.domain.expanded + .mod-tree-lessons { display: block; }
+    .mod-subpart-item { margin-bottom: 4px; }
+    .mod-subpart-item.expanded > .mod-tree-node.domain .domain-caret { transform: rotate(90deg); }
+    .mod-subpart-item.expanded > .mod-tree-lessons { display: block !important; }
+    .domain-caret { transition: transform 0.15s ease; color: rgba(255,255,255,0.6); }
 
     .mod-badge {
         font-size: 14px; font-weight: 500;
@@ -573,24 +576,30 @@
                     <div class="mod-tree-list" data-outline-module="{{ $module->id }}">
                         <div class="mod-tree-content">
                             @foreach($module->subparts as $subpart)
-                                <button type="button" class="mod-tree-node domain" data-module-id="{{ $module->id }}" data-subpart-id="{{ $subpart->id }}" data-subpart-index="{{ $loop->index }}" onclick="selectOutlineSubpart(event, {{ $module->id }}, {{ $loop->index }}, this)">
-                                    <i class="fas fa-folder"></i>
-                                    <span class="mod-tree-node-text">{{ $subpart->title }}</span>
-                                    <span class="mod-tree-progress" data-subpart-progress-label="{{ $subpart->id }}">{{ (int) $subpart->student_progress }}%</span>
-                                </button>
-                                <div class="mod-tree-progress-track"><div class="mod-tree-progress-fill" data-subpart-progress-bar="{{ $subpart->id }}" style="width:{{ $subpart->student_progress }}%"></div></div>
-                                @if($subpart->lessons->isNotEmpty())
-                                    <div class="mod-tree-lessons">
-                                        @foreach($subpart->lessons as $lesson)
-                                            <button type="button" class="mod-tree-node lesson" data-lesson-id="{{ $lesson->id }}" onclick="selectOutlineLesson(event, {{ $module->id }}, {{ $subpart->id }}, {{ $loop->index }}, this)">
-                                                <i class="fas fa-file-alt"></i>
-                                                <span class="mod-tree-node-text">{{ $lesson->title }}</span>
-                                                <span class="mod-tree-progress" data-lesson-progress-label="{{ $lesson->id }}">{{ (int) $lesson->student_progress }}%</span>
-                                            </button>
-                                            <div class="mod-tree-progress-track lesson-progress-track"><div class="mod-tree-progress-fill" data-lesson-progress-bar="{{ $lesson->id }}" style="width:{{ $lesson->student_progress }}%"></div></div>
-                                        @endforeach
-                                    </div>
-                                @endif
+                                <div class="mod-subpart-item {{ $subpart->lessons->isNotEmpty() ? 'has-lessons' : '' }}" data-subpart-id="{{ $subpart->id }}">
+                                    <button type="button" class="mod-tree-node domain" data-module-id="{{ $module->id }}" data-subpart-id="{{ $subpart->id }}" data-subpart-index="{{ $loop->index }}" onclick="selectOutlineSubpart(event, {{ $module->id }}, {{ $loop->index }}, this)">
+                                        @if($subpart->lessons->isNotEmpty())
+                                            <i class="fas fa-chevron-right domain-caret"></i>
+                                        @else
+                                            <i class="fas fa-folder"></i>
+                                        @endif
+                                        <span class="mod-tree-node-text">{{ $subpart->title }}</span>
+                                        <span class="mod-tree-progress" data-subpart-progress-label="{{ $subpart->id }}">{{ (int) $subpart->student_progress }}%</span>
+                                    </button>
+                                    <div class="mod-tree-progress-track"><div class="mod-tree-progress-fill" data-subpart-progress-bar="{{ $subpart->id }}" style="width:{{ $subpart->student_progress }}%"></div></div>
+                                    @if($subpart->lessons->isNotEmpty())
+                                        <div class="mod-tree-lessons">
+                                            @foreach($subpart->lessons as $lesson)
+                                                <button type="button" class="mod-tree-node lesson" data-lesson-id="{{ $lesson->id }}" onclick="selectOutlineLesson(event, {{ $module->id }}, {{ $subpart->id }}, {{ $loop->index }}, this)">
+                                                    <i class="fas fa-folder" style="color:#6ee7b7;"></i>
+                                                    <span class="mod-tree-node-text">{{ $lesson->title }}</span>
+                                                    <span class="mod-tree-progress" data-lesson-progress-label="{{ $lesson->id }}">{{ (int) $lesson->student_progress }}%</span>
+                                                </button>
+                                                <div class="mod-tree-progress-track lesson-progress-track"><div class="mod-tree-progress-fill" data-lesson-progress-bar="{{ $lesson->id }}" style="width:{{ $lesson->student_progress }}%"></div></div>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </div>
                             @endforeach
                         </div>
                     </div>
@@ -694,9 +703,22 @@
         const mod = modules.find(module => module.id == moduleId);
         if (!mod) return;
 
-        document.querySelectorAll('.mod-tree-node.domain').forEach(item => item.classList.remove('active'));
+        const subpart = (mod.subparts || [])[index];
+        const subpartItem = node.closest('.mod-subpart-item');
+
+        // If this domain has sub-domains (lessons), only toggle its collapsible accordion!
+        if (subpart && subpart.lessons && subpart.lessons.length > 0) {
+            if (subpartItem) {
+                subpartItem.classList.toggle('expanded');
+            } else {
+                node.classList.toggle('expanded');
+            }
+            return;
+        }
+
+        // Standalone subpart without child lessons -> load its content directly
+        document.querySelectorAll('.mod-tree-node').forEach(item => item.classList.remove('active'));
         node.classList.add('active');
-        node.classList.toggle('expanded');
         loadModule(moduleId, false);
         currentLectureStage = 'content';
         renderLectureShell(mod);
@@ -710,8 +732,13 @@
         const lesson = (subpart?.lessons || [])[index];
         if (!mod || !subpart || !lesson) return;
 
-        document.querySelectorAll('.mod-tree-node.lesson').forEach(item => item.classList.remove('active'));
+        document.querySelectorAll('.mod-tree-node').forEach(item => item.classList.remove('active'));
         node.classList.add('active');
+
+        // Ensure parent module and subpart are expanded
+        $(`.mod-item[data-module-id="${moduleId}"]`).addClass('expanded');
+        node.closest('.mod-subpart-item')?.classList.add('expanded');
+
         loadModule(moduleId, false);
         currentLectureStage = 'content';
         renderLectureShell(mod);
@@ -746,14 +773,29 @@
     }
 
     $(document).ready(function () {
-        $(document).on('click', '.mod-item', function () {
+        $(document).on('click', '.mod-item', function (e) {
+            // If click originated from inside the tree (subparts/lessons), ignore parent handler
+            if ($(e.target).closest('.mod-tree-list').length) {
+                return;
+            }
+
+            const moduleId = $(this).data('module-id');
+            const mod = modules.find(m => m.id == moduleId);
+
             if ($(this).data('locked') == '1') {
                 $('#modContent').html('<div class="mod-placeholder"><i class="fas fa-lock" style="font-size:2rem;color:#bbb;"></i><p style="margin-top:12px;color:#888;">Complete the previous module to unlock this one.</p></div>');
                 return;
             }
+
+            // If this lecture module has subparts/domains, clicking it toggles the collapsible accordion
+            if (mod && mod.is_lecture && mod.subparts && mod.subparts.length > 0) {
+                $(this).toggleClass('expanded');
+                return;
+            }
+
             $('.mod-item').removeClass('active');
             $(this).addClass('active');
-            loadModule($(this).data('module-id'), $(this).data('is-quiz') == '1');
+            loadModule(moduleId, $(this).data('is-quiz') == '1');
         });
 
         $('#modSearch').on('input', function () {
