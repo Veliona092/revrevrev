@@ -389,177 +389,72 @@
         color: #7b2220;
     }
 
-    /* Item Analysis & Question Review Styles */
-    .qz-analysis-wrap {
+    /* Attempt History Breakdown */
+    .qz-history-card {
         background: #fff;
         border: 1px solid #ebebeb;
-        border-radius: 12px;
-        padding: 20px;
-        margin: 20px 0 24px;
+        border-radius: 11px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
         text-align: left;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.03);
     }
-    .qz-analysis-tab {
-        padding: 6px 14px;
-        border-radius: 20px;
-        border: 1px solid #e5e7eb;
-        background: #f9fafb;
-        color: #4b5563;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.15s ease;
-    }
-    .qz-analysis-tab:hover { background: #f3f4f6; }
-    .qz-analysis-tab.active { background: #111827; color: #fff; border-color: #111827; }
-    .qz-analysis-tab.incorrect.active { background: #dc2626; color: #fff; border-color: #dc2626; }
-    .qz-analysis-tab.correct.active { background: #16a34a; color: #fff; border-color: #16a34a; }
-
-    .qz-analysis-card {
-        border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        padding: 16px 18px;
-        background: #fff;
-        transition: border-color 0.15s;
-    }
-    .qz-analysis-card.is-correct { border-left: 4px solid #16a34a; }
-    .qz-analysis-card.is-incorrect { border-left: 4px solid #dc2626; }
-
-    .qz-analysis-card-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 10px;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-    .qz-analysis-num {
-        font-size: 13px;
-        font-weight: 700;
-        color: #374151;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .qz-analysis-domain {
-        font-size: 11px;
-        font-weight: 600;
-        padding: 2px 8px;
-        background: #eff6ff;
-        color: #1e40af;
-        border-radius: 99px;
-    }
-    .qz-analysis-diff {
-        font-size: 11px;
-        font-weight: 600;
-        padding: 2px 8px;
-        border-radius: 99px;
-        text-transform: capitalize;
-    }
-    .qz-analysis-diff.easy { background: #dcfce7; color: #166534; }
-    .qz-analysis-diff.moderate, .qz-analysis-diff.medium { background: #fef3c7; color: #92400e; }
-    .qz-analysis-diff.hard { background: #fee2e2; color: #991b1b; }
-
-    .qz-status-badge {
-        font-size: 12px;
-        font-weight: 600;
-        padding: 3px 10px;
-        border-radius: 99px;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-    }
-    .qz-status-badge.correct { background: #dcfce7; color: #166534; }
-    .qz-status-badge.incorrect { background: #fee2e2; color: #991b1b; }
-    .qz-status-badge.unanswered { background: #f3f4f6; color: #6b7280; }
-
-    .qz-analysis-q-text {
-        font-size: 15px;
-        font-weight: 500;
-        color: #111827;
-        margin: 0 0 14px;
-        line-height: 1.5;
-    }
-
-    .qz-analysis-options {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        margin-bottom: 12px;
-    }
-    .qz-analysis-opt {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 9px 13px;
-        border-radius: 8px;
+    .qz-history-title {
         font-size: 14px;
-        border: 1px solid #e5e7eb;
-        background: #fafafa;
-    }
-    .qz-analysis-opt.opt-correct-selected {
-        background: #ecfdf5;
-        border-color: #6ee7b7;
-        color: #065f46;
         font-weight: 500;
-    }
-    .qz-analysis-opt.opt-incorrect-selected {
-        background: #fef2f2;
-        border-color: #fca5a5;
-        color: #991b1b;
-        font-weight: 500;
-    }
-    .qz-analysis-opt.opt-correct-target {
-        background: #f0fdf4;
-        border-color: #86efac;
-        color: #166534;
-        font-weight: 500;
-    }
-    .qz-analysis-opt-label {
-        font-size: 11px;
-        font-weight: 700;
-        padding: 2px 8px;
-        border-radius: 99px;
-        text-transform: uppercase;
+        color: #111;
         letter-spacing: 0.04em;
-    }
-    .qz-analysis-opt.opt-correct-selected .qz-analysis-opt-label {
-        background: #d1fae5;
-        color: #047857;
-    }
-    .qz-analysis-opt.opt-incorrect-selected .qz-analysis-opt-label {
-        background: #fee2e2;
-        color: #b91c1c;
-    }
-    .qz-analysis-opt.opt-correct-target .qz-analysis-opt-label {
-        background: #dcfce7;
-        color: #15803d;
-    }
-
-    .qz-analysis-expl {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-left: 3px solid #3b82f6;
-        border-radius: 8px;
-        padding: 10px 14px;
-        margin-top: 10px;
-    }
-    .qz-analysis-expl-title {
-        font-size: 12px;
-        font-weight: 700;
-        color: #2563eb;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
-        margin-bottom: 4px;
+        margin: 0 0 12px;
         display: flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
     }
-    .qz-analysis-expl-text {
-        font-size: 13px;
-        color: #334155;
-        margin: 0;
-        line-height: 1.5;
+    .qz-history-item {
+        border: 1px solid #ebebeb;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        overflow: hidden;
     }
+    .qz-history-item:last-child { margin-bottom: 0; }
+    .qz-history-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        cursor: pointer;
+        background: #fafafa;
+        user-select: none;
+        transition: background 0.15s;
+    }
+    .qz-history-row:hover { background: #f3f3f3; }
+    .qz-history-left { display: flex; align-items: center; gap: 10px; }
+    .qz-history-num { font-size: 15px; font-weight: 500; color: #555; }
+    .qz-history-score {
+        font-size: 14px;
+        font-weight: 500;
+        padding: 2px 7px;
+        border-radius: 5px;
+    }
+    .qz-history-score.pass { background: #e1f5ee; color: #0f6e56; }
+    .qz-history-score.fail { background: #fcebeb; color: #a32d2d; }
+    .qz-history-date { font-size: 13px; color: #aaa; }
+    .qz-history-chevron { transition: transform 0.15s; color: #aaa; }
+    .qz-history-item.open .qz-history-chevron { transform: rotate(180deg); }
+    .qz-history-detail { display: none; padding: 14px; border-top: 1px solid #ebebeb; }
+    .qz-history-item.open .qz-history-detail { display: block; }
+    .qz-history-q {
+        border-left: 3px solid #ddd;
+        padding: 8px 12px;
+        margin-bottom: 10px;
+        border-radius: 0 6px 6px 0;
+        font-size: 14px;
+    }
+    .qz-history-q:last-child { margin-bottom: 0; }
+    .qz-history-q.correct   { background: #f0fdf7; border-color: #bfe8d6; }
+    .qz-history-q.incorrect { background: #fff8f8; border-color: #f4c9c8; }
+    .qz-history-q-text { font-weight: 500; color: #111; margin: 0 0 6px; }
+    .qz-history-q-ans  { font-size: 13px; color: #555; margin: 2px 0; }
+    .qz-history-empty { font-size: 14px; color: #aaa; text-align: center; padding: 12px 0; }
 
     /* ── Lecture stage tabs (pre-test / content / post-test) ── */
     .lec-header { margin-bottom: 4px; }
@@ -1892,25 +1787,9 @@
                 <div class="qz-ai-box" id="aiBox">
                     ${aiHtml}
                 </div>
-                <div class="qz-analysis-wrap" id="itemAnalysisContainer" style="margin-top:20px; text-align:left;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px; border-bottom:1px solid #ebebeb; padding-bottom:14px;">
-                        <div>
-                            <h3 style="font-size:17px; font-weight:700; color:#111; margin:0 0 4px; display:flex; align-items:center; gap:8px;">
-                                <i class="fas fa-chart-pie" style="color:#3b82f6;"></i> Item Analysis & Question Review
-                            </h3>
-                            <p style="font-size:13px; color:#666; margin:0;">Detailed breakdown of your answers and correct rationales.</p>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;" id="analysisFilterBar">
-                            <button type="button" class="qz-analysis-tab active" onclick="filterItemAnalysis('all', this)">All (<span id="countAll">0</span>)</button>
-                            <button type="button" class="qz-analysis-tab incorrect" onclick="filterItemAnalysis('incorrect', this)"><i class="fas fa-times-circle"></i> Incorrect (<span id="countIncorrect">0</span>)</button>
-                            <button type="button" class="qz-analysis-tab correct" onclick="filterItemAnalysis('correct', this)"><i class="fas fa-check-circle"></i> Correct (<span id="countCorrect">0</span>)</button>
-                        </div>
-                    </div>
-                    <div id="itemAnalysisList" style="display:flex; flex-direction:column; gap:14px;">
-                        <div style="text-align:center; padding:24px; color:#888;">
-                            <i class="fas fa-spinner fa-spin"></i> Loading item analysis...
-                        </div>
-                    </div>
+                <div class="qz-history-card" id="historyBox">
+                    <p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>
+                    <p class="qz-history-empty">Loading history...</p>
                 </div>
                 <div class="qz-result-btns">
                     <button class="qz-btn qz-btn-outline" onclick="quizBackHandler()"><i class="fas fa-arrow-left"></i> Back</button>
@@ -1918,140 +1797,113 @@
             </div>
         `);
 
-        loadItemAnalysis(currentModuleId, currentQuizStage);
+        loadAttemptHistory(currentModuleId, currentQuizStage);
     }
 
-    let _loadedAnalysisQuestions = [];
-
-    function loadItemAnalysis(targetModuleId, stage = null) {
-        const container = document.getElementById('itemAnalysisList');
-        if (!container) return;
-
-        let url = `/modules/${targetModuleId}/quiz/analysis`;
+    function loadAttemptHistory(targetModuleId, stage = null) {
+        let url = `/modules/${targetModuleId}/quiz/history`;
         if (stage) {
             url += `?quiz_stage=${stage}`;
         }
 
-        $.ajax({
-            url: url,
-            type: 'GET',
-            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-            success: function (res) {
-                if (!res.success || !res.questions || !res.questions.length) {
-                    container.innerHTML = '<p style="text-align:center;color:#888;padding:16px;">No item analysis available yet.</p>';
-                    return;
-                }
-
-                const summary = res.summary || {};
-                const countAll = document.getElementById('countAll');
-                const countIncorrect = document.getElementById('countIncorrect');
-                const countCorrect = document.getElementById('countCorrect');
-
-                if (countAll) countAll.textContent = summary.total || res.questions.length;
-                if (countIncorrect) countIncorrect.textContent = summary.incorrect || 0;
-                if (countCorrect) countCorrect.textContent = summary.correct || 0;
-
-                _loadedAnalysisQuestions = res.questions;
-                renderAnalysisCards(res.questions, 'all');
-            },
-            error: function () {
-                container.innerHTML = '<p style="text-align:center;color:#e24b4a;padding:16px;">Failed to load item analysis.</p>';
+        fetch(url, {
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            var box = document.getElementById('historyBox');
+            if (!box) { return; }
+            if (res.success && res.attempts && res.attempts.length) {
+                renderAttemptHistory(res.attempts);
+            } else {
+                box.innerHTML = '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>' +
+                    '<p class="qz-history-empty">No previous attempts yet.</p>';
+            }
+        })
+        .catch(function () {
+            var box = document.getElementById('historyBox');
+            if (box) {
+                box.innerHTML = '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>' +
+                    '<p class="qz-history-empty">Failed to load history.</p>';
             }
         });
     }
 
-    function renderAnalysisCards(questions, filter = 'all') {
-        const container = document.getElementById('itemAnalysisList');
-        if (!container) return;
+    function renderAttemptHistory(attempts) {
+        var box = document.getElementById('historyBox');
+        if (!box) { return; }
 
-        const filtered = questions.filter(q => {
-            if (filter === 'correct') return q.is_correct;
-            if (filter === 'incorrect') return !q.is_correct;
-            return true;
-        });
+        var rows = attempts.map(function (a) {
+            var pct = Math.round(a.percentage);
+            var scoreClass = a.passed ? 'pass' : 'fail';
+            var dateStr = a.completed_at
+                ? new Date(a.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : '';
 
-        if (!filtered.length) {
-            container.innerHTML = `<p style="text-align:center;color:#888;padding:24px;">No ${filter} items to display.</p>`;
-            return;
-        }
-
-        container.innerHTML = filtered.map(q => {
-            const isCorrect = q.is_correct;
-            const isUnanswered = q.is_unanswered;
-            const statusClass = isCorrect ? 'is-correct' : 'is-incorrect';
-            const cardStatus = isCorrect ? 'correct' : 'incorrect';
-
-            const statusBadge = isCorrect
-                ? `<span class="qz-status-badge correct"><i class="fas fa-check"></i> Correct (+${q.points} pt)</span>`
-                : (isUnanswered
-                    ? `<span class="qz-status-badge unanswered"><i class="fas fa-minus-circle"></i> Unanswered (0 pt)</span>`
-                    : `<span class="qz-status-badge incorrect"><i class="fas fa-times"></i> Incorrect (0 pt)</span>`);
-
-            const domainBadge = q.domain ? `<span class="qz-analysis-domain">${escapeHtml(q.domain)}</span>` : '';
-            const diffBadge = q.difficulty ? `<span class="qz-analysis-diff ${(q.difficulty || '').toLowerCase()}">${escapeHtml(q.difficulty)}</span>` : '';
-
-            let optionsHtml = '';
-            if (q.options && typeof q.options === 'object') {
-                const keys = Object.keys(q.options);
-                optionsHtml = keys.map(k => {
-                    const optText = q.options[k];
-                    const isSelected = q.selected_option && q.selected_option.toUpperCase() === k.toUpperCase();
-                    const isTargetCorrect = q.correct_option && q.correct_option.toUpperCase() === k.toUpperCase();
-
-                    let optClass = 'qz-analysis-opt';
-                    let tagLabel = '';
-
-                    if (isSelected && isTargetCorrect) {
-                        optClass += ' opt-correct-selected';
-                        tagLabel = '<span class="qz-analysis-opt-label"><i class="fas fa-check"></i> Your Answer (Correct)</span>';
-                    } else if (isSelected && !isTargetCorrect) {
-                        optClass += ' opt-incorrect-selected';
-                        tagLabel = '<span class="qz-analysis-opt-label"><i class="fas fa-times"></i> Your Answer</span>';
-                    } else if (isTargetCorrect) {
-                        optClass += ' opt-correct-target';
-                        tagLabel = '<span class="qz-analysis-opt-label"><i class="fas fa-check"></i> Correct Answer</span>';
-                    }
-
-                    return `
-                        <div class="${optClass}">
-                            <div><strong>${k}.</strong> ${escapeHtml(optText)}</div>
-                            ${tagLabel}
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            const explHtml = q.explanation ? `
-                <div class="qz-analysis-expl">
-                    <div class="qz-analysis-expl-title"><i class="fas fa-lightbulb"></i> Explanation / Rationale</div>
-                    <p class="qz-analysis-expl-text">${escapeHtml(q.explanation)}</p>
-                </div>
-            ` : '';
-
-            return `
-                <div class="qz-analysis-card ${statusClass}" data-status="${cardStatus}">
-                    <div class="qz-analysis-card-head">
-                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                            <span class="qz-analysis-num">Question ${q.index}</span>
-                            ${domainBadge}
-                            ${diffBadge}
-                        </div>
-                        <div>${statusBadge}</div>
-                    </div>
-                    <p class="qz-analysis-q-text">${escapeHtml(q.question_text)}</p>
-                    <div class="qz-analysis-options">${optionsHtml}</div>
-                    ${explHtml}
-                </div>
-            `;
+            return '<div class="qz-history-item" id="historyItem_' + a.id + '">' +
+                '<div class="qz-history-row" onclick="toggleAttemptHistory(' + a.id + ')">' +
+                '<div class="qz-history-left">' +
+                '<span class="qz-history-num">Attempt ' + a.attempt_number + '</span>' +
+                '<span class="qz-history-score ' + scoreClass + '">' + pct + '% &bull; ' + a.score + '/' + a.total + '</span>' +
+                '</div>' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<span class="qz-history-date">' + dateStr + '</span>' +
+                '<i class="fas fa-chevron-down qz-history-chevron"></i>' +
+                '</div>' +
+                '</div>' +
+                '<div class="qz-history-detail" id="historyDetail_' + a.id + '">' +
+                '<p class="qz-history-empty">Loading...</p>' +
+                '</div>' +
+                '</div>';
         }).join('');
+
+        box.innerHTML = '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>' + rows;
     }
 
-    function filterItemAnalysis(type, btn) {
-        document.querySelectorAll('.qz-analysis-tab').forEach(b => b.classList.remove('active'));
-        if (btn) btn.classList.add('active');
-        if (_loadedAnalysisQuestions && _loadedAnalysisQuestions.length) {
-            renderAnalysisCards(_loadedAnalysisQuestions, type);
-        }
+    var loadedHistoryDetails = {};
+
+    function toggleAttemptHistory(snapshotId) {
+        var item = document.getElementById('historyItem_' + snapshotId);
+        if (!item) { return; }
+        var wasOpen = item.classList.contains('open');
+        item.classList.toggle('open');
+        if (wasOpen || loadedHistoryDetails[snapshotId]) { return; }
+        loadedHistoryDetails[snapshotId] = true;
+
+        fetch('/quiz/attempts/' + snapshotId + '/detail', {
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            var detailEl = document.getElementById('historyDetail_' + snapshotId);
+            if (!detailEl) { return; }
+            if (res.success && res.questions && res.questions.length) {
+                detailEl.innerHTML = res.questions.map(function (q, i) {
+                    var cls = q.is_correct ? 'correct' : 'incorrect';
+                    var yourAns = q.selected_option
+                        ? q.selected_option + (q.options && q.options[q.selected_option] ? ' - ' + q.options[q.selected_option] : '')
+                        : 'No answer';
+                    var correctAns = q.correct_option
+                        ? q.correct_option + (q.options && q.options[q.correct_option] ? ' - ' + q.options[q.correct_option] : '')
+                        : '-';
+                    return '<div class="qz-history-q ' + cls + '">' +
+                        '<p class="qz-history-q-text">' + (i + 1) + '. ' + escapeHtml(q.question_text || '') + '</p>' +
+                        '<p class="qz-history-q-ans"><i class="fas fa-' + (q.is_correct ? 'check' : 'times') + '"></i> Your answer: ' + escapeHtml(yourAns) + '</p>' +
+                        (!q.is_correct
+                            ? '<p class="qz-history-q-ans"><i class="fas fa-check"></i> Correct answer: ' + escapeHtml(correctAns) + '</p>'
+                            : '') +
+                        '</div>';
+                }).join('');
+            } else {
+                detailEl.innerHTML = '<p class="qz-history-empty">No details available for this attempt.</p>';
+            }
+        })
+        .catch(function () {
+            var detailEl = document.getElementById('historyDetail_' + snapshotId);
+            if (detailEl) {
+                detailEl.innerHTML = '<p class="qz-history-empty">Failed to load details.</p>';
+            }
+        });
     }
 
     function backToModuleList() {
