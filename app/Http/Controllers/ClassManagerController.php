@@ -1286,8 +1286,29 @@ class ClassManagerController extends Controller
             $totalProgress += $prog->progress;
         }
 
-        // Sequential lock removed: modules are no longer gated by previous completion.
+        // Lock modules if they are not yet open (upcoming) or closed (overdue / inactive)
         $locked = [];
+        $availabilityInfo = [];
+
+        foreach ($modules as $module) {
+            $isUpcoming = $module->isUpcoming();
+            $isClosed = $module->isClosed();
+            $isInactive = ! ($module->is_active ?? true);
+
+            if ($isUpcoming || $isClosed) {
+                $locked[$module->id] = true;
+            }
+
+            $availabilityInfo[$module->id] = [
+                'is_upcoming' => $isUpcoming,
+                'is_closed' => $isClosed,
+                'is_inactive' => $isInactive,
+                'is_open' => $module->isOpen(),
+                'status_label' => $module->statusLabel(),
+                'available_at' => $module->available_at?->format('M d, Y g:i A'),
+                'due_date' => $module->due_date?->format('M d, Y g:i A'),
+            ];
+        }
 
         // Load completed quiz attempts so the view can show locked results.
         $quizModuleIds = $modules->where('is_quiz', true)->pluck('id');
@@ -1338,10 +1359,12 @@ class ClassManagerController extends Controller
                 $used = $quizAttempts[$formalModule->id]['attempt_count'] ?? 0;
 
                 $attemptLimits[$formalModule->id] = [
-                    'base_max_attempts' => $baseMax,
-                    'extra_attempts_granted' => $extra,
-                    'attempts_allowed' => $baseMax + $extra,
-                    'attempts_used' => $used,
+                    'base_max' => $baseMax,
+                    'extra_granted' => $extra,
+                    'total_allowed' => $baseMax + $extra,
+                    'used' => $used,
+                    'remaining' => max(0, ($baseMax + $extra) - $used),
+                    'can_attempt' => $used < ($baseMax + $extra),
                 ];
             }
         }
@@ -1354,7 +1377,8 @@ class ClassManagerController extends Controller
             'locked',
             'quizAttempts',
             'overallCompletion',
-            'attemptLimits'
+            'attemptLimits',
+            'availabilityInfo'
         ));
     }
 
@@ -1698,6 +1722,12 @@ POWERSHELL;
                     'file_type' => $module->file_type,
                     'created_at' => $module->created_at->diffForHumans(),
                     'due_date' => $module->due_date?->format('M d, Y g:i A'),
+                    'available_at' => $module->available_at?->format('M d, Y g:i A'),
+                    'is_active' => (bool) ($module->is_active ?? true),
+                    'status_label' => $module->statusLabel(),
+                    'is_open' => $module->isOpen(),
+                    'is_upcoming' => $module->isUpcoming(),
+                    'is_closed' => $module->isClosed(),
                 ];
             });
 
@@ -2855,6 +2885,8 @@ POWERSHELL;
             // allow null, but ensure numeric when present
             'time_limit' => 'nullable',
             'due_date' => 'nullable|date',
+            'available_at' => 'nullable|date',
+            'is_active' => 'nullable|boolean',
         ]);
 
         // Normalize time_limit: accept numeric strings, null, or empty -> store null or int minutes
@@ -2886,6 +2918,8 @@ POWERSHELL;
             'description' => $validated['description'] ?? null,
             'time_limit' => $minutes ?? 0,
             'due_date' => $validated['due_date'] ?? null,
+            'available_at' => $validated['available_at'] ?? null,
+            'is_active' => $request->has('is_active') ? $request->boolean('is_active') : true,
             'file_path' => null,
             'file_type' => null,
             'is_quiz' => true,

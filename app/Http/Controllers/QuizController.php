@@ -235,6 +235,27 @@ class QuizController extends Controller
         $user = Auth::user();
         $stage = $this->resolveStage($request);
 
+        if ($module->isUpcoming()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This quiz/assessment is not yet open. It will be available on '.($module->available_at?->format('M d, Y g:i A') ?? 'the scheduled date').'.',
+            ], 403);
+        }
+
+        if (! ($module->is_active ?? true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This quiz/assessment is currently inactive.',
+            ], 403);
+        }
+
+        if ($module->isOverdue()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This quiz/assessment is past its due date and is no longer available.',
+            ], 403);
+        }
+
         $mockPhase = MockBoardPhase::where('module_id', $module->id)->first();
         $mockBoardId = $mockPhase?->mock_board_id;
 
@@ -722,6 +743,55 @@ class QuizController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function updateModuleSettings(Request $request, Module $module)
+    {
+        $class = $module->class;
+        $isOwnerOrAdmin = $class
+            ? ($class->created_by === Auth::id() || in_array(Auth::user()->role, ['admin', 'superadmin'], true))
+            : (in_array(Auth::user()->role, ['admin', 'superadmin', 'teacher'], true));
+
+        if (! $isOwnerOrAdmin) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'max_attempts' => 'nullable|integer|min:1|max:20',
+            'time_limit' => 'nullable|integer|min:0',
+            'passing_grade' => 'nullable|integer|min:1|max:100',
+            'available_at' => 'nullable|date',
+            'due_date' => 'nullable|date',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $updateData = [];
+        if ($request->has('max_attempts')) {
+            $updateData['max_attempts'] = $validated['max_attempts'];
+        }
+        if ($request->has('time_limit')) {
+            $updateData['time_limit'] = $validated['time_limit'];
+        }
+        if ($request->has('passing_grade')) {
+            $updateData['passing_grade'] = $validated['passing_grade'];
+        }
+        if ($request->has('available_at')) {
+            $updateData['available_at'] = $validated['available_at'] ?: null;
+        }
+        if ($request->has('due_date')) {
+            $updateData['due_date'] = $validated['due_date'] ?: null;
+        }
+        if ($request->has('is_active')) {
+            $updateData['is_active'] = $request->boolean('is_active');
+        }
+
+        $module->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Assessment settings updated successfully.',
+            'module' => $module->fresh(),
+        ]);
+    }
+
     public function show(Module $module)
     {
         return view('quiz.show', [
@@ -749,7 +819,9 @@ class QuizController extends Controller
             'time_limit' => $minutes,
             'passing_grade' => $passingGrade,
             'max_attempts' => $maxAttempts,
-            'due_date' => $request->input('due_date'),
+            'due_date' => $request->input('due_date') ?: null,
+            'available_at' => $request->input('available_at') ?: null,
+            'is_active' => $request->has('is_active') ? $request->boolean('is_active') : true,
             'is_quiz' => true,
             'is_formal_assessment' => (bool) $request->is_formal_assessment,
             'quiz_stage' => $stage,

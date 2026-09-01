@@ -301,13 +301,46 @@
         </div>
     </div>
 
-    <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; background:#fafafa; border:1px solid #ebebeb; border-radius:10px; margin-bottom:20px;">
-        <label style="font-size:16px; font-weight:500; color:#666; white-space:nowrap;">Max Attempts (for students):</label>
-        <input type="number" id="maxAttemptsInput" min="1" max="20" value="{{ $module->max_attempts ?? 1 }}" class="rv-input" style="width:80px;">
-        <button type="button" id="saveMaxAttemptsBtn" class="rv-btn rv-btn-secondary" style="height:34px;font-size:14px;">
-            <i class="fas fa-save"></i> Save
-        </button>
-        <span id="maxAttemptsStatus" style="font-size:14px; color:#1d9e75; display:none;"></span>
+    <div style="background:#fafafa; border:1px solid #ebebeb; border-radius:12px; padding:16px 20px; margin-bottom:24px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+            <div style="font-weight:600; font-size:15px; color:#333; display:flex; align-items:center; gap:8px;">
+                <i class="fas fa-cog" style="color:#666;"></i> Availability & Exam Settings
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span id="settingsSaveStatus" style="font-size:14px; color:#1d9e75; font-weight:600; display:none;"></span>
+                <button type="button" id="saveAllSettingsBtn" class="rv-btn rv-btn-primary" style="height:36px;font-size:14px;padding:0 14px;">
+                    <i class="fas fa-save"></i> Save Settings
+                </button>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:14px; align-items:flex-end;">
+            <div>
+                <label class="qc-label" style="margin-bottom:4px; font-size:12px;">Activation / Open Date</label>
+                <input type="datetime-local" id="availableAtInput" value="{{ $module->available_at?->format('Y-m-d\TH:i') }}" class="rv-input" style="width:100%;">
+            </div>
+            <div>
+                <label class="qc-label" style="margin-bottom:4px; font-size:12px;">End / Due Date</label>
+                <input type="datetime-local" id="dueDateInput" value="{{ $module->due_date?->format('Y-m-d\TH:i') }}" class="rv-input" style="width:100%;">
+            </div>
+            <div>
+                <label class="qc-label" style="margin-bottom:4px; font-size:12px;">Time Limit (mins, 0=unlimited)</label>
+                <input type="number" id="timeLimitInput" min="0" value="{{ $module->time_limit ?? 0 }}" class="rv-input" style="width:100%;">
+            </div>
+            <div>
+                <label class="qc-label" style="margin-bottom:4px; font-size:12px;">Passing Grade (%)</label>
+                <input type="number" id="passingGradeInput" min="1" max="100" value="{{ $module->passing_grade ?? 50 }}" class="rv-input" style="width:100%;">
+            </div>
+            <div>
+                <label class="qc-label" style="margin-bottom:4px; font-size:12px;">Max Attempts</label>
+                <input type="number" id="maxAttemptsInput" min="1" max="20" value="{{ $module->max_attempts ?? 1 }}" class="rv-input" style="width:100%;">
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding-bottom:8px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600; font-size:14px; color:#444; margin:0;">
+                    <input type="checkbox" id="isActiveInput" {{ ($module->is_active ?? true) ? 'checked' : '' }} style="width:18px;height:18px;cursor:pointer;">
+                    <span>Active / Published</span>
+                </label>
+            </div>
+        </div>
     </div>
 
 @if(!($isMockBoard ?? false))
@@ -437,37 +470,52 @@ document.addEventListener('DOMContentLoaded', function () {
     const isMockBoard = {{ ($isMockBoard ?? false) ? 'true' : 'false' }};
     const loadedTestBankIds = new Set();
 
-    // Max Attempts save (formal assessments lang)
-    const saveMaxAttemptsBtn = document.getElementById('saveMaxAttemptsBtn');
-    if (saveMaxAttemptsBtn) {
-        saveMaxAttemptsBtn.addEventListener('click', function () {
-            const input = document.getElementById('maxAttemptsInput');
-            const status = document.getElementById('maxAttemptsStatus');
-            const value = parseInt(input.value, 10) || 1;
+    // Save All Availability & Exam Settings
+    const saveAllSettingsBtn = document.getElementById('saveAllSettingsBtn');
+    if (saveAllSettingsBtn) {
+        saveAllSettingsBtn.addEventListener('click', function () {
+            const status = document.getElementById('settingsSaveStatus');
+            const availableAt = document.getElementById('availableAtInput')?.value || null;
+            const dueDate = document.getElementById('dueDateInput')?.value || null;
+            const timeLimit = parseInt(document.getElementById('timeLimitInput')?.value, 10) || 0;
+            const passingGrade = parseInt(document.getElementById('passingGradeInput')?.value, 10) || 50;
+            const maxAttempts = parseInt(document.getElementById('maxAttemptsInput')?.value, 10) || 1;
+            const isActive = document.getElementById('isActiveInput')?.checked ?? true;
 
-            saveMaxAttemptsBtn.disabled = true;
+            saveAllSettingsBtn.disabled = true;
+            saveAllSettingsBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
-            fetch('{{ route('quiz.max-attempts.update', $module) }}', {
+            fetch('{{ route('modules.settings.update', $module) }}', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({ max_attempts: value }),
+                body: JSON.stringify({
+                    available_at: availableAt,
+                    due_date: dueDate,
+                    time_limit: timeLimit,
+                    passing_grade: passingGrade,
+                    max_attempts: maxAttempts,
+                    is_active: isActive,
+                }),
             })
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        status.textContent = 'Saved!';
+                        status.textContent = '✓ Settings Saved!';
                         status.style.display = 'inline';
-                        setTimeout(() => { status.style.display = 'none'; }, 2000);
+                        setTimeout(() => { status.style.display = 'none'; }, 2500);
                     } else {
-                        alert(data.message || 'Failed to save max attempts.');
+                        alert(data.message || 'Failed to save settings.');
                     }
                 })
-                .catch(() => alert('An error occurred while saving max attempts.'))
-                .finally(() => { saveMaxAttemptsBtn.disabled = false; });
+                .catch(() => alert('An error occurred while saving settings.'))
+                .finally(() => {
+                    saveAllSettingsBtn.disabled = false;
+                    saveAllSettingsBtn.innerHTML = '<i class="fas fa-save"></i> Save Settings';
+                });
         });
     }
 

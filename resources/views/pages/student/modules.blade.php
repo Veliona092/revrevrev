@@ -553,7 +553,14 @@
                     @endif
                     <span class="mod-item-title">{{ $loop->iteration }}. {{ $module->title }}</span>
                     @if($isLocked)
-                        <span class="mod-badge locked-badge"><i class="fas fa-lock" style="font-size:9px;"></i></span>
+                        @php
+                            $av = $availabilityInfo[$module->id] ?? null;
+                            $lockTitle = $av['is_upcoming'] ?? false
+                                ? 'Opens on ' . ($av['available_at'] ?? 'scheduled date')
+                                : (($av['is_closed'] ?? false) ? 'Closed / Past Due' : 'Locked');
+                            $lockText = ($av['is_upcoming'] ?? false) ? 'Opens Soon' : ((($av['is_closed'] ?? false) ? 'Closed' : ''));
+                        @endphp
+                        <span class="mod-badge locked-badge" title="{{ $lockTitle }}"><i class="fas fa-lock" style="font-size:9px;"></i> {{ $lockText }}</span>
                     @elseif($isPostTest)
                         <span class="mod-badge post-test-badge">Post-Test</span>
                     @elseif($module->is_formal_assessment)
