@@ -293,7 +293,7 @@ Route::post('/reset-password', function (Request $request) {
 
 Route::post('/signup', function (Request $request) use ($resolveUserDashboardPath) {
     $validated = $request->validate([
-        'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+        'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users,email'],
         'idnumber' => ['required', 'string', 'max:50', 'unique:users,idnumber'],
         'name' => ['required', 'string', 'max:150'],
         'password' => ['required', 'string', 'min:8', 'confirmed'],
@@ -309,10 +309,12 @@ Route::post('/signup', function (Request $request) use ($resolveUserDashboardPat
         $program = 'teacher';
     }
 
+    $email = $validated['email'] ?? ($validated['idnumber'].'@reviso.local');
+
     // Direct User Creation (Bypasses Gmail verification link for fast testing)
     $user = User::create([
         'name' => $validated['name'],
-        'email' => $validated['email'],
+        'email' => $email,
         'idnumber' => $validated['idnumber'],
         'password' => Hash::make($validated['password']),
         'role' => $role,
