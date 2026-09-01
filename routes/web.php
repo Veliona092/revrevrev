@@ -685,6 +685,7 @@ Route::get('/modules/{module}/public-view', [ClassManagerController::class, 'pub
 Route::get('/modules/{module}/view-pdf', [ClassManagerController::class, 'viewPdf'])->name('module.view.pdf');
 Route::delete('/modules/{module}', [ClassManagerController::class, 'deleteModule'])->name('modules.delete');
 Route::post('/modules/{module}/duplicate', [ClassManagerController::class, 'duplicateModule'])->name('modules.duplicate')->middleware('auth');
+Route::post('/modules/{module}/toggle-status', [ClassManagerController::class, 'toggleModuleStatus'])->name('modules.toggle-status')->middleware('auth');
 Route::post('/modules/{module}/progress', [ClassManagerController::class, 'updateProgress'])->name('modules.progress.update');
 
 // ── Quiz ──

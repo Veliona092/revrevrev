@@ -220,6 +220,50 @@ class AssessmentActivationAndEndTest extends TestCase
         $this->assertTrue($module->is_active);
     }
 
+    public function test_teacher_can_manually_end_and_reopen_exam(): void
+    {
+        $teacher = $this->createUser(['role' => 'teacher', 'program' => 'teacher']);
+
+        $class = ClassModel::query()->create([
+            'name' => 'Active Test Class',
+            'code' => 'ACT106',
+            'school_year' => now()->year,
+            'created_by' => $teacher->id,
+        ]);
+
+        $module = Module::query()->create([
+            'class_id' => $class->id,
+            'title' => 'Live Exam',
+            'is_quiz' => true,
+            'is_formal_assessment' => true,
+            'is_active' => true,
+            'created_by' => $teacher->id,
+        ]);
+
+        $this->assertTrue($module->isOpen());
+
+        // Teacher ends exam
+        $endResponse = $this->actingAs($teacher)->postJson(route('modules.toggle-status', $module), [
+            'action' => 'end',
+        ]);
+        $endResponse->assertOk();
+        $endResponse->assertJson(['success' => true]);
+
+        $module->refresh();
+        $this->assertTrue($module->isClosed());
+        $this->assertFalse($module->isOpen());
+
+        // Teacher reopens exam
+        $reopenResponse = $this->actingAs($teacher)->postJson(route('modules.toggle-status', $module), [
+            'action' => 'reopen',
+        ]);
+        $reopenResponse->assertOk();
+        $reopenResponse->assertJson(['success' => true]);
+
+        $module->refresh();
+        $this->assertTrue($module->isOpen());
+    }
+
     private function createUser(array $overrides = []): User
     {
         static $counter = 6000;
