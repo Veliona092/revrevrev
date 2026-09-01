@@ -550,10 +550,67 @@
         opacity: 0.5;
         cursor: not-allowed;
     }
+
+    .sp-filter-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 10px 16px;
+        gap: 12px;
+        flex-wrap: wrap;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .sp-filter-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .sp-filter-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #4b5563;
+        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .sp-filter-label i {
+        color: #2563eb;
+    }
+    .sp-filter-select {
+        padding: 6px 32px 6px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #1f2937;
+        background: #f9fafb url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") no-repeat right 8px center/14px 14px;
+        outline: none;
+        cursor: pointer;
+        transition: border-color 0.15s, background-color 0.15s;
+        appearance: none;
+        -webkit-appearance: none;
+        min-width: 260px;
+        max-width: 420px;
+    }
+    .sp-filter-select:focus {
+        border-color: #2563eb;
+        background-color: #fff;
+        box-shadow: 0 0 0 2px rgba(37,99,235,0.1);
+    }
 </style>
 
 @php
     $teacherClasses = $teacherClasses ?? collect();
+    $preAssessmentModules = $preAssessmentModules ?? collect();
+    $formalAssessmentModules = $formalAssessmentModules ?? collect();
+    $selectedQuizModuleId = request('quiz_module_id');
+    $selectedAssessModuleId = request('assess_module_id');
+
     $payload = $payload ?? [
         'classAverage' => $classAverage ?? 0,
         'passCount' => $passCount ?? 0,
@@ -637,7 +694,23 @@
 
     {{-- Pre-Assessment panel --}}
     <div class="sp-tab-panel active" id="tab-quiz">
-    <p class="sp-sub" id="spSubtitle">{{ $class->name ?? 'Class' }} - pre-assessment results and question breakdown.</p>
+        <p class="sp-sub" id="spSubtitle">{{ $class->name ?? 'Class' }} - pre-assessment results and question breakdown.</p>
+
+        {{-- Pre-Assessment module filter bar --}}
+        <div class="sp-filter-bar">
+            <div class="sp-filter-group">
+                <label for="quizModuleSelect" class="sp-filter-label"><i class="fas fa-layer-group"></i> Module / Pre-Assessment:</label>
+                <select id="quizModuleSelect" class="sp-filter-select" onchange="onQuizModuleSelect(this.value)">
+                    <option value="all">📊 All Modules / Topics (Class Overview)</option>
+                    @foreach($preAssessmentModules as $pm)
+                        <option value="{{ $pm->id }}" {{ (isset($selectedQuizModuleId) && (string)$selectedQuizModuleId === (string)$pm->id) ? 'selected' : '' }}>
+                            {{ $pm->title }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
+
     {{-- Top row --}}
     <div class="sp-top-grid">
 
@@ -726,6 +799,21 @@
 {{-- Assessments panel --}}
 <div class="sp-tab-panel" id="tab-assessment">
     <p class="sp-sub" id="spAssessSubtitle">{{ $class->name ?? 'Class' }} - formal assessment results.</p>
+
+    {{-- Formal Assessment filter bar --}}
+    <div class="sp-filter-bar">
+        <div class="sp-filter-group">
+            <label for="assessModuleSelect" class="sp-filter-label"><i class="fas fa-clipboard-check"></i> Formal Assessment:</label>
+            <select id="assessModuleSelect" class="sp-filter-select" onchange="onAssessModuleSelect(this.value)">
+                <option value="all">📊 All Formal Assessments (Class Overview)</option>
+                @foreach($formalAssessmentModules as $fm)
+                    <option value="{{ $fm->id }}" {{ (isset($selectedAssessModuleId) && (string)$selectedAssessModuleId === (string)$fm->id) ? 'selected' : '' }}>
+                        {{ $fm->title }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
+    </div>
 
     {{-- Assessment top row --}}
     <div class="sp-top-grid">
@@ -896,6 +984,8 @@
 <script>
 var passFailChart  = null;
 var currentClassId = {{ $class->id }};
+var currentQuizModuleId = @json($selectedQuizModuleId ?? 'all');
+var currentAssessModuleId = @json($selectedAssessModuleId ?? 'all');
 var currentPassCount = {{ $passCount }};
 var currentFailCount = {{ $failCount }};
 var assessPassFailChart = null;
@@ -912,6 +1002,80 @@ const itemAnalysisRouteTemplate = @json(route('student.performance.student-item-
 const assessmentAnalysisRouteTemplate = @json(route('student.assessment.analysis', ['class' => '__CLASS__', 'student' => '__STUDENT__']));
 const refreshInsightsRouteTemplate = @json(route('student.performance.refresh', ['class' => '__CLASS__']));
 const refreshAssessmentInsightsRouteTemplate = @json(route('student.performance.assessment.refresh', ['class' => '__CLASS__']));
+
+function populateModuleSelect(selectId, modules, defaultLabel) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    var list = Array.isArray(modules) ? modules : [];
+    var html = `<option value="all">📊 ${defaultLabel}</option>`;
+    list.forEach(function(m) {
+        html += `<option value="${m.id}">${escapeHtml(m.title)}</option>`;
+    });
+    sel.innerHTML = html;
+    sel.value = 'all';
+}
+
+async function onQuizModuleSelect(val) {
+    currentQuizModuleId = val || 'all';
+    await fetchAndUpdatePerformance('quiz');
+}
+
+async function onAssessModuleSelect(val) {
+    currentAssessModuleId = val || 'all';
+    await fetchAndUpdatePerformance('assessment');
+}
+
+async function fetchAndUpdatePerformance(targetTab) {
+    var url = new URL(window.location.origin + '/student-performance/' + currentClassId);
+    if (currentQuizModuleId && currentQuizModuleId !== 'all') {
+        url.searchParams.set('quiz_module_id', currentQuizModuleId);
+    }
+    if (currentAssessModuleId && currentAssessModuleId !== 'all') {
+        url.searchParams.set('assess_module_id', currentAssessModuleId);
+    }
+
+    try {
+        var res = await fetch(url.toString(), {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        if (!res.ok) throw new Error('Failed to fetch performance data');
+        var payload = await res.json();
+
+        if (targetTab === 'quiz' || !targetTab) {
+            currentPassCount = Number(payload.passCount || 0);
+            currentFailCount = Number(payload.failCount || 0);
+            var avgV = Number(payload.classAverage || 0);
+            var avgEl = document.getElementById('classAverageValue');
+            if (avgEl) {
+                avgEl.textContent = avgV.toFixed(1);
+                var avgCard = avgEl.closest('.sp-avg-card');
+                if (avgCard) { avgCard.classList.remove('high','mid','low'); avgCard.classList.add(scoreClass(avgV)); }
+            }
+            renderPassFailCard();
+            renderQuestionStats(payload.questionStats || []);
+            renderTopStudents(payload.topStudents || []);
+        }
+
+        if (targetTab === 'assessment' || !targetTab) {
+            if (payload.assessment) {
+                currentAssessPassCount = Number(payload.assessment.passCount || 0);
+                currentAssessFailCount = Number(payload.assessment.failCount || 0);
+                var aAvgV = Number(payload.assessment.classAverage || 0);
+                var aAvgEl = document.getElementById('assessClassAverageValue');
+                if (aAvgEl) {
+                    aAvgEl.textContent = aAvgV.toFixed(1);
+                    var aAvgCard = document.getElementById('assessAvgCard');
+                    if (aAvgCard) { aAvgCard.className = 'sp-avg-card ' + scoreClass(aAvgV); }
+                }
+                renderAssessmentPassFailCard();
+                renderAssessmentQuestionStats(payload.assessment.questionStats || []);
+                renderAssessmentTopStudents(payload.assessment.topStudents || []);
+            }
+        }
+    } catch (err) {
+        console.error('Error updating analytics:', err);
+    }
+}
 
 /* Pass/Fail Chart */
 function buildChart() {
@@ -954,7 +1118,7 @@ function buildChart() {
 }
 
 function renderPassFailCard() {
-    var chartCard = document.querySelector('.sp-chart-card');
+    var chartCard = document.querySelector('#tab-quiz .sp-chart-card');
     if (!chartCard) {
         return;
     }
@@ -1615,6 +1779,8 @@ document.querySelectorAll('.js-class-tab').forEach(function (tab) {
             if (!res.ok) throw new Error();
             const payload = await res.json();
             currentClassId   = classId;
+            currentQuizModuleId = 'all';
+            currentAssessModuleId = 'all';
             currentPassCount = Number(payload.passCount || 0);
             currentFailCount = Number(payload.failCount || 0);
             document.getElementById('spSubtitle').textContent = `${payload.class.name} - pre-assessment results and question breakdown.`;
@@ -1625,6 +1791,7 @@ document.querySelectorAll('.js-class-tab').forEach(function (tab) {
                 var avgCard = avgEl.closest('.sp-avg-card');
                 if (avgCard) { avgCard.classList.remove('high','mid','low'); avgCard.classList.add(scoreClass(avgV)); }
             }
+            populateModuleSelect('quizModuleSelect', payload.preAssessmentModules || [], 'All Modules / Topics (Class Overview)');
             renderQuestionStats(payload.questionStats || []);
             renderTopStudents(payload.topStudents || [], payload.remainingCount || 0);
             var classSummaryEnabled = Object.prototype.hasOwnProperty.call(payload, 'classSummaryEnabled')
@@ -1643,6 +1810,7 @@ document.querySelectorAll('.js-class-tab').forEach(function (tab) {
                 buildQuestionChart(currentQuestionStats);
             }
             if (payload.assessment) {
+                populateModuleSelect('assessModuleSelect', payload.assessment.formalAssessmentModules || [], 'All Formal Assessments (Class Overview)');
                 currentAssessPassCount = Number(payload.assessment.passCount || 0);
                 currentAssessFailCount = Number(payload.assessment.failCount || 0);
                 var aAvgV = Number(payload.assessment.classAverage || 0);
@@ -1700,10 +1868,16 @@ async function openItemAnalysis(studentId, studentName, isAssessment) {
     dialog.showModal();
 
     try {
+        var activeMod = isAssessment ? currentAssessModuleId : currentQuizModuleId;
+        var queryParams = [];
+        if (isAssessment) queryParams.push('type=assessment');
+        if (activeMod && activeMod !== 'all') queryParams.push('module_id=' + encodeURIComponent(activeMod));
+        var queryString = queryParams.length ? '?' + queryParams.join('&') : '';
+
         const itemAnalysisUrl = itemAnalysisRouteTemplate
             .replace('__CLASS__', String(currentClassId))
             .replace('__STUDENT__', String(studentId))
-            + (isAssessment ? '?type=assessment' : '');
+            + queryString;
 
         const res = await fetch(itemAnalysisUrl, {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
