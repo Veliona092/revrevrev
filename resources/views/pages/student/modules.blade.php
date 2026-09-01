@@ -389,82 +389,6 @@
         color: #7b2220;
     }
 
-    /* Reset Confirmation Modal */
-    .reset-modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        opacity: 0;
-        transition: opacity 0.2s ease;
-    }
-    .reset-modal-overlay.active {
-        display: flex;
-        opacity: 1;
-    }
-    .reset-modal {
-        background: #fff;
-        border-radius: 12px;
-        padding: 24px;
-        max-width: 400px;
-        width: 90%;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-        transform: scale(0.95);
-        transition: transform 0.2s ease;
-    }
-    .reset-modal-overlay.active .reset-modal {
-        transform: scale(1);
-    }
-    .reset-modal-title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #111;
-        margin: 0 0 12px 0;
-    }
-    .reset-modal-message {
-        font-size: 14px;
-        color: #6b7280;
-        margin: 0 0 24px 0;
-        line-height: 1.5;
-    }
-    .reset-modal-actions {
-        display: flex;
-        gap: 12px;
-        justify-content: flex-end;
-    }
-    .reset-modal-btn {
-        padding: 10px 20px;
-        border-radius: 10px;
-        border: none;
-        font-weight: 500;
-        font-size: 14px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    .reset-modal-btn:hover {
-        transform: translateY(-1px);
-    }
-    .reset-modal-btn-secondary {
-        background: #f3f4f6;
-        color: #374151;
-    }
-    .reset-modal-btn-secondary:hover {
-        background: #e5e7eb;
-    }
-    .reset-modal-btn-primary {
-        background: #111;
-        color: #fff;
-    }
-    .reset-modal-btn-primary:hover {
-        background: #374151;
-    }
-
     /* ── Lecture stage tabs (pre-test / content / post-test) ── */
     .lec-header { margin-bottom: 4px; }
 
@@ -1798,9 +1722,6 @@
                 </div>
                 <div class="qz-result-btns">
                     <button class="qz-btn qz-btn-outline" onclick="quizBackHandler()"><i class="fas fa-arrow-left"></i> Back</button>
-                    ${!isFormalAssessment ? `
-                    <button class="qz-btn qz-btn-dark" onclick="resetMyAttempt(${currentModuleId})"><i class="fas fa-undo"></i> Reset</button>
-                    ` : ''}
                 </div>
             </div>
         `);
@@ -1818,28 +1739,6 @@
                 <p>Select a module from the outline to begin.</p>
             </div>
         `);
-    }
-
-    let resetModuleId = null;
-
-    function showResetModal(moduleId) {
-        resetModuleId = moduleId;
-        document.getElementById('resetModalOverlay').classList.add('active');
-    }
-
-    function hideResetModal() {
-        document.getElementById('resetModalOverlay').classList.remove('active');
-        resetModuleId = null;
-    }
-
-    function confirmReset() {
-        if (!resetModuleId) return;
-        performReset(resetModuleId);
-        hideResetModal();
-    }
-
-    function resetMyAttempt(moduleId) {
-        showResetModal(moduleId);
     }
 
     function getAI(moduleId, attemptId = null) {
@@ -1961,44 +1860,7 @@ function handleTab() {
     showQuizWarningToast('Tab switching detected. Continued tab switching may cause this assessment to be auto-submitted as failed.', 'warn');
 }
 
-    function performReset(moduleId) {
-        const payload = { _token: '{{ csrf_token() }}' };
-        if (currentQuizStage) {
-            payload.quiz_stage = currentQuizStage;
-        }
-
-        $.ajax({
-            url: `/modules/${moduleId}/quiz/my-attempt`,
-            type: 'DELETE',
-            data: payload,
-            success: function () {
-                delete quizAttempts[quizAttemptKey(moduleId, currentQuizStage)];
-
-                if (currentQuizStage) {
-                    startLectureQuiz(moduleId, currentQuizStage);
-                } else {
-                    loadModule(moduleId, true);
-                }
-            },
-            error: function (xhr) {
-                const message = xhr?.responseJSON?.message || 'Could not reset your attempt. Please try again.';
-                alert(message);
-            },
-        });
-    }
 </script>
-
-{{-- Reset Confirmation Modal --}}
-<div id="resetModalOverlay" class="reset-modal-overlay" onclick="if(event.target === this) hideResetModal()">
-    <div class="reset-modal">
-        <h3 class="reset-modal-title">Reset your attempt?</h3>
-        <p class="reset-modal-message">You will be able to retake this quiz. Your previous progress will be cleared.</p>
-        <div class="reset-modal-actions">
-            <button class="reset-modal-btn reset-modal-btn-secondary" onclick="hideResetModal()">Cancel</button>
-            <button class="reset-modal-btn reset-modal-btn-primary" onclick="confirmReset()">Reset</button>
-        </div>
-    </div>
-</div>
 
 @endsection
 @endsection

@@ -717,30 +717,10 @@ class QuizController extends Controller
 
     public function resetMyAttempt(Request $request, Module $module)
     {
-        // Ang self-service reset ay libre lang para sa practice modules.
-        // Sa formal assessments (Pre-Test, Post-Test, Mock Board), kailangang
-        // dumaan sa teacher-granted extra attempt (startAttempt() ang nag-e-enforce nito).
-        if ($module->is_formal_assessment) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Self-reset is not allowed for this formal assessment. Please contact your instructor to request an additional attempt.',
-            ], 403);
-        }
-
-        $user = Auth::user();
-        $stage = $this->resolveStage($request);
-
-        $attempt = QuizAttempt::where('user_id', $user->id)
-            ->where('module_id', $module->id)
-            ->where('quiz_stage', $stage)
-            ->first();
-
-        if ($attempt) {
-            QuizAnswer::where('attempt_id', $attempt->id)->delete();
-            $attempt->update(['score' => 0, 'percentage' => 0, 'ai_strong' => null]);
-        }
-
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => false,
+            'message' => 'Self-reset is not allowed. Please contact your instructor to request an additional attempt.',
+        ], 403);
     }
 
     public function updateModuleSettings(Request $request, Module $module)
