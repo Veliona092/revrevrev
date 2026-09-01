@@ -23,12 +23,6 @@
     </a>
       </li>
           <li class="nav-item">
-            <a class="nav-link " href="{{ route('assessment') }}" style="font-size:18px;">
-              <i class="as fa-tasks text-orange"></i> Assessment
-            </a>
-          </li>
-           </li>
-          <li class="nav-item">
             <a class="nav-link " href="{{ route('progress') }}" style="font-size:18px;">
               <i class="ni ni-chart-bar-32 text-orange"></i> Progress Tracker
             </a>

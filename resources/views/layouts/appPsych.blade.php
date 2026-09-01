@@ -292,10 +292,6 @@
                 <span class="rv-nav-icon"><i class="fas fa-book-open"></i></span> Lectures
             </a>
 
-            <a class="rv-nav-item {{ request()->routeIs('assessment') ? 'active' : '' }}" href="{{ route('assessment') }}">
-                <span class="rv-nav-icon"><i class="fas fa-tasks"></i></span> Assessment
-            </a>
-
             <a class="rv-nav-item {{ request()->routeIs('progress') ? 'active' : '' }}" href="{{ route('progress') }}">
                 <span class="rv-nav-icon"><i class="fas fa-chart-bar"></i></span> Progress Tracker
             </a>
