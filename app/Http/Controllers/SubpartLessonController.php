@@ -61,7 +61,7 @@ class SubpartLessonController extends Controller
             'title' => 'required|string|max:150',
             'description' => 'nullable|string',
             'body' => 'nullable|string',
-            'file' => 'nullable|file|max:102400|mimes:pdf,ppt,pptx,docx,mov',
+            'file' => 'nullable|file|max:102400|mimes:pdf,doc,docx,ppt,pptx,mov',
             'order' => 'nullable|integer|min:0',
         ]);
 
@@ -77,7 +77,7 @@ class SubpartLessonController extends Controller
                 'pdf' => 'pdf',
                 'ppt' => 'ppt',
                 'pptx' => 'pptx',
-                'docx' => 'docx',
+                'doc', 'docx' => 'docx',
                 'mov' => 'mov',
                 default => null,
             };
@@ -109,7 +109,7 @@ class SubpartLessonController extends Controller
             'title' => 'sometimes|required|string|max:150',
             'description' => 'nullable|string',
             'body' => 'nullable|string',
-            'file' => 'nullable|file|max:102400|mimes:pdf,ppt,pptx,docx,mov',
+            'file' => 'nullable|file|max:102400|mimes:pdf,doc,docx,ppt,pptx,mov',
             'order' => 'nullable|integer|min:0',
         ]);
 
@@ -130,7 +130,7 @@ class SubpartLessonController extends Controller
                 'pdf' => 'pdf',
                 'ppt' => 'ppt',
                 'pptx' => 'pptx',
-                'docx' => 'docx',
+                'doc', 'docx' => 'docx',
                 'mov' => 'mov',
                 default => null,
             };

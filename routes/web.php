@@ -291,10 +291,10 @@ Route::post('/reset-password', function (Request $request) {
 
 // ── Signup & Verification ──
 
-Route::post('/signup', function (Request $request) {
+Route::post('/signup', function (Request $request) use ($resolveUserDashboardPath) {
     $validated = $request->validate([
-        'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email', 'unique:signups,email'],
-        'idnumber' => ['required', 'string', 'max:50', 'unique:users,idnumber', 'unique:signups,idnumber'],
+        'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+        'idnumber' => ['required', 'string', 'max:50', 'unique:users,idnumber'],
         'name' => ['required', 'string', 'max:150'],
         'password' => ['required', 'string', 'min:8', 'confirmed'],
         'role' => ['required', 'in:student,teacher'],
@@ -309,47 +309,27 @@ Route::post('/signup', function (Request $request) {
         $program = 'teacher';
     }
 
-    $token = Str::random(60);
-
-    $signup = Signup::create([
+    // Direct User Creation (Bypasses Gmail verification link for fast testing)
+    $user = User::create([
         'name' => $validated['name'],
         'email' => $validated['email'],
         'idnumber' => $validated['idnumber'],
         'password' => Hash::make($validated['password']),
         'role' => $role,
         'program' => $program,
-        'verification_token' => $token,
+        'program_locked' => ! empty($program),
+        'status' => 'active',
+        'email_verified_at' => now(),
     ]);
 
-    $verificationUrl = URL::temporarySignedRoute(
-        'verification.verify',
-        now()->addHours(24),
-        ['token' => $token]
-    );
+    // Immediate Auto-Login
+    Auth::login($user);
+    $request->session()->regenerate();
 
-    try {
-        $gmailService = app(GmailService::class);
-        $gmailService->send(
-            $validated['email'],
-            'Verify Your Reviso Account',
-            '<h1>Welcome to Reviso!</h1>'.
-            '<p>Thank you for signing up. Please click the button below to verify your email address:</p>'.
-            "<a href='{$verificationUrl}' style='background:#5e72e4;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;'>Verify Email Address</a>".
-            '<p>If you did not create an account, no further action is required.</p>'.
-            '<p>Thanks,<br>Reviso Team</p>'
-        );
-    } catch (Throwable $e) {
-        Log::error('Verification email send failed: '.$e->getMessage());
+    // Redirect straight to dashboard based on role
+    $redirect = $resolveUserDashboardPath($user) ?? route('dashboard');
 
-        if (isset($signup)) {
-            $signup->delete();
-        }
-
-        return back()->withInput()->withErrors(['email' => 'Could not send verification email right now. Please try again later.']);
-    }
-
-    return redirect()->route('login')
-        ->with('status', 'Registration successful! A verification link has been sent to your email. Please check your inbox (and spam folder).');
+    return redirect($redirect)->with('status', 'Welcome to Reviso! Your account has been created and activated.');
 })->name('signup.post');
 
 Route::post('/email/resend', function (Request $request) {

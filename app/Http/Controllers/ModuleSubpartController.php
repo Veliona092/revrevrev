@@ -59,7 +59,7 @@ class ModuleSubpartController extends Controller
             'title' => 'required|string|max:150',
             'description' => 'nullable|string',
             'body' => 'nullable|string',
-            'file' => 'nullable|file|max:102400|mimes:pdf,ppt,pptx,docx,mov',
+            'file' => 'nullable|file|max:102400|mimes:pdf,doc,docx,ppt,pptx,mov',
             'order' => 'nullable|integer|min:0',
         ]);
 
@@ -75,7 +75,7 @@ class ModuleSubpartController extends Controller
                 'pdf' => 'pdf',
                 'ppt' => 'ppt',
                 'pptx' => 'pptx',
-                'docx' => 'docx',
+                'doc', 'docx' => 'docx',
                 'mov' => 'mov',
                 default => null,
             };
@@ -107,7 +107,7 @@ class ModuleSubpartController extends Controller
             'title' => 'sometimes|required|string|max:150',
             'description' => 'nullable|string',
             'body' => 'nullable|string',
-            'file' => 'nullable|file|max:102400|mimes:pdf,ppt,pptx,docx,mov',
+            'file' => 'nullable|file|max:102400|mimes:pdf,doc,docx,ppt,pptx,mov',
             'order' => 'nullable|integer|min:0',
         ]);
 
@@ -119,12 +119,12 @@ class ModuleSubpartController extends Controller
             $file = $request->file('file');
             $extension = strtolower($file->extension());
             $uniqueName = time().'_'.Str::random(8).'.'.$extension;
-            $validated['file_path'] = $file->storeAs("modules/{$subpart->module_id}/subparts", $uniqueName, 'public');
-            $validated['file_type'] = match ($extension) {
+            $subpart->file_path = $file->storeAs("modules/{$subpart->module_id}/subparts", $uniqueName, 'public');
+            $subpart->file_type = match ($extension) {
                 'pdf' => 'pdf',
                 'ppt' => 'ppt',
                 'pptx' => 'pptx',
-                'docx' => 'docx',
+                'doc', 'docx' => 'docx',
                 'mov' => 'mov',
                 default => null,
             };
