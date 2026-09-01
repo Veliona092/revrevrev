@@ -72,7 +72,7 @@ class PerformanceController extends Controller
             ->orderBy('pct_correct', 'asc')
             ->get();
 
-        // Top Students
+        // All Ranked Students
         $topStudents = User::select(
             'users.id',
             'users.name',
@@ -85,11 +85,10 @@ class PerformanceController extends Controller
             ->where('modules.is_formal_assessment', false)
             ->groupBy('users.id', 'users.name', 'users.program')
             ->orderByDesc('average_score')
-            ->limit(10)
             ->get();
 
         $totalStudents = $class->students()->count() ?? 0;
-        $remainingCount = max(0, $totalStudents - 10);
+        $remainingCount = 0;
         $aiSummary = $class->ai_summary ?? 'No AI summary yet. Click refresh to generate one.';
 
         return [
@@ -157,11 +156,10 @@ class PerformanceController extends Controller
             ->where('modules.is_formal_assessment', true)
             ->groupBy('users.id', 'users.name', 'users.program')
             ->orderByDesc('average_score')
-            ->limit(10)
             ->get();
 
         $totalStudents = $class->students()->count() ?? 0;
-        $remainingCount = max(0, $totalStudents - 10);
+        $remainingCount = 0;
         $assessmentAiSummary = $class->assessment_ai_summary ?? 'No assessment AI summary yet. Click refresh to generate one.';
 
         return [
