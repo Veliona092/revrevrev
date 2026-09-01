@@ -1874,21 +1874,21 @@ POWERSHELL;
             abort(403, 'Unauthorized to modify this module.');
         }
 
-        $action = $request->input('action'); // 'end' | 'reopen'
+        $action = $request->input('action'); // 'open' | 'close' | 'end' | 'reopen'
 
-        if ($action === 'reopen') {
+        if ($action === 'open' || $action === 'reopen') {
             $module->update([
                 'is_active' => true,
                 'due_date' => null,
                 'available_at' => now(),
             ]);
-            $message = 'Exam reopened successfully.';
+            $message = 'Exam is now OPEN for students.';
         } else {
             $module->update([
                 'is_active' => false,
                 'due_date' => now(),
             ]);
-            $message = 'Exam ended / closed successfully.';
+            $message = 'Exam is now CLOSED.';
         }
 
         return response()->json([
@@ -2957,7 +2957,7 @@ POWERSHELL;
             'time_limit' => $minutes ?? 0,
             'due_date' => $validated['due_date'] ?? null,
             'available_at' => $validated['available_at'] ?? null,
-            'is_active' => $request->has('is_active') ? $request->boolean('is_active') : true,
+            'is_active' => $request->has('is_active') ? $request->boolean('is_active') : false,
             'file_path' => null,
             'file_type' => null,
             'is_quiz' => true,

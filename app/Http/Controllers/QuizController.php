@@ -821,7 +821,7 @@ class QuizController extends Controller
             'max_attempts' => $maxAttempts,
             'due_date' => $request->input('due_date') ?: null,
             'available_at' => $request->input('available_at') ?: null,
-            'is_active' => $request->has('is_active') ? $request->boolean('is_active') : true,
+            'is_active' => $request->has('is_active') ? $request->boolean('is_active') : false,
             'is_quiz' => true,
             'is_formal_assessment' => (bool) $request->is_formal_assessment,
             'quiz_stage' => $stage,

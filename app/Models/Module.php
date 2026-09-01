@@ -44,7 +44,7 @@ class Module extends Model
      */
     public function isUpcoming(): bool
     {
-        return ($this->is_active ?? true) && $this->available_at !== null && $this->available_at->isFuture();
+        return (bool) $this->is_active && $this->available_at !== null && $this->available_at->isFuture();
     }
 
     /**
@@ -52,7 +52,11 @@ class Module extends Model
      */
     public function isOpen(): bool
     {
-        return ($this->is_active ?? true) && ($this->available_at === null || $this->available_at->isPast()) && ! $this->isOverdue();
+        if (! $this->is_quiz && ! $this->is_formal_assessment) {
+            return true;
+        }
+
+        return (bool) $this->is_active && ($this->available_at === null || $this->available_at->isPast()) && ! $this->isOverdue();
     }
 
     /**
@@ -60,7 +64,7 @@ class Module extends Model
      */
     public function isClosed(): bool
     {
-        return ! ($this->is_active ?? true) || $this->isOverdue();
+        return ! $this->isOpen();
     }
 
     /**
@@ -68,8 +72,12 @@ class Module extends Model
      */
     public function statusLabel(): string
     {
-        if (! ($this->is_active ?? true)) {
-            return 'Inactive';
+        if (! $this->is_quiz && ! $this->is_formal_assessment) {
+            return 'Active';
+        }
+
+        if (! $this->is_active) {
+            return 'Closed';
         }
 
         if ($this->isOverdue()) {
@@ -80,7 +88,7 @@ class Module extends Model
             return 'Upcoming';
         }
 
-        return 'Active';
+        return 'Open';
     }
 
     public function class(): BelongsTo

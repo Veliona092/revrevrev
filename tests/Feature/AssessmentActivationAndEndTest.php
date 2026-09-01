@@ -96,7 +96,7 @@ class AssessmentActivationAndEndTest extends TestCase
 
         $this->assertFalse($module->isUpcoming());
         $this->assertTrue($module->isOpen());
-        $this->assertSame('Active', $module->statusLabel());
+        $this->assertSame('Open', $module->statusLabel());
 
         $response = $this->actingAs($student)->get(route('assessment.take', $module));
         $response->assertOk();
@@ -165,7 +165,7 @@ class AssessmentActivationAndEndTest extends TestCase
         ]);
 
         $this->assertTrue($module->isClosed());
-        $this->assertSame('Inactive', $module->statusLabel());
+        $this->assertSame('Closed', $module->statusLabel());
 
         $response = $this->actingAs($student)->get(route('assessment.take', $module));
         $response->assertForbidden();
@@ -220,7 +220,7 @@ class AssessmentActivationAndEndTest extends TestCase
         $this->assertTrue($module->is_active);
     }
 
-    public function test_teacher_can_manually_end_and_reopen_exam(): void
+    public function test_teacher_can_manually_open_and_close_exam(): void
     {
         $teacher = $this->createUser(['role' => 'teacher', 'program' => 'teacher']);
 
@@ -231,37 +231,40 @@ class AssessmentActivationAndEndTest extends TestCase
             'created_by' => $teacher->id,
         ]);
 
+        // Default: created as closed
         $module = Module::query()->create([
             'class_id' => $class->id,
             'title' => 'Live Exam',
             'is_quiz' => true,
             'is_formal_assessment' => true,
-            'is_active' => true,
+            'is_active' => false,
             'created_by' => $teacher->id,
         ]);
 
-        $this->assertTrue($module->isOpen());
+        $this->assertTrue($module->isClosed());
+        $this->assertFalse($module->isOpen());
 
-        // Teacher ends exam
-        $endResponse = $this->actingAs($teacher)->postJson(route('modules.toggle-status', $module), [
-            'action' => 'end',
+        // Teacher opens exam
+        $openResponse = $this->actingAs($teacher)->postJson(route('modules.toggle-status', $module), [
+            'action' => 'open',
         ]);
-        $endResponse->assertOk();
-        $endResponse->assertJson(['success' => true]);
+        $openResponse->assertOk();
+        $openResponse->assertJson(['success' => true]);
+
+        $module->refresh();
+        $this->assertTrue($module->isOpen());
+        $this->assertFalse($module->isClosed());
+
+        // Teacher closes exam
+        $closeResponse = $this->actingAs($teacher)->postJson(route('modules.toggle-status', $module), [
+            'action' => 'close',
+        ]);
+        $closeResponse->assertOk();
+        $closeResponse->assertJson(['success' => true]);
 
         $module->refresh();
         $this->assertTrue($module->isClosed());
         $this->assertFalse($module->isOpen());
-
-        // Teacher reopens exam
-        $reopenResponse = $this->actingAs($teacher)->postJson(route('modules.toggle-status', $module), [
-            'action' => 'reopen',
-        ]);
-        $reopenResponse->assertOk();
-        $reopenResponse->assertJson(['success' => true]);
-
-        $module->refresh();
-        $this->assertTrue($module->isOpen());
     }
 
     private function createUser(array $overrides = []): User
