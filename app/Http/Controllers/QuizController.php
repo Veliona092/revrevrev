@@ -650,6 +650,120 @@ class QuizController extends Controller
     }
 
     /**
+     * Return comprehensive item analysis & question breakdown for the student's
+     * latest completed attempt for a given module (and stage).
+     */
+    public function latestAttemptAnalysis(Request $request, Module $module)
+    {
+        $user = Auth::user();
+        $stage = $this->resolveStage($request);
+
+        $attempt = QuizAttempt::where('user_id', $user->id)
+            ->where('module_id', $module->id)
+            ->when($stage, fn ($q) => $q->where('quiz_stage', $stage))
+            ->where('status', 'completed')
+            ->latest('updated_at')
+            ->first();
+
+        $snapshot = QuizAttemptSnapshot::where('user_id', $user->id)
+            ->where('module_id', $module->id)
+            ->when($stage, fn ($q) => $q->where('quiz_stage', $stage))
+            ->latest('completed_at')
+            ->first();
+
+        if (! $attempt && ! $snapshot) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No completed attempt found for item analysis.',
+            ], 404);
+        }
+
+        $questions = QuizQuestion::where('module_id', $module->id)
+            ->when($stage, fn ($q) => $q->where('quiz_stage', $stage))
+            ->orderBy('order')
+            ->get();
+
+        $answers = $attempt
+            ? QuizAnswer::where('attempt_id', $attempt->id)->get()->keyBy('question_id')
+            : collect();
+
+        $snapshotMap = collect($snapshot?->questions_snapshot ?? [])->keyBy('question_id');
+
+        $analysis = $questions->map(function (QuizQuestion $q, int $index) use ($answers, $snapshotMap) {
+            $ans = $answers->get($q->id);
+            $snap = $snapshotMap->get($q->id);
+
+            $selected = $ans?->selected_option ?? ($snap['selected_option'] ?? null);
+            $correct = $q->correct_option ?: ($snap['correct_option'] ?? null);
+
+            $isCorrect = $ans
+                ? (bool) $ans->is_correct
+                : (isset($snap['is_correct'])
+                    ? (bool) $snap['is_correct']
+                    : ($selected && strtoupper(trim((string) $selected)) === strtoupper(trim((string) $correct))));
+
+            return [
+                'index' => $index + 1,
+                'question_id' => $q->id,
+                'question_text' => $q->question_text,
+                'options' => $q->options ?: [],
+                'correct_option' => $correct,
+                'selected_option' => $selected,
+                'is_correct' => $isCorrect,
+                'is_unanswered' => empty($selected),
+                'points' => $q->points ?? 1,
+                'explanation' => $q->explanation,
+                'domain' => $q->domain,
+                'difficulty' => $q->difficulty,
+            ];
+        })->values();
+
+        if ($analysis->isEmpty() && $snapshot && ! empty($snapshot->questions_snapshot)) {
+            $analysis = collect($snapshot->questions_snapshot)->map(function ($sq, int $index) {
+                return [
+                    'index' => $index + 1,
+                    'question_id' => $sq['question_id'] ?? null,
+                    'question_text' => $sq['question_text'] ?? 'Question '.($index + 1),
+                    'options' => $sq['options'] ?? [],
+                    'correct_option' => $sq['correct_option'] ?? null,
+                    'selected_option' => $sq['selected_option'] ?? null,
+                    'is_correct' => (bool) ($sq['is_correct'] ?? false),
+                    'is_unanswered' => empty($sq['selected_option']),
+                    'points' => 1,
+                    'explanation' => $sq['explanation'] ?? null,
+                    'domain' => $sq['domain'] ?? null,
+                    'difficulty' => $sq['difficulty'] ?? null,
+                ];
+            })->values();
+        }
+
+        $total = $analysis->count();
+        $correct = $analysis->where('is_correct', true)->count();
+        $unanswered = $analysis->where('is_unanswered', true)->count();
+        $incorrect = $total - $correct;
+        $score = $attempt?->score ?? ($snapshot?->score ?? $correct);
+        $percentage = $total > 0 ? (float) round(($correct / $total) * 100) : 0;
+        $passed = $attempt?->passed ?? ($snapshot?->passed ?? ($percentage >= ($module->passing_grade ?? 50)));
+
+        return response()->json([
+            'success' => true,
+            'attempt_number' => $snapshot?->attempt_number ?? ($attempt?->attempt_count ?? 1),
+            'score' => $score,
+            'total' => $total,
+            'percentage' => $percentage,
+            'passed' => $passed,
+            'summary' => [
+                'total' => $total,
+                'correct' => $correct,
+                'incorrect' => $incorrect,
+                'unanswered' => $unanswered,
+                'percentage' => $percentage,
+            ],
+            'questions' => $analysis,
+        ]);
+    }
+
+    /**
      * Teacher: itakda ang base na bilang ng attempts na pinapayagan sa
      * lahat ng estudyante para sa module/assessment na ito. Isa pa lang ito
      * per module — parehong sinusunod ng pre-test at post-test kung
