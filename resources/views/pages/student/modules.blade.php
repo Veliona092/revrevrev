@@ -1860,6 +1860,13 @@
         box.innerHTML = '<p class="qz-history-title"><i class="fas fa-history"></i> Attempt History</p>' + rows;
     }
 
+    function escHtml(str) {
+        if (str === null || str === undefined) return '';
+        var d = document.createElement('div');
+        d.textContent = String(str);
+        return d.innerHTML;
+    }
+
     var loadedHistoryDetails = {};
 
     function toggleAttemptHistory(snapshotId) {
@@ -1868,7 +1875,6 @@
         var wasOpen = item.classList.contains('open');
         item.classList.toggle('open');
         if (wasOpen || loadedHistoryDetails[snapshotId]) { return; }
-        loadedHistoryDetails[snapshotId] = true;
 
         fetch('/quiz/attempts/' + snapshotId + '/detail', {
             headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
@@ -1878,6 +1884,7 @@
             var detailEl = document.getElementById('historyDetail_' + snapshotId);
             if (!detailEl) { return; }
             if (res.success && res.questions && res.questions.length) {
+                loadedHistoryDetails[snapshotId] = true;
                 detailEl.innerHTML = res.questions.map(function (q, i) {
                     var cls = q.is_correct ? 'correct' : 'incorrect';
                     var yourAns = q.selected_option
@@ -1887,10 +1894,10 @@
                         ? q.correct_option + (q.options && q.options[q.correct_option] ? ' - ' + q.options[q.correct_option] : '')
                         : '-';
                     return '<div class="qz-history-q ' + cls + '">' +
-                        '<p class="qz-history-q-text">' + (i + 1) + '. ' + escapeHtml(q.question_text || '') + '</p>' +
-                        '<p class="qz-history-q-ans"><i class="fas fa-' + (q.is_correct ? 'check' : 'times') + '"></i> Your answer: ' + escapeHtml(yourAns) + '</p>' +
+                        '<p class="qz-history-q-text">' + (i + 1) + '. ' + escHtml(q.question_text || '') + '</p>' +
+                        '<p class="qz-history-q-ans"><i class="fas fa-' + (q.is_correct ? 'check' : 'times') + '"></i> Your answer: ' + escHtml(yourAns) + '</p>' +
                         (!q.is_correct
-                            ? '<p class="qz-history-q-ans"><i class="fas fa-check"></i> Correct answer: ' + escapeHtml(correctAns) + '</p>'
+                            ? '<p class="qz-history-q-ans"><i class="fas fa-check"></i> Correct answer: ' + escHtml(correctAns) + '</p>'
                             : '') +
                         '</div>';
                 }).join('');
@@ -1898,7 +1905,8 @@
                 detailEl.innerHTML = '<p class="qz-history-empty">No details available for this attempt.</p>';
             }
         })
-        .catch(function () {
+        .catch(function (err) {
+            console.error('Error loading attempt details:', err);
             var detailEl = document.getElementById('historyDetail_' + snapshotId);
             if (detailEl) {
                 detailEl.innerHTML = '<p class="qz-history-empty">Failed to load details.</p>';

@@ -637,6 +637,47 @@ class QuizController extends Controller
             abort(403);
         }
 
+        $questions = $snapshot->questions_snapshot ?: [];
+
+        // If questions_snapshot is empty or missing options, backfill from QuizQuestion & QuizAnswer
+        if (empty($questions) || (isset($questions[0]) && empty($questions[0]['options']))) {
+            $dbQuestions = QuizQuestion::where('module_id', $snapshot->module_id)
+                ->when($snapshot->quiz_stage, fn ($q) => $q->where('quiz_stage', $snapshot->quiz_stage))
+                ->orderBy('order')
+                ->get();
+
+            $attempt = QuizAttempt::where('user_id', $snapshot->user_id)
+                ->where('module_id', $snapshot->module_id)
+                ->when($snapshot->quiz_stage, fn ($q) => $q->where('quiz_stage', $snapshot->quiz_stage))
+                ->first();
+
+            $answers = $attempt
+                ? QuizAnswer::where('attempt_id', $attempt->id)->get()->keyBy('question_id')
+                : collect();
+
+            $questionsMap = collect($questions)->keyBy('question_id');
+
+            $questions = $dbQuestions->map(function (QuizQuestion $q) use ($answers, $questionsMap) {
+                $ans = $answers->get($q->id);
+                $snapQ = $questionsMap->get($q->id);
+
+                $selected = $snapQ['selected_option'] ?? $ans?->selected_option;
+                $correct = $snapQ['correct_option'] ?? $q->correct_option;
+                $isCorrect = isset($snapQ['is_correct'])
+                    ? (bool) $snapQ['is_correct']
+                    : ($ans ? (bool) $ans->is_correct : ($selected && strtoupper(trim((string) $selected)) === strtoupper(trim((string) $correct))));
+
+                return [
+                    'question_id' => $q->id,
+                    'question_text' => $q->question_text,
+                    'options' => $q->options ?: [],
+                    'correct_option' => $correct,
+                    'selected_option' => $selected,
+                    'is_correct' => $isCorrect,
+                ];
+            })->values()->toArray();
+        }
+
         return response()->json([
             'success' => true,
             'attempt_number' => $snapshot->attempt_number,
@@ -645,7 +686,7 @@ class QuizController extends Controller
             'percentage' => $snapshot->percentage,
             'passed' => $snapshot->passed,
             'completed_at' => $snapshot->completed_at,
-            'questions' => $snapshot->questions_snapshot,
+            'questions' => $questions,
         ]);
     }
 
