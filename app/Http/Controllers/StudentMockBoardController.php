@@ -688,6 +688,25 @@ class StudentMockBoardController extends Controller
             }
         }
 
+        $percentage = (float) ($attempt->percentage ?? $attempt->quizAttempt->percentage ?? 0);
+        $threshold = (float) ($mockBoard->passing_percentage ?? 75);
+
+        if ($percentage >= $threshold) {
+            $tier = 'high';
+            $label = 'High Chance (Board Ready)';
+            $rationale = "Your score of {$percentage}% meets the standard {$threshold}% PRC Board Exam benchmark. You demonstrate a strong likelihood of passing the Board Exam.";
+        } elseif ($percentage >= max($threshold - 10, 50)) {
+            $tier = 'moderate';
+            $label = 'Moderate Chance';
+            $gap = round($threshold - $percentage, 1);
+            $rationale = "Your score of {$percentage}% is {$gap}% shy of the {$threshold}% PRC passing threshold. You have a moderate likelihood; focused reinforcement in weak subjects will help secure a passing mark.";
+        } else {
+            $tier = 'low';
+            $label = 'Low Chance (At-Risk)';
+            $gap = round($threshold - $percentage, 1);
+            $rationale = "Your score of {$percentage}% is {$gap}% below the standard {$threshold}% threshold (At-Risk zone). Intensive review and remediation in weak subjects are strongly advised.";
+        }
+
         if (empty($subjectPerformance)) {
             $recommendation = "No answers were recorded for this attempt, so we can't generate insights. Make sure to select an answer for each question before submitting.";
         } elseif (empty($weakAreas)) {
@@ -706,6 +725,13 @@ class StudentMockBoardController extends Controller
             'strong_areas' => $strongAreas,
             'weak_areas' => $weakAreas,
             'recommendation' => $recommendation,
+            'board_likelihood' => [
+                'tier' => $tier,
+                'label' => $label,
+                'percentage' => $percentage,
+                'threshold' => $threshold,
+                'rationale' => $rationale,
+            ],
         ]);
     }
 

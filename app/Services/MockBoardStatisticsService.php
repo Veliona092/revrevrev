@@ -720,6 +720,18 @@ class MockBoardStatisticsService
                 $improvement = $preBoardsScore - $preTestScore;
             }
 
+            $currentScore = $preBoardsScore !== null ? $preBoardsScore : $preTestScore;
+            $likelihood = 'not_started';
+            if ($currentScore !== null) {
+                if ($currentScore >= 75) {
+                    $likelihood = 'high';
+                } elseif ($currentScore >= 65) {
+                    $likelihood = 'moderate';
+                } else {
+                    $likelihood = 'low';
+                }
+            }
+
             $studentResults[] = [
                 'user_id' => $user->id,
                 'name' => $user->name,
@@ -730,6 +742,7 @@ class MockBoardStatisticsService
                 'pre_boards_score' => $preBoardsScore,
                 'pre_boards_passed' => $preBoards ? $preBoards->passed : false,
                 'improvement' => $improvement,
+                'board_likelihood' => $likelihood,
                 'completed_at' => $preBoards ? $preBoards->created_at->format('M d, Y') : 'Pending',
             ];
         }
