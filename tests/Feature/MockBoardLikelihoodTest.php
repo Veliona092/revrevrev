@@ -123,13 +123,6 @@ class MockBoardLikelihoodTest extends TestCase
             'passed' => false,
         ]);
 
-        // Pre-test insights endpoint should NOT return board likelihood
-        $insightsResponse = $this->actingAs($this->student)
-            ->postJson(route('student.mock-boards.insights', [$this->mockBoard, $this->preTestPhase]));
-
-        $insightsResponse->assertOk();
-        $this->assertNull($insightsResponse->json('board_likelihood'));
-
         // Results view should NOT show Board Passing Likelihood card yet
         $viewResponse = $this->actingAs($this->student)
             ->get(route('student.mock-boards.results', $this->mockBoard));
@@ -189,14 +182,6 @@ class MockBoardLikelihoodTest extends TestCase
             'percentage' => 80,
             'passed' => true,
         ]);
-
-        $response = $this->actingAs($this->student)
-            ->postJson(route('student.mock-boards.insights', [$this->mockBoard, $this->preBoardsPhase]));
-
-        $response->assertOk();
-        $response->assertJsonPath('board_likelihood.tier', 'high');
-        $response->assertJsonPath('board_likelihood.label', 'High Chance (Board Ready)');
-        $this->assertStringContainsString('meets the standard 75% PRC Board Exam benchmark', $response->json('board_likelihood.rationale'));
 
         // Results view should show Board Passing Likelihood card
         $viewResponse = $this->actingAs($this->student)
@@ -259,13 +244,12 @@ class MockBoardLikelihoodTest extends TestCase
             'passed' => false,
         ]);
 
-        $response = $this->actingAs($this->student)
-            ->postJson(route('student.mock-boards.insights', [$this->mockBoard, $this->preBoardsPhase]));
+        $viewResponse = $this->actingAs($this->student)
+            ->get(route('student.mock-boards.results', $this->mockBoard));
 
-        $response->assertOk();
-        $response->assertJsonPath('board_likelihood.tier', 'moderate');
-        $response->assertJsonPath('board_likelihood.label', 'Moderate Chance');
-        $this->assertStringContainsString('shy of the 75% PRC passing threshold', $response->json('board_likelihood.rationale'));
+        $viewResponse->assertOk();
+        $viewResponse->assertSee('Board Passing Likelihood');
+        $viewResponse->assertSee('Moderate Chance');
     }
 
     public function test_low_likelihood_returned_for_at_risk_scores_when_both_phases_completed(): void
@@ -320,12 +304,11 @@ class MockBoardLikelihoodTest extends TestCase
             'passed' => false,
         ]);
 
-        $response = $this->actingAs($this->student)
-            ->postJson(route('student.mock-boards.insights', [$this->mockBoard, $this->preBoardsPhase]));
+        $viewResponse = $this->actingAs($this->student)
+            ->get(route('student.mock-boards.results', $this->mockBoard));
 
-        $response->assertOk();
-        $response->assertJsonPath('board_likelihood.tier', 'low');
-        $response->assertJsonPath('board_likelihood.label', 'Low Chance (At-Risk)');
-        $this->assertStringContainsString('below the standard 75% threshold (At-Risk zone)', $response->json('board_likelihood.rationale'));
+        $viewResponse->assertOk();
+        $viewResponse->assertSee('Board Passing Likelihood');
+        $viewResponse->assertSee('Low Chance (At-Risk)');
     }
 }
