@@ -91,6 +91,17 @@ class MockBoardAnalyticsController extends Controller
                 $improvement = round($boardScore - $preScore, 2);
             }
 
+            $likelihood = 'not_started';
+            if ($currentScore !== null) {
+                if ($currentScore >= 75) {
+                    $likelihood = 'high';
+                } elseif ($currentScore >= 65) {
+                    $likelihood = 'moderate';
+                } else {
+                    $likelihood = 'low';
+                }
+            }
+
             return [
                 'name' => $first->student_name,
                 'program' => ucfirst($first->board_program ?? $first->student_program ?? 'N/A'),
@@ -101,6 +112,7 @@ class MockBoardAnalyticsController extends Controller
                 'current_score' => $currentScore,   // BAGO
                 'current_passed' => $currentPassed, // BAGO
                 'improvement' => $improvement,
+                'board_likelihood' => $likelihood,
             ];
         })->values();
 
