@@ -185,7 +185,7 @@ class MockBoardLikelihoodTest extends TestCase
         $this->assertStringContainsString('below the standard 75% threshold (At-Risk zone)', $response->json('board_likelihood.rationale'));
     }
 
-    public function test_teacher_analytics_displays_board_likelihood(): void
+    public function test_student_results_page_displays_board_likelihood(): void
     {
         $quizAttempt = QuizAttempt::create([
             'user_id' => $this->student->id,
@@ -211,8 +211,8 @@ class MockBoardLikelihoodTest extends TestCase
             'passed' => true,
         ]);
 
-        $response = $this->actingAs($this->teacher)
-            ->get(route('mock-boards.batch.analysis', ['program' => 'education', 'mock_board' => $this->mockBoard]));
+        $response = $this->actingAs($this->student)
+            ->get(route('student.mock-boards.results', $this->mockBoard));
 
         $response->assertOk();
         $response->assertSee('Board Passing Likelihood');
