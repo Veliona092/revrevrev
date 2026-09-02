@@ -105,7 +105,7 @@
             } else {
                 $blTier = 'low';
                 $blLabel = 'Low Chance (At-Risk)';
-                $blIcon = 'fa-triangle-exclamation';
+                $blIcon = 'fa-times-circle';
                 $blGap = round($threshold - $finalScore, 1);
                 $blNote = "Your score of " . (int) round($finalScore) . "% is {$blGap}% below the {$threshold}% threshold (At-Risk zone). Intensive review and remediation are advised.";
             }
@@ -206,45 +206,13 @@
 
 @php
     $cachedInsightsMap = [];
-    $threshold = $mockBoard->passing_percentage ?? 75;
-    $hasFinishedEntireBoard = $preTestAttemptItem && isset($overallPostTest) && $overallPostTest;
-
     foreach ($phasesDetail as $p) {
         $att = $p['attempt'] ?? null;
         if ($att) {
-            $boardLikelihood = null;
-            if ($hasFinishedEntireBoard && $p['phase_type'] === 'pre_boards') {
-                $pct = (float) $att->percentage;
-                if ($pct >= $threshold) {
-                    $tier = 'high';
-                    $lbl = 'High Chance (Board Ready)';
-                    $rat = "Your score of {$pct}% meets the standard {$threshold}% PRC Board Exam benchmark. You demonstrate a strong likelihood of passing the Board Exam.";
-                } elseif ($pct >= max($threshold - 10, 50)) {
-                    $tier = 'moderate';
-                    $lbl = 'Moderate Chance';
-                    $gap = round($threshold - $pct, 1);
-                    $rat = "Your score of {$pct}% is {$gap}% shy of the {$threshold}% PRC passing threshold. Focused reinforcement in weak subjects will help secure a passing mark.";
-                } else {
-                    $tier = 'low';
-                    $lbl = 'Low Chance (At-Risk)';
-                    $gap = round($threshold - $pct, 1);
-                    $rat = "Your score of {$pct}% is {$gap}% below the standard {$threshold}% threshold (At-Risk zone). Intensive review and remediation are advised.";
-                }
-
-                $boardLikelihood = [
-                    'tier' => $tier,
-                    'label' => $lbl,
-                    'percentage' => $pct,
-                    'threshold' => $threshold,
-                    'rationale' => $rat,
-                ];
-            }
-
             $cachedInsightsMap[$p['id']] = [
                 'strong' => $att->ai_strong,
                 'weak' => $att->ai_weak,
                 'recommendation' => $att->ai_recommendation,
-                'board_likelihood' => $boardLikelihood,
             ];
         } else {
             $cachedInsightsMap[$p['id']] = null;
@@ -277,22 +245,8 @@
         var box = document.getElementById('aiBox_' + phaseId);
         if (!box) return;
 
-        var likelihoodHtml = '';
-        if (data.board_likelihood) {
-            var bl = data.board_likelihood;
-            var iconClass = bl.tier === 'high' ? 'fa-check-circle' : (bl.tier === 'moderate' ? 'fa-exclamation-circle' : 'fa-triangle-exclamation');
-            likelihoodHtml =
-                '<div class="board-likelihood-box">' +
-                '<div class="board-likelihood-badge ' + bl.tier + '">' +
-                '<i class="fas ' + iconClass + '"></i> Board Readiness: ' + escHtml(bl.label) +
-                '</div>' +
-                '<p class="board-likelihood-rationale">' + escHtml(bl.rationale) + '</p>' +
-                '</div>';
-        }
-
         box.innerHTML =
-            '<p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights & Board Readiness</p>' +
-            likelihoodHtml +
+            '<p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights</p>' +
             '<div class="qz-ai-sec"><p class="qz-ai-label">Strong Areas</p><p class="qz-ai-value">' + escHtml(data.strong || 'None detected') + '</p></div>' +
             '<div class="qz-ai-sec"><p class="qz-ai-label">Weak Areas</p><p class="qz-ai-value">' + escHtml(data.weak || 'None detected') + '</p></div>' +
             '<div class="qz-ai-sec"><p class="qz-ai-label">Recommendation</p><p class="qz-ai-value">' + escHtml(data.recommendation || 'Review the material again') + '</p></div>';
@@ -320,13 +274,12 @@
                 strong: (res.strong_areas || []).join(', '),
                 weak: (res.weak_areas || []).join(', '),
                 recommendation: res.recommendation,
-                board_likelihood: res.board_likelihood
             };
             cachedInsights[phaseId] = data;
             renderAiBox(phaseId, data);
         })
         .catch(function () {
-            box.innerHTML = '<p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights & Board Readiness</p><p style="font-size:13px;color:#aaa;margin:0;">Failed to load insights.</p>';
+            box.innerHTML = '<p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights</p><p style="font-size:13px;color:#aaa;margin:0;">Failed to load insights.</p>';
         });
     }
 
@@ -522,18 +475,5 @@
     .growth-box.positive .growth-value { color: #0f6e56; }
     .growth-box.negative .growth-value { color: #a32d2d; }
     .growth-note { font-size: 14px; font-weight: 500; color: #555; }
-
-    .board-likelihood-box {
-        background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
-        padding: 12px 14px; margin-bottom: 12px;
-    }
-    .board-likelihood-badge {
-        display: inline-flex; align-items: center; gap: 6px;
-        padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; margin-bottom: 6px;
-    }
-    .board-likelihood-badge.high { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-    .board-likelihood-badge.moderate { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
-    .board-likelihood-badge.low { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
-    .board-likelihood-rationale { font-size: 13px; color: #475569; margin: 0; line-height: 1.45; }
 </style>
 @endsection
