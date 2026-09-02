@@ -181,22 +181,24 @@ class BatchAnalyticsController extends Controller
         }
 
         if ($user->role === 'teacher') {
-            // BAGO: 'created_by' lang ang totoong column sa 'classes' table
-            $teacherClassIds = ClassModel::where('created_by', $user->id)->pluck('id');
-
-            $teacherStudentIds = DB::table('class_user')->whereIn('class_id', $teacherClassIds)->pluck('user_id');
-
-            // Kung mayroong students ang teacher sa program o kung ang mock board program ay tumutugma sa program ng teacher
-            $hasStudentInProgram = User::whereIn('id', $teacherStudentIds)
-                ->where('program', 'LIKE', "%{$program}%")
-                ->exists();
-
-            if (! $hasStudentInProgram && strtolower($user->program ?? '') !== strtolower($program)) {
-                abort(403, 'Unauthorized access to this program analysis.');
-            }
-
+            // Strictly enforce: A teacher can ONLY view analysis of their OWN created Mock Boards
             if ((int) $mockBoard->teacher_id !== (int) $user->id) {
                 abort(403, 'You do not have permission to view this Mock Board\'s analysis.');
+            }
+
+            // Normalize program aliases (educ -> education, psych -> psychology)
+            $programMap = [
+                'psych' => 'psychology',
+                'educ' => 'education',
+                'accountancy' => 'accountancy',
+            ];
+
+            $rawTeacherProgram = strtolower(trim($user->program ?? ''));
+            $normalizedTeacherProgram = $programMap[$rawTeacherProgram] ?? $rawTeacherProgram;
+            $normalizedUrlProgram = $programMap[strtolower(trim($program))] ?? strtolower(trim($program));
+
+            if (! empty($normalizedTeacherProgram) && $normalizedTeacherProgram !== $normalizedUrlProgram) {
+                abort(403, 'Unauthorized access to this program analysis.');
             }
         }
 
@@ -349,15 +351,7 @@ class BatchAnalyticsController extends Controller
         }
 
         if ($currentUser->role === 'teacher') {
-            $teacherClassIds = ClassModel::where('created_by', $currentUser->id)->pluck('id');
-            $teacherStudentIds = DB::table('class_user')
-                ->whereIn('class_id', $teacherClassIds)
-                ->pluck('user_id');
-
-            $isEnrolled = $teacherStudentIds->contains($user->id);
-            $hasSameProgram = strtolower($currentUser->program ?? '') === strtolower($program) || strtolower($user->program ?? '') === strtolower($program);
-
-            if (! $isEnrolled && ! $hasSameProgram) {
+            if ((int) $mockBoard->teacher_id !== (int) $currentUser->id) {
                 abort(403, 'Unauthorized to view this student\'s item analysis.');
             }
         }
@@ -393,6 +387,12 @@ class BatchAnalyticsController extends Controller
 
         if (! in_array($user->role, ['admin', 'superadmin', 'teacher'])) {
             abort(403, 'Unauthorized');
+        }
+
+        if ($user->role === 'teacher') {
+            if ((int) $mockBoard->teacher_id !== (int) $user->id) {
+                abort(403, 'Unauthorized to compute ANOVA for this Mock Board.');
+            }
         }
 
         $attempts = $mockBoard->attempts()
