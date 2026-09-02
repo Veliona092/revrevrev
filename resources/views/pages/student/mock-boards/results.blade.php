@@ -82,31 +82,32 @@
         </div>
     @endif
 
-    {{-- BOARD PASSING LIKELIHOOD CARD (75% PRC Benchmark) --}}
+    {{-- BOARD PASSING LIKELIHOOD CARD (75% PRC Benchmark) - ONLY SHOWN WHEN ENTIRE BOARD EXAM (PRE-TEST & POST-TEST) IS COMPLETED --}}
     @php
-        $latestBestScore = isset($overallPostTest) && $overallPostTest ? $overallPostTest['best_percentage'] : ($preTestAttemptItem ? $preTestAttemptItem->percentage : null);
+        $hasFinishedEntireBoard = $preTestAttemptItem && isset($overallPostTest) && $overallPostTest;
+        $finalScore = $hasFinishedEntireBoard ? $overallPostTest['best_percentage'] : null;
         $threshold = $mockBoard->passing_percentage ?? 75;
     @endphp
 
-    @if($latestBestScore !== null)
+    @if($hasFinishedEntireBoard && $finalScore !== null)
         @php
-            if ($latestBestScore >= $threshold) {
+            if ($finalScore >= $threshold) {
                 $blTier = 'high';
                 $blLabel = 'High Chance (Board Ready)';
                 $blIcon = 'fa-check-circle';
-                $blNote = "Your score of " . (int) round($latestBestScore) . "% meets the standard {$threshold}% PRC passing threshold. You demonstrate a strong likelihood of passing the Board Exam.";
-            } elseif ($latestBestScore >= max($threshold - 10, 50)) {
+                $blNote = "Your score of " . (int) round($finalScore) . "% meets the standard {$threshold}% PRC passing threshold. You demonstrate a strong likelihood of passing the Board Exam.";
+            } elseif ($finalScore >= max($threshold - 10, 50)) {
                 $blTier = 'moderate';
                 $blLabel = 'Moderate Chance';
                 $blIcon = 'fa-exclamation-circle';
-                $blGap = round($threshold - $latestBestScore, 1);
-                $blNote = "Your score of " . (int) round($latestBestScore) . "% is {$blGap}% shy of the {$threshold}% threshold. Focused reinforcement in weak domains will help secure a passing mark.";
+                $blGap = round($threshold - $finalScore, 1);
+                $blNote = "Your score of " . (int) round($finalScore) . "% is {$blGap}% shy of the {$threshold}% threshold. Focused reinforcement in weak domains will help secure a passing mark.";
             } else {
                 $blTier = 'low';
                 $blLabel = 'Low Chance (At-Risk)';
                 $blIcon = 'fa-triangle-exclamation';
-                $blGap = round($threshold - $latestBestScore, 1);
-                $blNote = "Your score of " . (int) round($latestBestScore) . "% is {$blGap}% below the {$threshold}% threshold (At-Risk zone). Intensive review and remediation are advised.";
+                $blGap = round($threshold - $finalScore, 1);
+                $blNote = "Your score of " . (int) round($finalScore) . "% is {$blGap}% below the {$threshold}% threshold (At-Risk zone). Intensive review and remediation are advised.";
             }
         @endphp
         <div class="growth-box {{ $blTier === 'high' ? 'positive' : ($blTier === 'moderate' ? 'neutral' : 'negative') }}" style="margin-bottom: 24px;">
@@ -206,37 +207,44 @@
 @php
     $cachedInsightsMap = [];
     $threshold = $mockBoard->passing_percentage ?? 75;
+    $hasFinishedEntireBoard = $preTestAttemptItem && isset($overallPostTest) && $overallPostTest;
+
     foreach ($phasesDetail as $p) {
         $att = $p['attempt'] ?? null;
         if ($att) {
-            $pct = (float) $att->percentage;
-            if ($pct >= $threshold) {
-                $tier = 'high';
-                $lbl = 'High Chance (Board Ready)';
-                $rat = "Your score of {$pct}% meets the standard {$threshold}% PRC Board Exam benchmark. You demonstrate a strong likelihood of passing the Board Exam.";
-            } elseif ($pct >= max($threshold - 10, 50)) {
-                $tier = 'moderate';
-                $lbl = 'Moderate Chance';
-                $gap = round($threshold - $pct, 1);
-                $rat = "Your score of {$pct}% is {$gap}% shy of the {$threshold}% PRC passing threshold. Focused reinforcement in weak subjects will help secure a passing mark.";
-            } else {
-                $tier = 'low';
-                $lbl = 'Low Chance (At-Risk)';
-                $gap = round($threshold - $pct, 1);
-                $rat = "Your score of {$pct}% is {$gap}% below the standard {$threshold}% threshold (At-Risk zone). Intensive review and remediation are advised.";
+            $boardLikelihood = null;
+            if ($hasFinishedEntireBoard && $p['phase_type'] === 'pre_boards') {
+                $pct = (float) $att->percentage;
+                if ($pct >= $threshold) {
+                    $tier = 'high';
+                    $lbl = 'High Chance (Board Ready)';
+                    $rat = "Your score of {$pct}% meets the standard {$threshold}% PRC Board Exam benchmark. You demonstrate a strong likelihood of passing the Board Exam.";
+                } elseif ($pct >= max($threshold - 10, 50)) {
+                    $tier = 'moderate';
+                    $lbl = 'Moderate Chance';
+                    $gap = round($threshold - $pct, 1);
+                    $rat = "Your score of {$pct}% is {$gap}% shy of the {$threshold}% PRC passing threshold. Focused reinforcement in weak subjects will help secure a passing mark.";
+                } else {
+                    $tier = 'low';
+                    $lbl = 'Low Chance (At-Risk)';
+                    $gap = round($threshold - $pct, 1);
+                    $rat = "Your score of {$pct}% is {$gap}% below the standard {$threshold}% threshold (At-Risk zone). Intensive review and remediation are advised.";
+                }
+
+                $boardLikelihood = [
+                    'tier' => $tier,
+                    'label' => $lbl,
+                    'percentage' => $pct,
+                    'threshold' => $threshold,
+                    'rationale' => $rat,
+                ];
             }
 
             $cachedInsightsMap[$p['id']] = [
                 'strong' => $att->ai_strong,
                 'weak' => $att->ai_weak,
                 'recommendation' => $att->ai_recommendation,
-                'board_likelihood' => [
-                    'tier' => $tier,
-                    'label' => $lbl,
-                    'percentage' => $pct,
-                    'threshold' => $threshold,
-                    'rationale' => $rat,
-                ],
+                'board_likelihood' => $boardLikelihood,
             ];
         } else {
             $cachedInsightsMap[$p['id']] = null;
