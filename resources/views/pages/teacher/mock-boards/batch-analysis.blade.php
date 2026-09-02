@@ -282,7 +282,6 @@
                 <th>Post-Test</th>
                 <th>Improvement</th>
                 <th>Status</th>
-                <th>Board Passing Likelihood</th>
                 <th style="text-align: center;">Item Breakdown</th>
             </tr>
         </thead>
@@ -322,26 +321,6 @@
                         <span class="badge-fail">FAILED</span>
                     @endif
                 </td>
-                <td>
-                    @php
-                        $likelihood = $result['board_likelihood'] ?? 'not_started';
-                    @endphp
-                    @if($likelihood === 'high')
-                        <span class="badge-pass" style="display:inline-flex;align-items:center;gap:4px;">
-                            <i class="fas fa-check-circle"></i> High Chance (Board Ready)
-                        </span>
-                    @elseif($likelihood === 'moderate')
-                        <span class="badge-pending" style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;">
-                            <i class="fas fa-exclamation-circle"></i> Moderate Chance
-                        </span>
-                    @elseif($likelihood === 'low')
-                        <span class="badge-fail" style="display:inline-flex;align-items:center;gap:4px;">
-                            <i class="fas fa-triangle-exclamation"></i> Low Chance (At-Risk)
-                        </span>
-                    @else
-                        <span class="badge-pending">Not Started</span>
-                    @endif
-                </td>
                 <td style="text-align: center;">
                     <button type="button" class="rv-btn rv-btn-secondary" style="padding: 6px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;" onclick="openStudentItemModal({{ $result['user_id'] }}, '{{ addslashes($result['name']) }}')">
                         <i class="fas fa-list-check" style="color: #245E55;"></i> Item Analysis
@@ -350,7 +329,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="8" style="text-align: center; color: #8a8580; padding: 24px;">No student results found.</td>
+                <td colspan="7" style="text-align: center; color: #8a8580; padding: 24px;">No student results found.</td>
             </tr>
             @endforelse
         </tbody>
