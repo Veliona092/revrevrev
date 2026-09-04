@@ -13,8 +13,17 @@ class AdminUserController extends Controller
 {
     private const ADMIN_RESETTABLE_ROLES = ['student', 'teacher', 'psych', 'educ', 'accountancy'];
 
-    private function actorCanManageTarget(User $actor, User $target): bool
+    public function __construct()
     {
+        $this->middleware('auth');
+    }
+
+    private function actorCanManageTarget(?User $actor, User $target): bool
+    {
+        if (! $actor) {
+            return false;
+        }
+
         if ($actor->role === 'superadmin') {
             return $target->role !== 'superadmin';
         }
@@ -59,7 +68,7 @@ class AdminUserController extends Controller
     {
         $actor = Auth::user();
 
-        if (! in_array($actor->role, ['admin', 'superadmin'], true)) {
+        if (! $actor || ! in_array($actor->role, ['admin', 'superadmin'], true)) {
             abort(403);
         }
 
@@ -95,7 +104,7 @@ class AdminUserController extends Controller
     {
         $actor = Auth::user();
 
-        if (! in_array($actor->role, ['admin', 'superadmin'], true)) {
+        if (! $actor || ! in_array($actor->role, ['admin', 'superadmin'], true)) {
             abort(403);
         }
 
@@ -147,7 +156,7 @@ class AdminUserController extends Controller
     {
         $actor = Auth::user();
 
-        if (! in_array($actor->role, ['admin', 'superadmin'], true)) {
+        if (! $actor || ! in_array($actor->role, ['admin', 'superadmin'], true)) {
             abort(403);
         }
 
@@ -177,7 +186,7 @@ class AdminUserController extends Controller
     {
         $actor = Auth::user();
 
-        if (! in_array($actor->role, ['admin', 'superadmin'], true)) {
+        if (! $actor || ! in_array($actor->role, ['admin', 'superadmin'], true)) {
             abort(403);
         }
 

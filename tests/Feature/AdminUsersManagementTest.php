@@ -63,4 +63,20 @@ class AdminUsersManagementTest extends TestCase
         $this->assertStringContainsString('Export TestStudent', $content);
         $this->assertStringContainsString('ID Number', $content);
     }
+
+    public function test_guest_is_redirected_to_login(): void
+    {
+        $response = $this->get(route('admin.users'));
+        $response->assertRedirect(route('login'));
+    }
+
+    public function test_non_admin_cannot_access_admin_users(): void
+    {
+        $student = $this->createUser('student');
+
+        $response = $this->actingAs($student)
+            ->get(route('admin.users'));
+
+        $response->assertForbidden();
+    }
 }
