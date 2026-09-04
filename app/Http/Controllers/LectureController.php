@@ -33,11 +33,20 @@ class LectureController extends Controller
             return view('pages.admin.lectures', compact('lectures'));
         }
 
-        // For now: students just see all lectures
-        if (in_array($role, ['psych', 'educ', 'accountancy'])) {
+        // For students: check if formal assessment is in progress
+        if (in_array($role, ['psych', 'educ', 'accountancy', 'student'])) {
+            $viewRole = in_array($role, ['psych', 'educ', 'accountancy']) ? $role : ($user->program ?? 'accountancy');
+            if (! in_array($viewRole, ['psych', 'educ', 'accountancy'])) {
+                $viewRole = 'accountancy';
+            }
+
+            if ($user->hasActiveFormalAssessment()) {
+                abort(403, 'Access to lectures is locked while a Formal Assessment is in progress.');
+            }
+
             $lectures = Lecture::latest()->paginate(10);
 
-            return view("pages.$role.lectures", compact('lectures'));
+            return view("pages.$viewRole.lectures", compact('lectures'));
         }
 
         abort(403, 'Unauthorized');

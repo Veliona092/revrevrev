@@ -546,10 +546,15 @@
                     @if($isLocked)
                         @php
                             $av = $availabilityInfo[$module->id] ?? null;
-                            $lockTitle = $av['is_upcoming'] ?? false
-                                ? 'Opens on ' . ($av['available_at'] ?? 'scheduled date')
-                                : (($av['is_closed'] ?? false) ? 'Closed / Past Due' : 'Locked');
-                            $lockText = ($av['is_upcoming'] ?? false) ? 'Opens Soon' : ((($av['is_closed'] ?? false) ? 'Closed' : ''));
+                            $isLockedByAssessment = $av['is_locked_by_assessment'] ?? false;
+                            $lockTitle = $isLockedByAssessment
+                                ? 'Locked: Formal Assessment in progress'
+                                : (($av['is_upcoming'] ?? false)
+                                    ? 'Opens on ' . ($av['available_at'] ?? 'scheduled date')
+                                    : (($av['is_closed'] ?? false) ? 'Closed / Past Due' : 'Locked'));
+                            $lockText = $isLockedByAssessment
+                                ? 'In Assessment'
+                                : (($av['is_upcoming'] ?? false) ? 'Opens Soon' : ((($av['is_closed'] ?? false) ? 'Closed' : 'Locked')));
                         @endphp
                         <span class="mod-badge locked-badge" title="{{ $lockTitle }}"><i class="fas fa-lock" style="font-size:9px;"></i> {{ $lockText }}</span>
                     @elseif($isPostTest)
@@ -613,6 +618,12 @@
 
 {{-- Main --}}
 <div class="mod-main">
+    @if($hasActiveAssessment ?? false)
+        <div style="background: #fffbeb; border-bottom: 1px solid #fef3c7; padding: 10px 18px; display: flex; align-items: center; gap: 10px; color: #92400e; font-size: 13.5px; font-family: 'DM Sans', sans-serif;">
+            <i class="fas fa-lock" style="color: #d97706; font-size: 14px;"></i>
+            <span><strong>Formal Assessment in Progress:</strong> Lecture modules are temporarily locked while you are taking an assessment. Submit your assessment to unlock your lessons.</span>
+        </div>
+    @endif
     <div class="mod-content" id="modContent">
         <div class="mod-placeholder">
             <i class="fas fa-book-open"></i>
@@ -637,6 +648,8 @@
 <script>
     let modules              = @json($modules->toArray() ?? []);
     let lockedModules        = @json($locked ?? []);
+    let availabilityMap      = @json($availabilityInfo ?? []);
+    let hasActiveAssessment  = @json($hasActiveAssessment ?? false);
     // Keyed "{moduleId}" for standalone quizzes / mock board phases (unchanged
     // shape, exactly as before quiz_stage existed), and "{moduleId}:pre_test"
     // / "{moduleId}:post_test" for lecture module stages. See
@@ -781,7 +794,22 @@
             const mod = modules.find(m => m.id == moduleId);
 
             if ($(this).data('locked') == '1') {
-                $('#modContent').html('<div class="mod-placeholder"><i class="fas fa-lock" style="font-size:2rem;color:#bbb;"></i><p style="margin-top:12px;color:#888;">Complete the previous module to unlock this one.</p></div>');
+                const av = availabilityMap[moduleId] || {};
+                let lockMsg = 'Complete the previous module to unlock this one.';
+                if (av.is_locked_by_assessment || hasActiveAssessment) {
+                    lockMsg = 'Lecture modules and learning materials are temporarily locked while you are taking a Formal Assessment. Complete or submit your assessment to unlock your lessons.';
+                } else if (av.is_upcoming) {
+                    lockMsg = `This module will be available on ${av.available_at || 'the scheduled date'}.`;
+                } else if (av.is_closed) {
+                    lockMsg = 'This assessment is past its due date and is no longer accessible.';
+                }
+                $('#modContent').html(`
+                    <div class="mod-placeholder">
+                        <i class="fas fa-lock" style="font-size:2.5rem;color:#f59e0b;"></i>
+                        <h3 style="margin-top:16px;color:#111;font-size:18px;font-weight:600;">Module Locked</h3>
+                        <p style="margin-top:8px;color:#666;max-width:440px;line-height:1.5;">${lockMsg}</p>
+                    </div>
+                `);
                 return;
             }
 
@@ -1587,6 +1615,17 @@
 
                 if (isFormalAssessment) {
                     startAntiCheat();
+                    hasActiveAssessment = true;
+                    modules.forEach(m => {
+                        if (!m.is_formal_assessment && !m.is_quiz) {
+                            lockedModules[m.id] = true;
+                            const el = document.querySelector(`.mod-item[data-module-id="${m.id}"]`);
+                            if (el) {
+                                el.classList.add('locked');
+                                el.setAttribute('data-locked', '1');
+                            }
+                        }
+                    });
                 }
 
                 const questionParams = currentQuizStage ? { quiz_stage: currentQuizStage } : {};
@@ -1746,10 +1785,41 @@
                     attempt_count: savedAttemptCount,
                     attempt_id: savedAttemptId,
                 };
+                if (isFormalAssessment) {
+                    hasActiveAssessment = false;
+                    modules.forEach(m => {
+                        const av = availabilityMap[m.id] || {};
+                        if (!av.is_upcoming && !av.is_closed && !av.is_inactive) {
+                            delete lockedModules[m.id];
+                            const el = document.querySelector(`.mod-item[data-module-id="${m.id}"]`);
+                            if (el) {
+                                el.classList.remove('locked');
+                                el.setAttribute('data-locked', '0');
+                            }
+                        }
+                    });
+                }
                 showResult(pct, score, total, false, savedAttemptCount, null);
                 getAI(currentModuleId, savedAttemptId);
             })
-            .catch(() => { showResult(pct, score, total, false, savedAttemptCount, null); getAI(currentModuleId, savedAttemptId); });
+            .catch(() => {
+                if (isFormalAssessment) {
+                    hasActiveAssessment = false;
+                    modules.forEach(m => {
+                        const av = availabilityMap[m.id] || {};
+                        if (!av.is_upcoming && !av.is_closed && !av.is_inactive) {
+                            delete lockedModules[m.id];
+                            const el = document.querySelector(`.mod-item[data-module-id="${m.id}"]`);
+                            if (el) {
+                                el.classList.remove('locked');
+                                el.setAttribute('data-locked', '0');
+                            }
+                        }
+                    });
+                }
+                showResult(pct, score, total, false, savedAttemptCount, null);
+                getAI(currentModuleId, savedAttemptId);
+            });
     }
 
     function showResult(pct, score, total, isLocked = false, attemptCount = 1, cachedInsights = null) {

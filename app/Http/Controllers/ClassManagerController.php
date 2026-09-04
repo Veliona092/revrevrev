@@ -1286,7 +1286,10 @@ class ClassManagerController extends Controller
             $totalProgress += $prog->progress;
         }
 
-        // Lock modules if they are not yet open (upcoming) or closed (overdue / inactive)
+        $hasActiveAssessment = $user->hasActiveFormalAssessment($class->id);
+
+        // Lock modules if they are not yet open (upcoming), closed (overdue / inactive),
+        // or if student currently has an active formal assessment in progress (locks lectures).
         $locked = [];
         $availabilityInfo = [];
 
@@ -1294,8 +1297,9 @@ class ClassManagerController extends Controller
             $isUpcoming = $module->isUpcoming();
             $isClosed = $module->isClosed();
             $isInactive = ! ($module->is_active ?? true);
+            $isLockedByAssessment = $hasActiveAssessment && ! $module->is_formal_assessment && ! $module->is_quiz;
 
-            if ($isUpcoming || $isClosed) {
+            if ($isUpcoming || $isClosed || $isLockedByAssessment) {
                 $locked[$module->id] = true;
             }
 
@@ -1303,8 +1307,9 @@ class ClassManagerController extends Controller
                 'is_upcoming' => $isUpcoming,
                 'is_closed' => $isClosed,
                 'is_inactive' => $isInactive,
-                'is_open' => $module->isOpen(),
-                'status_label' => $module->statusLabel(),
+                'is_locked_by_assessment' => $isLockedByAssessment,
+                'is_open' => $module->isOpen() && ! $isLockedByAssessment,
+                'status_label' => $isLockedByAssessment ? 'Locked (Assessment in Progress)' : $module->statusLabel(),
                 'available_at' => $module->available_at?->format('M d, Y g:i A'),
                 'due_date' => $module->due_date?->format('M d, Y g:i A'),
             ];
@@ -1378,7 +1383,8 @@ class ClassManagerController extends Controller
             'quizAttempts',
             'overallCompletion',
             'attemptLimits',
-            'availabilityInfo'
+            'availabilityInfo',
+            'hasActiveAssessment'
         ));
     }
 
@@ -1422,6 +1428,10 @@ class ClassManagerController extends Controller
             $class->created_by !== $user->id &&
             $user->role !== 'admin') {
             abort(403);
+        }
+
+        if ($user->role === 'student' && $user->hasActiveFormalAssessment($class->id) && ! $module->is_formal_assessment) {
+            abort(403, 'Access to lecture materials is locked while a Formal Assessment is in progress.');
         }
 
         // Check module visibility
@@ -1482,6 +1492,10 @@ class ClassManagerController extends Controller
             abort(403);
         }
 
+        if ($user->role === 'student' && $user->hasActiveFormalAssessment($class->id) && ! $module->is_formal_assessment) {
+            abort(403, 'Access to lecture materials is locked while a Formal Assessment is in progress.');
+        }
+
         // Check module visibility
         $visibility = $module->visibility ?? 'all';
         if ($visibility === 'selected') {
@@ -1526,6 +1540,10 @@ class ClassManagerController extends Controller
             $class->created_by !== $user->id &&
             $user->role !== 'admin') {
             abort(403);
+        }
+
+        if ($user->role === 'student' && $user->hasActiveFormalAssessment($class->id) && ! $module->is_formal_assessment) {
+            abort(403, 'Access to lecture materials is locked while a Formal Assessment is in progress.');
         }
 
         $visibility = $module->visibility ?? 'all';
