@@ -679,6 +679,79 @@
     let currentQuizStage = null;          // null = standalone quiz, else 'pre_test' | 'post_test'
     let quizBackHandler  = null;          // function called when "Back" is pressed mid-result
 
+    // Cross-tab formal assessment synchronization with gentle debounce delay (to avoid server crash / race conditions)
+    function broadcastAssessmentEvent(eventType) {
+        try {
+            if ('BroadcastChannel' in window) {
+                const channel = new BroadcastChannel('formal_assessment_sync_channel');
+                channel.postMessage({ event: eventType, timestamp: Date.now() });
+                channel.close();
+            }
+        } catch (e) {}
+
+        try {
+            localStorage.setItem('formal_assessment_sync', JSON.stringify({
+                event: eventType,
+                timestamp: Date.now()
+            }));
+        } catch (e) {}
+    }
+
+    function initAssessmentCrossTabSync() {
+        let syncTimeout = null;
+
+        function handleAssessmentEvent(evt) {
+            if (isQuizActive) return; // Don't interrupt if currently taking a quiz in this tab
+            if (syncTimeout) clearTimeout(syncTimeout);
+
+            showToast('Assessment status updated. Refreshing modules in a moment...', 'pass');
+
+            // Gentle delay (800ms) to ensure smooth database commitment and avoid server overload
+            syncTimeout = setTimeout(() => {
+                window.location.reload();
+            }, 800);
+        }
+
+        try {
+            if ('BroadcastChannel' in window) {
+                const channel = new BroadcastChannel('formal_assessment_sync_channel');
+                channel.onmessage = (e) => {
+                    if (e.data && e.data.event) {
+                        handleAssessmentEvent(e.data.event);
+                    }
+                };
+            }
+        } catch (e) {}
+
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'formal_assessment_sync' && e.newValue) {
+                try {
+                    const parsed = JSON.parse(e.newValue);
+                    if (parsed && parsed.event) {
+                        handleAssessmentEvent(parsed.event);
+                    }
+                } catch (err) {}
+            }
+        });
+
+        // Tab focus / visibility check: If student switches back to this tab, refresh gently if assessment started elsewhere
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && !hasActiveAssessment && !isQuizActive) {
+                const lastSync = localStorage.getItem('formal_assessment_sync');
+                if (lastSync) {
+                    try {
+                        const parsed = JSON.parse(lastSync);
+                        if (parsed.event === 'assessment_started' && (Date.now() - parsed.timestamp) < 300000) {
+                            setTimeout(() => { window.location.reload(); }, 600);
+                        }
+                    } catch (err) {}
+                }
+            }
+        });
+    }
+
+    initAssessmentCrossTabSync();
+
     // ── Lecture (pre-test / content / post-test) state ──
     let currentLectureStage  = 'content'; // 'pre_test' | 'content' | 'post_test'
     let currentSubpartIndex  = 0;
@@ -1614,6 +1687,7 @@
                 renderQuizShell(moduleId, mod);
 
                 if (isFormalAssessment) {
+                    broadcastAssessmentEvent('assessment_started');
                     startAntiCheat();
                     hasActiveAssessment = true;
                     modules.forEach(m => {
@@ -1786,6 +1860,7 @@
                     attempt_id: savedAttemptId,
                 };
                 if (isFormalAssessment) {
+                    broadcastAssessmentEvent('assessment_ended');
                     hasActiveAssessment = false;
                     modules.forEach(m => {
                         const av = availabilityMap[m.id] || {};
@@ -1804,6 +1879,7 @@
             })
             .catch(() => {
                 if (isFormalAssessment) {
+                    broadcastAssessmentEvent('assessment_ended');
                     hasActiveAssessment = false;
                     modules.forEach(m => {
                         const av = availabilityMap[m.id] || {};

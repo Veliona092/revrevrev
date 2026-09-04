@@ -732,6 +732,23 @@
 
 
 
+    function broadcastAssessmentEvent(eventType) {
+        try {
+            if ('BroadcastChannel' in window) {
+                var channel = new BroadcastChannel('formal_assessment_sync_channel');
+                channel.postMessage({ event: eventType, timestamp: Date.now() });
+                channel.close();
+            }
+        } catch (e) {}
+
+        try {
+            localStorage.setItem('formal_assessment_sync', JSON.stringify({
+                event: eventType,
+                timestamp: Date.now()
+            }));
+        } catch (e) {}
+    }
+
 function launchAssessment() {
 
     var startBtn = document.querySelector('#startScreen .qz-btn-dark');
@@ -753,6 +770,7 @@ function launchAssessment() {
             return;
         }
         currentAttemptId = result.data.attempt_id || null;
+        broadcastAssessmentEvent('assessment_started');
         beginQuizUi();
     })
     .catch(function () {
@@ -1095,6 +1113,8 @@ function beginQuizUi() {
                 isQuizInProgress = false;
                 window.removeEventListener('beforeunload', handleBeforeUnload);
 
+                broadcastAssessmentEvent('assessment_ended');
+
                 showResult(finalPct, finalScore, finalTotal);
 
                 getAI();
@@ -1102,6 +1122,8 @@ function beginQuizUi() {
             .catch(function (err) {
                 isQuizInProgress = false;
                 window.removeEventListener('beforeunload', handleBeforeUnload);
+
+                broadcastAssessmentEvent('assessment_ended');
 
                 showAssessmentWarningToast(
                     'Some of your answers may not have saved correctly. Please screenshot this and contact your teacher before leaving this page.',

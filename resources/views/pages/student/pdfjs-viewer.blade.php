@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -150,6 +150,43 @@
         }
 
         renderPdfDocument();
+
+        // Cross-tab formal assessment listener (gentle delay to prevent crash)
+        function handleAssessmentLock() {
+            document.body.innerHTML = `
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#111827;color:#fff;font-family:'DM Sans',Arial,sans-serif;text-align:center;padding:20px;box-sizing:border-box;">
+                    <div style="font-size:3rem;margin-bottom:16px;">🔒</div>
+                    <h2 style="font-size:22px;margin:0 0 8px;font-weight:600;">Document Locked</h2>
+                    <p style="color:#9ca3af;max-width:420px;line-height:1.5;font-size:14.5px;">This lecture document has been locked because a Formal Assessment was started in another tab. Please complete or submit your assessment first.</p>
+                </div>
+            `;
+        }
+
+        try {
+            if ('BroadcastChannel' in window) {
+                const channel = new BroadcastChannel('formal_assessment_sync_channel');
+                channel.onmessage = (e) => {
+                    if (e.data && e.data.event === 'assessment_started') {
+                        setTimeout(handleAssessmentLock, 800);
+                    } else if (e.data && e.data.event === 'assessment_ended') {
+                        setTimeout(() => window.location.reload(), 800);
+                    }
+                };
+            }
+        } catch (e) {}
+
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'formal_assessment_sync' && e.newValue) {
+                try {
+                    const parsed = JSON.parse(e.newValue);
+                    if (parsed.event === 'assessment_started') {
+                        setTimeout(handleAssessmentLock, 800);
+                    } else if (parsed.event === 'assessment_ended') {
+                        setTimeout(() => window.location.reload(), 800);
+                    }
+                } catch (err) {}
+            }
+        });
 
         // Disable right-click & keyboard save shortcuts
         document.addEventListener('contextmenu', e => e.preventDefault());
