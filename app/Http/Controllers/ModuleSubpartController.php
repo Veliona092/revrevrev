@@ -33,6 +33,10 @@ class ModuleSubpartController extends Controller
             || ($class && $class->users()->where('user_id', $user->id)->exists());
 
         abort_unless($allowed, 403);
+
+        if ($user->role === 'student' && $class && $user->hasActiveFormalAssessment($class->id) && ! $module->is_formal_assessment) {
+            abort(403, 'Access to lecture materials is locked while a Formal Assessment is in progress.');
+        }
     }
 
     /**

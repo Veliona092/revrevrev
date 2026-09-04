@@ -106,4 +106,29 @@ class User extends Authenticatable
     {
         return $this->hasMany(ChatMessage::class, 'sender_id')->orderBy('created_at');
     }
+
+    /**
+     * Check if the user currently has an active, in-progress formal assessment.
+     * When $classId is provided, checks if the active assessment is in that class.
+     */
+    public function hasActiveFormalAssessment(?int $classId = null): bool
+    {
+        $query = $this->quizAttempts()
+            ->where('status', 'in_progress')
+            ->where(function ($q) {
+                $q->whereHas('module', function ($m) {
+                    $m->where('is_formal_assessment', true);
+                })
+                    ->orWhereNotNull('mock_board_id')
+                    ->orWhereIn('quiz_stage', ['pre_test', 'post_test']);
+            });
+
+        if ($classId !== null) {
+            $query->whereHas('module', function ($m) use ($classId) {
+                $m->where('class_id', $classId);
+            });
+        }
+
+        return $query->where('updated_at', '>=', now()->subHours(4))->exists();
+    }
 }
