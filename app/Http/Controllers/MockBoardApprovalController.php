@@ -63,4 +63,65 @@ class MockBoardApprovalController extends Controller
 
         return redirect()->back()->with('success', "\"{$mockBoard->title}\" has been rejected.");
     }
+
+    /**
+     * Admin: Kumuha ng buong detalye at mga tanong ng mock board para sa modal preview.
+     */
+    public function questions(MockBoard $mockBoard)
+    {
+        $mockBoard->loadMissing([
+            'teacher',
+            'phases.module.quizQuestions',
+        ]);
+
+        $phasesData = $mockBoard->phases->map(function ($phase) {
+            $questions = $phase->module?->quizQuestions ?? collect();
+
+            return [
+                'id' => $phase->id,
+                'phase_type' => $phase->phase_type,
+                'label' => $phase->title ?: ($phase->phase_label ?: ucfirst(str_replace('_', ' ', $phase->phase_type))),
+                'sequence_number' => $phase->sequence_number,
+                'time_limit' => $phase->module?->time_limit ?? 0,
+                'passing_grade' => $phase->module?->passing_grade ?? 75,
+                'total_questions' => $questions->count(),
+                'questions' => $questions->map(function ($q, $idx) {
+                    $options = is_array($q->options) ? $q->options : (json_decode($q->options, true) ?? []);
+
+                    return [
+                        'id' => $q->id,
+                        'order' => $q->order ?? ($idx + 1),
+                        'question_text' => $q->question_text,
+                        'options' => $options,
+                        'correct_option' => $q->correct_option,
+                        'points' => $q->points ?? 1,
+                        'domain' => $q->domain ?? null,
+                        'difficulty' => $q->difficulty ?? null,
+                        'explanation' => $q->explanation ?? null,
+                    ];
+                }),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'mock_board' => [
+                'id' => $mockBoard->id,
+                'title' => $mockBoard->title,
+                'description' => $mockBoard->description,
+                'program' => $mockBoard->program,
+                'teacher' => [
+                    'name' => $mockBoard->teacher?->name ?? 'Unknown Teacher',
+                    'email' => $mockBoard->teacher?->email ?? '',
+                    'idnumber' => $mockBoard->teacher?->idnumber ?? '',
+                ],
+                'status' => $mockBoard->status,
+                'passing_percentage' => $mockBoard->passing_percentage ?? 75,
+                'review_period' => ($mockBoard->review_period_start && $mockBoard->review_period_end)
+                    ? $mockBoard->review_period_start->format('M d, Y').' - '.$mockBoard->review_period_end->format('M d, Y')
+                    : null,
+                'phases' => $phasesData,
+            ],
+        ]);
+    }
 }
