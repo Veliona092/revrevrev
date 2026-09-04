@@ -776,6 +776,7 @@ Route::middleware(['auth'])->prefix('student/mock-boards')->name('student.mock-b
 // Admin — Mock Board Approvals
 Route::middleware(['auth'])->prefix('admin/mock-boards')->name('admin.mock-boards.')->group(function () {
     Route::get('/approvals', [MockBoardApprovalController::class, 'index'])->name('approvals');
+    Route::get('/{mock_board}/questions', [MockBoardApprovalController::class, 'questions'])->name('questions');
     Route::post('/{mock_board}/approve', [MockBoardApprovalController::class, 'approve'])->name('approve');
     Route::post('/{mock_board}/reject', [MockBoardApprovalController::class, 'reject'])->name('reject');
 });
