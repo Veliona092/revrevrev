@@ -565,68 +565,70 @@ Route::post('/profile/email', [ProfileController::class, 'updateEmail'])->name('
 Route::post('/profile/email/new', [ProfileController::class, 'requestNewEmailVerification'])->name('profile.email.new');
 Route::post('/profile/email/verify', [ProfileController::class, 'verifyEmailChange'])->name('profile.email.verify');
 
-// ── Admin ──
-Route::get('/admin/lectures', [AdminUserController::class, 'index'])->name('admin.lectures');
-Route::get('/admin/users', [AdminUserController::class, 'index'])->name('admin.users');
-Route::get('/admin/users/export', [AdminUserController::class, 'exportUsersCsv'])->name('admin.users.export');
-Route::post('/admin/users/{id}/reset-password', [AdminUserController::class, 'resetPassword'])->name('admin.users.reset');
-Route::post('/admin/users/{id}/toggle-status', [AdminUserController::class, 'toggleStatus'])->name('admin.users.toggle-status');
+// ── Admin & Superadmin User Management ──
+Route::middleware(['auth'])->group(function () {
+    Route::get('/admin/lectures', [AdminUserController::class, 'index'])->name('admin.lectures');
+    Route::get('/admin/users', [AdminUserController::class, 'index'])->name('admin.users');
+    Route::get('/admin/users/export', [AdminUserController::class, 'exportUsersCsv'])->name('admin.users.export');
+    Route::post('/admin/users/{id}/reset-password', [AdminUserController::class, 'resetPassword'])->name('admin.users.reset');
+    Route::post('/admin/users/{id}/toggle-status', [AdminUserController::class, 'toggleStatus'])->name('admin.users.toggle-status');
 
-// ── Superadmin: manage admin accounts ──
-Route::get('/superadmin/admins', function () {
-    if (Auth::user()->role !== 'superadmin') {
-        abort(403);
-    }
-    $admins = User::where('role', 'admin')
-        ->orderBy('name')
-        ->get();
+    // ── Superadmin: manage admin accounts ──
+    Route::get('/superadmin/admins', function () {
+        if (Auth::user()?->role !== 'superadmin') {
+            abort(403);
+        }
+        $admins = User::where('role', 'admin')
+            ->orderBy('name')
+            ->get();
 
-    return view('pages.admin.manage-admins', compact('admins'));
-})->name('superadmin.admins');
+        return view('pages.admin.manage-admins', compact('admins'));
+    })->name('superadmin.admins');
 
-Route::post('/superadmin/admins/{id}/toggle-status', [AdminUserController::class, 'toggleStatus'])->name('superadmin.admins.toggle');
+    Route::post('/superadmin/admins/{id}/toggle-status', [AdminUserController::class, 'toggleStatus'])->name('superadmin.admins.toggle');
 
-Route::post('/superadmin/approvals/{user}/override', function (User $user, Request $request) {
-    if (Auth::user()->role !== 'superadmin') {
-        abort(403);
-    }
-    $validated = $request->validate([
-        'status' => 'required|in:active,pending,rejected',
-        'role' => 'nullable|in:student,teacher,admin',
-        'program' => 'nullable|in:teacher,educ,accountancy,psych',
-    ]);
+    Route::post('/superadmin/approvals/{user}/override', function (User $user, Request $request) {
+        if (Auth::user()?->role !== 'superadmin') {
+            abort(403);
+        }
+        $validated = $request->validate([
+            'status' => 'required|in:active,pending,rejected',
+            'role' => 'nullable|in:student,teacher,admin',
+            'program' => 'nullable|in:teacher,educ,accountancy,psych',
+        ]);
 
-    $updates = array_filter($validated, fn ($v) => $v !== null);
+        $updates = array_filter($validated, fn ($v) => $v !== null);
 
-    if (($updates['role'] ?? null) === 'student') {
-        $candidateProgram = $updates['program'] ?? $user->program;
+        if (($updates['role'] ?? null) === 'student') {
+            $candidateProgram = $updates['program'] ?? $user->program;
 
-        if (! in_array($candidateProgram, ['educ', 'accountancy', 'psych'], true)) {
-            return redirect()->back()->withErrors(['error' => 'Student role requires a student program.']);
+            if (! in_array($candidateProgram, ['educ', 'accountancy', 'psych'], true)) {
+                return redirect()->back()->withErrors(['error' => 'Student role requires a student program.']);
+            }
+
+            $updates['program'] = $candidateProgram;
         }
 
-        $updates['program'] = $candidateProgram;
-    }
+        if (($updates['role'] ?? null) === 'teacher' && isset($updates['program']) && $updates['program'] !== 'teacher') {
+            return redirect()->back()->withErrors(['error' => 'Teacher role must use teacher program.']);
+        }
 
-    if (($updates['role'] ?? null) === 'teacher' && isset($updates['program']) && $updates['program'] !== 'teacher') {
-        return redirect()->back()->withErrors(['error' => 'Teacher role must use teacher program.']);
-    }
+        if (($updates['role'] ?? null) === 'admin' && isset($updates['program'])) {
+            return redirect()->back()->withErrors(['error' => 'Admin role cannot have a program.']);
+        }
 
-    if (($updates['role'] ?? null) === 'admin' && isset($updates['program'])) {
-        return redirect()->back()->withErrors(['error' => 'Admin role cannot have a program.']);
-    }
+        if (($updates['role'] ?? null) === 'teacher') {
+            $updates['program'] = 'teacher';
+        }
+        if (($updates['role'] ?? null) === 'admin') {
+            $updates['program'] = null;
+        }
 
-    if (($updates['role'] ?? null) === 'teacher') {
-        $updates['program'] = 'teacher';
-    }
-    if (($updates['role'] ?? null) === 'admin') {
-        $updates['program'] = null;
-    }
+        $user->update($updates);
 
-    $user->update($updates);
-
-    return redirect()->back()->with('status', "{$user->name} updated.");
-})->name('superadmin.approvals.override');
+        return redirect()->back()->with('status', "{$user->name} updated.");
+    })->name('superadmin.approvals.override');
+});
 
 // ── Lectures ──
 Route::get('/lectures', [LectureController::class, 'index'])->name('lectures');
