@@ -532,13 +532,13 @@ class ClassManagerController extends Controller
                 $maxStemSim = max($similarity, $stemSimilarity);
                 $conditionFired = null;
 
-                // Condition 1: Nearly exact question stem (>= 88%)
-                if ($maxStemSim >= 88.0) {
+                // Condition 1: Identical or virtually identical question stem (>= 96%) OR highly similar stem (>= 88%) with matching answer
+                if ($maxStemSim >= 96.0 || ($maxStemSim >= 88.0 && (! $hasAnswer || $ansSimilarity >= 60.0))) {
                     $isDuplicate = true;
                     $conditionFired = 1;
                 }
-                // Condition 2: Highly similar question stem (>= 75%) AND similar answer or options (>= 40%)
-                elseif ($maxStemSim >= 75.0 && (! $hasAnswer || $ansSimilarity >= 40.0)) {
+                // Condition 2: Moderately similar question stem (>= 75%) AND matching answer (>= 60%)
+                elseif ($maxStemSim >= 75.0 && (! $hasAnswer || $ansSimilarity >= 60.0)) {
                     $isDuplicate = true;
                     $conditionFired = 2;
                 }

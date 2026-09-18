@@ -370,33 +370,199 @@ window.openModulesDrawer = function(classId, className) {
 
 
 
-    /* -”€-”€ Module list items -”€-”€ */
-
-    .rv-module-item {
-
-        display: flex; align-items: flex-start; justify-content: space-between;
-
-        padding: 12px 0; border-bottom: 1px solid #f7f7f7; gap: 10px;
-
+    /* ── Refined Module list items in Drawer ── */
+    .rv-module-item, .rv-module-card-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 14px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        margin-bottom: 9px;
+        gap: 12px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
 
-    .rv-module-item:last-child { border-bottom: none; }
-
-    .rv-module-title { font-size: 18px; font-weight: 500; color: #111; margin-bottom: 2px; }
-
-    .rv-module-meta { font-size: 17px; color: #bbb; }
-
-    .rv-module-type {
-
-        font-size: 17px; font-weight: 500; padding: 2px 7px;
-
-        border-radius: 99px; white-space: nowrap; flex-shrink: 0;
-
+    .rv-module-item:hover, .rv-module-card-item:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
     }
 
-    .rv-module-type.doc { background: #e6f1fb; color: #185fa5; }
+    .rv-module-card-body {
+        flex: 1;
+        min-width: 0;
+    }
 
-    .rv-module-type.quiz { background: #eeedfe; color: #3c3489; }
+    .rv-module-card-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 4px;
+    }
+
+    .rv-module-title, .rv-module-card-title {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        color: #0f172a;
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+    .rv-module-card-badges {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+    }
+
+    .rv-module-meta, .rv-module-card-meta {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 13px;
+        color: #64748b;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .rv-module-card-actions {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex-shrink: 0;
+    }
+
+    /* Refined Badge Pills */
+    .rv-pill-badge {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2.5px 8px;
+        border-radius: 9999px;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        line-height: 1.35;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        flex-shrink: 0;
+    }
+
+    .rv-pill-pretest {
+        background: #0d9488;
+        color: #ffffff;
+    }
+
+    .rv-pill-posttest {
+        background: #7e22ce;
+        color: #ffffff;
+    }
+
+    .rv-pill-formal {
+        background: #2563eb;
+        color: #ffffff;
+    }
+
+    .rv-pill-doc {
+        background: #e0f2fe;
+        color: #0369a1;
+        border: 1px solid #bae6fd;
+    }
+
+    .rv-pill-status-open {
+        background: #dcfce7;
+        color: #15803d;
+        border: 1px solid #bbf7d0;
+    }
+
+    .rv-pill-status-upcoming {
+        background: #fef3c7;
+        color: #b45309;
+        border: 1px solid #fde68a;
+    }
+
+    .rv-pill-status-closed {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+    }
+
+    /* Refined Action Buttons */
+    .rv-icon-btn {
+        height: 30px;
+        width: 30px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        border-radius: 7px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #475569;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.15s ease;
+    }
+
+    .rv-icon-btn:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+        color: #0f172a;
+    }
+
+    .rv-icon-btn.rv-btn-danger {
+        background: #fff;
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+
+    .rv-icon-btn.rv-btn-danger:hover {
+        background: #fee2e2;
+        color: #991b1b;
+        border-color: #fca5a5;
+    }
+
+    .rv-btn-status {
+        height: 30px;
+        padding: 0 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 7px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .rv-btn-status-open {
+        color: #dc2626;
+        border: 1px solid #fca5a5;
+        background: #fef2f2;
+    }
+
+    .rv-btn-status-open:hover {
+        background: #fee2e2;
+        border-color: #f87171;
+    }
+
+    .rv-btn-status-closed {
+        color: #16a34a;
+        border: 1px solid #bbf7d0;
+        background: #f0fdf4;
+    }
+
+    .rv-btn-status-closed:hover {
+        background: #dcfce7;
+        border-color: #86efac;
+    }
 
 
 
@@ -1356,7 +1522,7 @@ window.openModulesDrawer = function(classId, className) {
 
         margin: 0 0 0 auto;
 
-        width: 420px;
+        width: 480px;
 
         max-width: 95vw;
 
@@ -1961,6 +2127,16 @@ let currentClassId = null;
 let manageConfirmAction = null;
 let uploadToastTimer = null;
 
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 
 
 // ── Change Test Type via Dropdown (Pre-Test vs Post-Test) ──
@@ -2258,70 +2434,87 @@ function loadModulesForTab(classId, type, containerId) {
             let badge = '';
             if (type === 'pre_post_test') {
                 badge = isPre
-                    ? '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#1d9e75;color:#fff;margin-left:6px;text-transform:uppercase;">Pre-Test</span>'
-                    : '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#7b1fa2;color:#fff;margin-left:6px;text-transform:uppercase;">Post-Test</span>';
+                    ? '<span class="rv-pill-badge rv-pill-pretest"><i class="fas fa-file-alt" style="font-size:9px;"></i> Pre-Test</span>'
+                    : '<span class="rv-pill-badge rv-pill-posttest"><i class="fas fa-graduation-cap" style="font-size:9px;"></i> Post-Test</span>';
+            } else if (type === 'formal_assessment') {
+                badge = '<span class="rv-pill-badge rv-pill-formal"><i class="fas fa-award" style="font-size:9px;"></i> Assessment</span>';
+            } else if (type === 'document') {
+                badge = '<span class="rv-pill-badge rv-pill-doc"><i class="fas fa-file-pdf" style="font-size:9px;"></i> Lecture</span>';
             }
 
             let editBtn = '';
             if (m.edit_url) {
-                editBtn = '<a href="' + m.edit_url + '" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size:16px;text-decoration:none;" title="Edit Questions"><i class="fas fa-pen"></i></a>';
+                editBtn = '<a href="' + m.edit_url + '" class="rv-icon-btn" title="Edit Questions"><i class="fas fa-pen"></i></a>';
             }
 
             let viewBtn = '';
             if (m.file_path) {
-                viewBtn = '<a href="' + m.file_path + '" target="_blank" class="rv-btn rv-btn-secondary" style="height:28px;padding:0 10px;font-size:16px;text-decoration:none;"><i class="fas fa-eye"></i></a>';
+                viewBtn = '<a href="' + m.file_path + '" target="_blank" class="rv-icon-btn" title="View Document"><i class="fas fa-eye"></i></a>';
             }
 
-            let duplicateBtn = '<button class="rv-btn rv-btn-secondary" title="Duplicate (New clean copy)" style="height:28px;padding:0 10px;font-size:16px;" onclick="duplicateModuleFromTab(' + m.id + ', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-copy"></i></button>';
+            let duplicateBtn = '<button type="button" class="rv-icon-btn" title="Duplicate (New clean copy)" onclick="duplicateModuleFromTab(' + m.id + ', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-copy"></i></button>';
 
             let toggleStatusBtn = '';
             if (m.is_quiz || m.is_formal_assessment) {
                 if (m.is_open) {
-                    toggleStatusBtn = '<button class="rv-btn rv-btn-secondary" title="Close Exam" style="height:28px;padding:0 8px;font-size:12px;font-weight:600;color:#dc2626;border-color:#fca5a5;background:#fef2f2;" onclick="toggleModuleStatusFromTab(' + m.id + ', \'close\', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-lock"></i> Close</button>';
+                    toggleStatusBtn = '<button type="button" class="rv-btn-status rv-btn-status-open" title="Close Exam" onclick="toggleModuleStatusFromTab(' + m.id + ', \'close\', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-lock"></i> Close</button>';
                 } else {
-                    toggleStatusBtn = '<button class="rv-btn rv-btn-secondary" title="Open Exam" style="height:28px;padding:0 8px;font-size:12px;font-weight:600;color:#16a34a;border-color:#bbf7d0;background:#f0fdf4;" onclick="toggleModuleStatusFromTab(' + m.id + ', \'open\', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-unlock"></i> Open</button>';
+                    toggleStatusBtn = '<button type="button" class="rv-btn-status rv-btn-status-closed" title="Open Exam" onclick="toggleModuleStatusFromTab(' + m.id + ', \'open\', \'' + type + '\', \'' + containerId + '\')"><i class="fas fa-unlock"></i> Open</button>';
                 }
             }
 
             let statusBadge = '';
             if (m.is_quiz || m.is_formal_assessment) {
                 if (m.is_open) {
-                    statusBadge = '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#dcfce7;color:#166534;margin-left:6px;"><i class="fas fa-check-circle"></i> Open</span>';
+                    statusBadge = '<span class="rv-pill-badge rv-pill-status-open"><i class="fas fa-check-circle" style="font-size:9px;"></i> Open</span>';
                 } else if (m.is_upcoming) {
-                    statusBadge = '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#fef3c7;color:#92400e;margin-left:6px;"><i class="fas fa-clock"></i> Opens ' + (m.available_at || 'Soon') + '</span>';
+                    statusBadge = '<span class="rv-pill-badge rv-pill-status-upcoming"><i class="fas fa-clock" style="font-size:9px;"></i> Opens ' + (escapeHtml(m.available_at) || 'Soon') + '</span>';
                 } else {
-                    statusBadge = '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#fee2e2;color:#991b1b;margin-left:6px;"><i class="fas fa-lock"></i> Closed</span>';
+                    statusBadge = '<span class="rv-pill-badge rv-pill-status-closed"><i class="fas fa-lock" style="font-size:9px;"></i> Closed</span>';
                 }
             }
 
             let dateMeta = '';
             if (m.available_at && !m.is_upcoming) {
-                dateMeta += ' · Opened ' + m.available_at;
+                dateMeta += ' · Opened ' + escapeHtml(m.available_at);
             }
             if (m.due_date) {
-                dateMeta += ' · Due ' + m.due_date;
+                dateMeta += ' · Due ' + escapeHtml(m.due_date);
             }
 
-            html += '<div class="rv-module-item">' +
-                '<div style="flex:1;">' +
-                    '<div class="rv-module-title">' + m.title + ' ' + badge + ' ' + statusBadge + '</div>' +
-                    '<div class="rv-module-meta">' + m.created_at + dateMeta + '</div>' +
+            const safeTitle = escapeHtml(m.title || 'Untitled Module');
+            const safeCreated = escapeHtml(m.created_at || '');
+
+            html += '<div class="rv-module-card-item">' +
+                '<div class="rv-module-card-body">' +
+                    '<div class="rv-module-card-header">' +
+                        '<span class="rv-module-card-title">' + safeTitle + '</span>' +
+                        '<div class="rv-module-card-badges">' +
+                            badge +
+                            statusBadge +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="rv-module-card-meta">' +
+                        '<span><i class="far fa-calendar-alt" style="font-size:11px; opacity:0.75;"></i> ' + safeCreated + '</span>' +
+                        (dateMeta ? '<span>' + dateMeta + '</span>' : '') +
+                    '</div>' +
                 '</div>' +
-                '<div style="display:flex;align-items:center;gap:6px;">' +
+                '<div class="rv-module-card-actions">' +
                     toggleStatusBtn +
                     editBtn +
                     duplicateBtn +
                     viewBtn +
-                    '<button class="rv-btn rv-btn-danger" style="height:28px;padding:0 10px;font-size:16px;" onclick="deleteModuleFromTab(' + m.id + ', \'' + type + '\', \'' + containerId + '\')">' +
+                    '<button type="button" class="rv-icon-btn rv-btn-danger" title="Delete Module" onclick="deleteModuleFromTab(' + m.id + ', \'' + type + '\', \'' + containerId + '\')">' +
                         '<i class="fas fa-trash"></i>' +
                     '</button>' +
                 '</div>' +
-                '</div>';
+            '</div>';
         });
 
         $('#' + containerId).html(html);
     }).fail(function () {
-        $('#' + containerId).html('<p style="font-size: 16px;color:#e24b4a;text-align:center;">Failed to load.</p>');
+        $('#' + containerId).html('<p style="font-size: 15px;color:#e24b4a;text-align:center;padding:1.5rem 0;">Failed to load modules.</p>');
+    });
     });
 }
 
