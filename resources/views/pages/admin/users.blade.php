@@ -127,7 +127,128 @@
 
     .um-empty i { font-size: 36px; display: block; margin-bottom: 12px; }
 
-    .um-pagination { padding: 14px 20px; border-top: 1px solid #f3f3f3; }
+    /* Pagination */
+    .um-pagination {
+        padding: 16px 20px;
+        border-top: 1px solid #f3f3f3;
+        background: #fff;
+    }
+
+    .um-pagination nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        width: 100%;
+    }
+
+    .um-pagination nav > div:first-child {
+        display: none;
+    }
+
+    .um-pagination nav > div:last-child {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .um-pagination p,
+    .um-pagination .text-muted,
+    .um-pagination .small {
+        margin: 0;
+        font-size: 14px;
+        color: #64748b;
+    }
+
+    .um-pagination .fw-semibold {
+        font-weight: 600;
+        color: #1e293b;
+    }
+
+    .um-pagination ul.pagination,
+    .um-pagination ul {
+        display: flex;
+        align-items: center;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .um-pagination li.page-item,
+    .um-pagination li {
+        list-style: none;
+        display: inline-block;
+        margin: 0;
+        padding: 0;
+    }
+
+    .um-pagination .page-link,
+    .um-pagination li a,
+    .um-pagination li span {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 36px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #334155;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        text-decoration: none;
+        transition: all 0.15s ease;
+        line-height: 1;
+    }
+
+    .um-pagination li a:hover,
+    .um-pagination .page-link:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+        color: #002060;
+    }
+
+    .um-pagination li.active .page-link,
+    .um-pagination li.active span,
+    .um-pagination li [aria-current="page"] span {
+        background: #002060;
+        color: #ffffff;
+        border-color: #002060;
+        font-weight: 600;
+    }
+
+    .um-pagination li.disabled .page-link,
+    .um-pagination li.disabled span,
+    .um-pagination [aria-disabled="true"] span {
+        color: #94a3b8;
+        background: #f8fafc;
+        border-color: #e2e8f0;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    .um-pagination svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    @media (max-width: 640px) {
+        .um-pagination nav > div:first-child {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+        .um-pagination nav > div:last-child {
+            display: none;
+        }
+    }
 
     .um-modal-overlay {
         position: fixed;
@@ -340,7 +461,7 @@
 
         @if ($users->hasPages())
             <div class="um-pagination">
-                {{ $users->appends(request()->query())->links('pagination::bootstrap-4') }}
+                {{ $users->links('pagination::bootstrap-5') }}
             </div>
         @endif
     </div>
