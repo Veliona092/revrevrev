@@ -242,6 +242,35 @@
 
     .sp-refresh-btn:hover { border-color: #111; color: #111; background: #f8fafc; }
 
+    .sp-export-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        height: 34px;
+        padding: 0 14px;
+        background: #107c41;
+        color: #fff;
+        border: 1px solid #0b6a37;
+        border-radius: 8px;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+        text-decoration: none;
+        white-space: nowrap;
+        line-height: 1;
+    }
+    .sp-export-btn:hover {
+        background: #0b6a37;
+        border-color: #08522a;
+        color: #fff;
+        box-shadow: 0 2px 6px rgba(16, 124, 65, 0.25);
+    }
+    .sp-export-btn i {
+        font-size: 14px;
+    }
+
     .sp-empty { font-size: 19px; color: #bbb; text-align: center; padding: 2.25rem 0; }
 
     .sp-alert { padding: 12px 16px; border-radius: 10px; font-size: 18px; margin-bottom: 6px; }
@@ -756,9 +785,14 @@
         <div class="sp-card" id="quizStudentsCard">
             <div class="sp-table-header-bar">
                 <p class="sp-section-title" style="margin-bottom:0;">Student Rankings</p>
-                <div class="sp-search-box">
-                    <i class="fas fa-search"></i>
-                    <input type="text" id="quizStudentSearch" class="sp-search-input" placeholder="Search student..." oninput="onQuizStudentSearch(this.value)">
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <div class="sp-search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="quizStudentSearch" class="sp-search-input" placeholder="Search student..." oninput="onQuizStudentSearch(this.value)">
+                    </div>
+                    <button type="button" class="sp-export-btn" onclick="exportPerformanceToExcel('quiz')" title="Download Excel (.xlsx)">
+                        <i class="fas fa-file-excel"></i> Export Excel
+                    </button>
                 </div>
             </div>
             <div id="quizStudentsTableWrap">
@@ -858,9 +892,14 @@
         <div class="sp-card" id="assessStudentsCard">
             <div class="sp-table-header-bar">
                 <p class="sp-section-title" style="margin-bottom:0;">Student Rankings</p>
-                <div class="sp-search-box">
-                    <i class="fas fa-search"></i>
-                    <input type="text" id="assessStudentSearch" class="sp-search-input" placeholder="Search student..." oninput="onAssessStudentSearch(this.value)">
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <div class="sp-search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="assessStudentSearch" class="sp-search-input" placeholder="Search student..." oninput="onAssessStudentSearch(this.value)">
+                    </div>
+                    <button type="button" class="sp-export-btn" onclick="exportPerformanceToExcel('assessment')" title="Download Excel (.xlsx)">
+                        <i class="fas fa-file-excel"></i> Export Excel
+                    </button>
                 </div>
             </div>
             <div id="assessStudentsTableWrap">
@@ -981,6 +1020,7 @@
 
 @section('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 var passFailChart  = null;
 var currentClassId = {{ $class->id }};
@@ -2092,6 +2132,120 @@ async function submitMaxAttempts() {
     } catch (err) {
         alert('An error occurred while saving max attempts.');
     }
+}
+
+/* Export to Excel (.xlsx) */
+function exportPerformanceToExcel(type) {
+    if (typeof XLSX === 'undefined') {
+        alert('Excel export library is still loading. Please try again in a moment.');
+        return;
+    }
+
+    var isQuiz = (type === 'quiz');
+    var students = isQuiz ? (quizStudentsState.items || []) : (assessStudentsState.items || []);
+    var questions = isQuiz ? (currentQuestionStats || []) : (currentAssessQuestionStats || []);
+    
+    var subtitleEl = document.getElementById(isQuiz ? 'spSubtitle' : 'spAssessSubtitle');
+    var className = subtitleEl ? subtitleEl.textContent.split(' - ')[0].trim() : 'Class';
+    var activeTabName = isQuiz ? 'Pre-Assessment' : 'Formal Assessment';
+    
+    var selectEl = document.getElementById(isQuiz ? 'quizModuleSelect' : 'assessModuleSelect');
+    var selectedModuleName = selectEl && selectEl.options[selectEl.selectedIndex] ? selectEl.options[selectEl.selectedIndex].text : 'All Modules / Topics';
+
+    var avgEl = document.getElementById(isQuiz ? 'classAverageValue' : 'assessClassAverageValue');
+    var classAvg = avgEl ? avgEl.textContent.trim() + '%' : '0%';
+    var passCount = isQuiz ? currentPassCount : currentAssessPassCount;
+    var failCount = isQuiz ? currentFailCount : currentAssessFailCount;
+    var totalAttempts = passCount + failCount;
+    var passRate = totalAttempts > 0 ? ((passCount / totalAttempts) * 100).toFixed(1) + '%' : '0%';
+
+    var wb = XLSX.utils.book_new();
+
+    // 1. Student Rankings Sheet Data
+    var studentRows = [
+        ['CLASS PERFORMANCE REPORT'],
+        ['Class:', className],
+        ['Assessment Type:', activeTabName],
+        ['Module / Filter:', selectedModuleName],
+        ['Class Average:', classAvg],
+        ['Pass Rate:', passRate + ' (' + passCount + ' Passed, ' + failCount + ' Failed)'],
+        ['Total Students Recorded:', students.length],
+        ['Exported On:', new Date().toLocaleString()],
+        [], // empty row separator
+        ['Rank', 'Student ID', 'Student Name', 'Program / Course', 'Average Score', 'Status']
+    ];
+
+    students.forEach(function(student, index) {
+        var avg = Number(student.average_score || 0);
+        studentRows.push([
+            index + 1,
+            student.idnumber || '—',
+            student.name || '—',
+            student.program || '—',
+            avg.toFixed(1) + '%',
+            avg >= 50 ? 'Passed' : 'Failed'
+        ]);
+    });
+
+    var wsStudents = XLSX.utils.aoa_to_sheet(studentRows);
+    
+    // Auto-fit column widths for students sheet
+    wsStudents['!cols'] = [
+        { wch: 8 },  // Rank
+        { wch: 18 }, // Student ID
+        { wch: 30 }, // Student Name
+        { wch: 22 }, // Program
+        { wch: 16 }, // Average Score
+        { wch: 12 }  // Status
+    ];
+    XLSX.utils.book_append_sheet(wb, wsStudents, 'Student Rankings');
+
+    // 2. Question Breakdown / Item Analysis Sheet Data
+    if (questions && questions.length > 0) {
+        var questionRows = [
+            ['ITEM ANALYSIS (QUESTION BREAKDOWN)'],
+            ['Class:', className],
+            ['Assessment Type:', activeTabName],
+            ['Module / Filter:', selectedModuleName],
+            ['Total Questions Analyzed:', questions.length],
+            ['Exported On:', new Date().toLocaleString()],
+            [], // empty row separator
+            ['#', 'Question Text', 'Correct Answers', 'Total Attempts', 'Accuracy Rate', 'Difficulty Level']
+        ];
+
+        questions.forEach(function(q, i) {
+            var pct = Number(q.pct_correct || 0);
+            var difficulty = pct >= 70 ? 'High (>=70%)' : (pct >= 40 ? 'Moderate (40-69%)' : 'Low (<40%)');
+            var qText = q.question_text ? decodeAndStripHtml(q.question_text) : '—';
+            questionRows.push([
+                'Q' + (i + 1),
+                qText,
+                q.correct_count || 0,
+                q.total_answers || 0,
+                pct.toFixed(1) + '%',
+                difficulty
+            ]);
+        });
+
+        var wsQuestions = XLSX.utils.aoa_to_sheet(questionRows);
+        wsQuestions['!cols'] = [
+            { wch: 8 },  // #
+            { wch: 60 }, // Question Text
+            { wch: 16 }, // Correct Answers
+            { wch: 16 }, // Total Attempts
+            { wch: 16 }, // Accuracy Rate
+            { wch: 24 }  // Difficulty Level
+        ];
+        XLSX.utils.book_append_sheet(wb, wsQuestions, 'Question Item Analysis');
+    }
+
+    // Build nice filename: Performance_BSIT_3A_Pre-Assessment_2026-09-18.xlsx
+    var sanitizedClass = className.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    var sanitizedTab = activeTabName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    var dateStr = new Date().toISOString().slice(0, 10);
+    var filename = 'Performance_' + sanitizedClass + '_' + sanitizedTab + '_' + dateStr + '.xlsx';
+
+    XLSX.writeFile(wb, filename);
 }
 </script>
 @endsection

@@ -85,6 +85,7 @@ class PerformanceController extends Controller
         // All Ranked Students
         $topStudentsQuery = User::select(
             'users.id',
+            'users.idnumber',
             'users.name',
             'users.program',
             DB::raw('AVG(quiz_attempts.percentage) as average_score')
@@ -99,7 +100,7 @@ class PerformanceController extends Controller
         }
 
         $topStudents = $topStudentsQuery
-            ->groupBy('users.id', 'users.name', 'users.program')
+            ->groupBy('users.id', 'users.idnumber', 'users.name', 'users.program')
             ->orderByDesc('average_score')
             ->get();
 
@@ -173,6 +174,7 @@ class PerformanceController extends Controller
 
         $topStudentsQuery = User::select(
             'users.id',
+            'users.idnumber',
             'users.name',
             'users.program',
             DB::raw('AVG(quiz_attempts.percentage) as average_score')
@@ -187,7 +189,7 @@ class PerformanceController extends Controller
         }
 
         $topStudents = $topStudentsQuery
-            ->groupBy('users.id', 'users.name', 'users.program')
+            ->groupBy('users.id', 'users.idnumber', 'users.name', 'users.program')
             ->orderByDesc('average_score')
             ->get();
 
