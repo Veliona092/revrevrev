@@ -100,7 +100,7 @@
         <div class="stat-value" style="color: {{ ($anova['significant'] ?? false) ? '#22C55E' : '#C63F3E' }}">
             {{ ($anova['significant'] ?? false) ? 'Significant' : 'No Change' }}
         </div>
-        <div class="stat-meta">P-Value: {{ (isset($anova['p_value']) && $anova['p_value'] !== null) ? ($anova['p_value'] < 0.001 ? '< 0.001' : number_format($anova['p_value'], 4)) : 'N/A' }}</div>
+        <div class="stat-meta">P-Value: {{ (isset($anova['p_value']) && $anova['p_value'] !== null) ? ($anova['p_value'] < 0.05 ? '< 0.05' : number_format($anova['p_value'], 4)) : 'N/A' }}</div>
     </div>
 </div>
 
