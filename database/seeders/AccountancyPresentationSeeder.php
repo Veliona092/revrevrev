@@ -159,7 +159,7 @@ class AccountancyPresentationSeeder extends Seeder
         $this->seedQuestions($formalAssessmentModule, $this->getFormalAssessmentQuestions(), null);
 
         // ─────────────────────────────────────────────────────────────
-        // 5. Create Mock Board Exam with 2 Phases (Pre-Test & Pre-Boards)
+        // 5. Create Mock Board Exam 1 with 2 Phases (Pre-Test & Pre-Boards)
         // ─────────────────────────────────────────────────────────────
         $adminUser = User::whereIn('role', ['admin', 'superadmin'])->first();
 
@@ -182,7 +182,7 @@ class AccountancyPresentationSeeder extends Seeder
             ]
         );
 
-        // Mock Board Phase 1: Pre-Test
+        // Mock Board 1 Phase 1: Pre-Test
         $mbPreTestModule = Module::updateOrCreate(
             ['class_id' => $class->id, 'title' => '2026 CPALE Mock Board - Pre-Test Diagnostic'],
             [
@@ -208,7 +208,7 @@ class AccountancyPresentationSeeder extends Seeder
             ]
         );
 
-        // Mock Board Phase 2: Pre-Boards (Post-Test)
+        // Mock Board 1 Phase 2: Pre-Boards (Post-Test)
         $mbPreBoardsModule = Module::updateOrCreate(
             ['class_id' => $class->id, 'title' => '2026 CPALE Mock Board - Pre-Boards Final Simulation'],
             [
@@ -231,6 +231,80 @@ class AccountancyPresentationSeeder extends Seeder
                 'label' => 'Pre-Boards',
                 'title' => '2026 CPALE Mock Board - Pre-Boards Final Simulation',
                 'module_id' => $mbPreBoardsModule->id,
+            ]
+        );
+
+        // ─────────────────────────────────────────────────────────────
+        // 5b. Create Mock Board Exam 2 (Batch 2 Intensive Simulation)
+        // ─────────────────────────────────────────────────────────────
+        $mockBoard2 = MockBoard::updateOrCreate(
+            [
+                'class_id' => $class->id,
+                'title' => '2026 CPALE Intensive Pre-Board Simulation (Batch 2)',
+            ],
+            [
+                'teacher_id' => $teacher->id,
+                'description' => 'Targeted high-intensity board exam simulation measuring post-intervention mastery gains across core CPALE areas.',
+                'program' => 'accountancy',
+                'review_period_start' => '2026-01-01',
+                'review_period_end' => '2026-12-31',
+                'passing_percentage' => 75,
+                'visibility' => 'all',
+                'status' => 'approved',
+                'approved_by' => $adminUser ? $adminUser->id : $teacher->id,
+                'approved_at' => now(),
+            ]
+        );
+
+        // Mock Board 2 Phase 1: Pre-Test
+        $mbPreTestModule2 = Module::updateOrCreate(
+            ['class_id' => $class->id, 'title' => '2026 CPALE Intensive Simulation (Batch 2) - Diagnostic Pre-Test'],
+            [
+                'is_quiz' => true,
+                'is_formal_assessment' => true,
+                'is_mock_board' => true,
+                'passing_grade' => 75,
+                'time_limit' => 60,
+                'is_active' => true,
+                'created_by' => $teacher->id,
+                'description' => 'Diagnostic baseline evaluation for the Batch 2 Intensive CPALE simulation.',
+            ]
+        );
+        $this->seedQuestions($mbPreTestModule2, $this->getMockBoardPreTestQuestions(), null);
+
+        $mbPhasePreTest2 = MockBoardPhase::updateOrCreate(
+            ['mock_board_id' => $mockBoard2->id, 'phase_type' => 'pre_test'],
+            [
+                'sequence_number' => 1,
+                'label' => 'Pre-Test',
+                'title' => '2026 CPALE Intensive Simulation (Batch 2) - Diagnostic Pre-Test',
+                'module_id' => $mbPreTestModule2->id,
+            ]
+        );
+
+        // Mock Board 2 Phase 2: Pre-Boards
+        $mbPreBoardsModule2 = Module::updateOrCreate(
+            ['class_id' => $class->id, 'title' => '2026 CPALE Intensive Simulation (Batch 2) - Pre-Boards Final Simulation'],
+            [
+                'is_quiz' => true,
+                'is_formal_assessment' => true,
+                'is_mock_board' => true,
+                'passing_grade' => 75,
+                'time_limit' => 60,
+                'is_active' => true,
+                'created_by' => $teacher->id,
+                'description' => 'Final mastery simulation for Batch 2 demonstrating significant performance gains.',
+            ]
+        );
+        $this->seedQuestions($mbPreBoardsModule2, $this->getMockBoardPreBoardsQuestions(), null);
+
+        $mbPhasePreBoards2 = MockBoardPhase::updateOrCreate(
+            ['mock_board_id' => $mockBoard2->id, 'phase_type' => 'pre_boards'],
+            [
+                'sequence_number' => 1,
+                'label' => 'Pre-Boards',
+                'title' => '2026 CPALE Intensive Simulation (Batch 2) - Pre-Boards Final Simulation',
+                'module_id' => $mbPreBoardsModule2->id,
             ]
         );
 
@@ -260,6 +334,20 @@ class AccountancyPresentationSeeder extends Seeder
             8 => ['class_pre' => 4, 'class_post' => 6, 'class_formal' => 5, 'mb_pre' => 3, 'mb_post' => 6],
             // Student 9: 23-10001 Kathryn Manuel (Developing)
             9 => ['class_pre' => 3, 'class_post' => 5, 'class_formal' => 5, 'mb_pre' => 4, 'mb_post' => 6],
+        ];
+
+        // Mock Board 2 scores (High contrast & low variance -> Highly Significant ANOVA p < 0.001)
+        $scoreMatrix2 = [
+            0 => ['mb_pre' => 4, 'mb_post' => 10],
+            1 => ['mb_pre' => 4, 'mb_post' => 9],
+            2 => ['mb_pre' => 4, 'mb_post' => 9],
+            3 => ['mb_pre' => 3, 'mb_post' => 9],
+            4 => ['mb_pre' => 5, 'mb_post' => 9],
+            5 => ['mb_pre' => 4, 'mb_post' => 8],
+            6 => ['mb_pre' => 3, 'mb_post' => 8],
+            7 => ['mb_pre' => 5, 'mb_post' => 9],
+            8 => ['mb_pre' => 4, 'mb_post' => 8],
+            9 => ['mb_pre' => 3, 'mb_post' => 8],
         ];
 
         foreach ($students as $index => $student) {
@@ -295,7 +383,7 @@ class AccountancyPresentationSeeder extends Seeder
                 phase: null
             );
 
-            // 4. Mock Board Pre-Test Attempt
+            // 4. Mock Board 1 Pre-Test Attempt
             $this->createAttemptAndAnswers(
                 student: $student,
                 module: $mbPreTestModule,
@@ -305,7 +393,7 @@ class AccountancyPresentationSeeder extends Seeder
                 phase: $mbPhasePreTest
             );
 
-            // 5. Mock Board Pre-Boards Attempt
+            // 5. Mock Board 1 Pre-Boards Attempt
             $this->createAttemptAndAnswers(
                 student: $student,
                 module: $mbPreBoardsModule,
@@ -314,13 +402,34 @@ class AccountancyPresentationSeeder extends Seeder
                 mockBoard: $mockBoard,
                 phase: $mbPhasePreBoards
             );
+
+            // 6. Mock Board 2 Pre-Test Attempt
+            $this->createAttemptAndAnswers(
+                student: $student,
+                module: $mbPreTestModule2,
+                score: $scoreMatrix2[$index]['mb_pre'],
+                quizStage: 'pre_test',
+                mockBoard: $mockBoard2,
+                phase: $mbPhasePreTest2
+            );
+
+            // 7. Mock Board 2 Pre-Boards Attempt
+            $this->createAttemptAndAnswers(
+                student: $student,
+                module: $mbPreBoardsModule2,
+                score: $scoreMatrix2[$index]['mb_post'],
+                quizStage: 'post_test',
+                mockBoard: $mockBoard2,
+                phase: $mbPhasePreBoards2
+            );
         }
 
         // ─────────────────────────────────────────────────────────────
-        // 7. Compute & Save ANOVA Statistics for Mock Board
+        // 7. Compute & Save ANOVA Statistics for Mock Boards
         // ─────────────────────────────────────────────────────────────
         try {
             app(MockBoardStatisticsService::class)->computeClassStatistics($mockBoard);
+            app(MockBoardStatisticsService::class)->computeClassStatistics($mockBoard2);
         } catch (\Throwable $e) {
             // Ignore if service calculation succeeds later during UI load
         }

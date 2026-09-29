@@ -161,149 +161,125 @@ class MockBoardStatisticsService
     }
 
     /**
-     * Approximate p-value for F-distribution using simplified method.
-     * For production, consider using a proper statistical library.
+     * Compute natural logarithm of the Gamma function ln(Γ(x)) using Lanczos approximation.
      */
-    private function approximatePValue(float $f, int $df1, int $df2): float
+    private function logGamma(float $x): float
     {
-        // Simplified approximation using F-distribution properties
-        // For educational context, this approximation is sufficient
-        if ($f <= 0) {
-            return 1.0;
+        $c = [
+            76.18009172947146,
+            -86.50532032941677,
+            24.01409824083091,
+            -1.231739572450155,
+            0.1208650973866179e-2,
+            -0.5395239384953e-5,
+        ];
+        $y = $x;
+        $tmp = $x + 5.5;
+        $tmp -= ($x + 0.5) * log($tmp);
+        $ser = 1.000000000190015;
+        for ($j = 0; $j < 6; $j++) {
+            $y += 1.0;
+            $ser += $c[$j] / $y;
         }
 
-        // Use F-distribution CDF approximation
-        $x = ($df1 * $f) / ($df1 * $f + $df2);
-        $a = $df1 / 2;
-        $b = $df2 / 2;
-
-        // Regularized incomplete beta function approximation
-        return $this->betaIncomplete($x, $a, $b);
+        return -$tmp + log(2.5066282746310005 * $ser / $x);
     }
 
     /**
-     * Simplified incomplete beta function for p-value calculation.
+     * Regularized incomplete beta function I_x(a, b) using continued fractions (Lentz method).
      */
     private function betaIncomplete(float $x, float $a, float $b): float
     {
-        // Simplified approximation - sufficient for educational context
-        // For more precision, use a statistical library like 'php-statistics'
-
-        if ($x <= 0) {
-            return 1.0;
-        }
-        if ($x >= 1) {
+        if ($x <= 0.0) {
             return 0.0;
         }
+        if ($x >= 1.0) {
+            return 1.0;
+        }
 
-        // Use continued fraction approximation for I_x(a,b)
-        $maxIterations = 200;
-        $epsilon = 3e-7;
-        $am = 1.0;
-        $bm = 1.0;
-        $az = 1.0;
-        $bz = 1.0 - ($a + $b) * $x / ($a + 1.0);
-        $qab = $a + $b;
-        $qap = $a + 1.0;
-        $qam = $a - 1.0;
-        $ap = $az;
-        $bp = $bz;
+        // Use symmetry relation for rapid convergence: I_x(a,b) = 1 - I_{1-x}(b,a)
+        if ($x > ($a + 1.0) / ($a + $b + 2.0)) {
+            return 1.0 - $this->betaIncomplete(1.0 - $x, $b, $a);
+        }
 
-        for ($m = 1; $m <= $maxIterations; $m++) {
+        $logBeta = $this->logGamma($a + $b) - $this->logGamma($a) - $this->logGamma($b) + $a * log($x) + $b * log(1.0 - $x);
+        $front = exp($logBeta) / $a;
+
+        $f = 1.0;
+        $c = 1.0;
+        $d = 1.0 - ($a + $b) * $x / ($a + 1.0);
+        if (abs($d) < 1e-30) {
+            $d = 1e-30;
+        }
+        $d = 1.0 / $d;
+        $f = $f * $d;
+
+        for ($m = 1; $m <= 200; $m++) {
             $m2 = 2 * $m;
-            $d = $m * ($b - $m) * $x / (($qam + $m2) * ($a + $m2));
-            $ap = $az + $d * $am;
-            $bp = $bz + $d * $bm;
-            $d = -($a + $m) * ($qab + $m) * $x / (($a + $m2) * ($qap + $m2));
-            $app = $ap + $d * $az;
-            $bpp = $bp + $d * $bz;
-            $aOld = $az;
-            $am = $ap / $bpp;
-            $bm = $bp / $bpp;
-            $az = $app / $bpp;
-            $bz = 1.0;
 
-            if (abs($az - $aOld) < $epsilon * abs($az)) {
+            // Even term
+            $num = $m * ($b - $m) * $x / (($a + $m2 - 1.0) * ($a + $m2));
+            $d = 1.0 + $num * $d;
+            if (abs($d) < 1e-30) {
+                $d = 1e-30;
+            }
+            $c = 1.0 + $num / $c;
+            if (abs($c) < 1e-30) {
+                $c = 1e-30;
+            }
+            $d = 1.0 / $d;
+            $f = $f * ($c * $d);
+
+            // Odd term
+            $num = -($a + $m) * ($a + $b + $m) * $x / (($a + $m2) * ($a + $m2 + 1.0));
+            $d = 1.0 + $num * $d;
+            if (abs($d) < 1e-30) {
+                $d = 1e-30;
+            }
+            $c = 1.0 + $num / $c;
+            if (abs($c) < 1e-30) {
+                $c = 1e-30;
+            }
+            $d = 1.0 / $d;
+            $delta = $c * $d;
+            $f = $f * $delta;
+
+            if (abs($delta - 1.0) < 1e-12) {
                 break;
             }
         }
 
-        return 1.0 - $az * pow($x, $a) * pow(1.0 - $x, $b) / $a;
+        return $front * $f;
     }
 
     /**
-     * Compute paired t-test for pre/post scores of same students.
-     * More precise than ANOVA when same students take both tests.
+     * Approximate p-value for F-distribution using regularized incomplete beta function.
      */
-    public function computePairedTTest(MockBoard $mockBoard): array
+    private function approximatePValue(float $f, int $df1, int $df2): float
     {
-        // Get students who took both phases
-        $attempts = MockBoardAttempt::where('mock_board_id', $mockBoard->id)
-            ->whereNotNull('percentage')
-            ->get()
-            ->groupBy('user_id')
-            ->filter(function ($group) {
-                return $group->count() === 2; // Has both pre_test and pre_boards
-            });
-
-        if ($attempts->count() < 2) {
-            return [
-                'mean_difference' => null,
-                't_statistic' => null,
-                'degrees_of_freedom' => null,
-                'p_value' => null,
-                'significant' => null,
-            ];
+        if ($f <= 0) {
+            return 1.0;
         }
 
-        $differences = [];
-        foreach ($attempts as $userAttempts) {
-            $preTest = $userAttempts->firstWhere('phase_type', 'pre_test')?->percentage ?? 0;
-            $preBoards = $userAttempts->firstWhere('phase_type', 'pre_boards')?->percentage ?? 0;
-            $differences[] = $preBoards - $preTest;
-        }
+        $x = ($df1 * $f) / ($df1 * $f + $df2);
+        $a = $df1 / 2;
+        $b = $df2 / 2;
 
-        $n = count($differences);
-        $meanDiff = array_sum($differences) / $n;
-
-        // Standard deviation of differences
-        $sumSquaredDiff = 0;
-        foreach ($differences as $diff) {
-            $sumSquaredDiff += pow($diff - $meanDiff, 2);
-        }
-        $stdDevDiff = $n > 1 ? sqrt($sumSquaredDiff / ($n - 1)) : 0;
-
-        // t-statistic
-        $tStatistic = $stdDevDiff > 0 ? $meanDiff / ($stdDevDiff / sqrt($n)) : 0;
-        $df = $n - 1;
-
-        // Approximate p-value using t-distribution
-        $pValue = $this->approximateTDistPValue(abs($tStatistic), $df);
-
-        return [
-            'mean_difference' => round($meanDiff, 2),
-            't_statistic' => round($tStatistic, 4),
-            'degrees_of_freedom' => $df,
-            'p_value' => round($pValue, 6),
-            'significant' => $pValue < 0.05,
-        ];
+        return max(0.0, min(1.0, 1.0 - $this->betaIncomplete($x, $a, $b)));
     }
 
     /**
-     * Approximate p-value for t-distribution.
+     * Approximate p-value for t-distribution (two-tailed).
      */
     private function approximateTDistPValue(float $t, int $df): float
     {
-        // Simplified approximation using relationship with F-distribution
-        // t^2 ~ F(1, df)
-        $f = $t * $t;
-        $fResult = $this->computeOneWayANOVA([0], array_fill(0, $df + 1, 0));
+        if ($t <= 0 || $df <= 0) {
+            return 1.0;
+        }
 
-        // Direct approximation for t-distribution
         $x = $df / ($df + $t * $t);
-        $beta = $this->betaIncomplete($x, $df / 2, 0.5);
 
-        return $beta;
+        return max(0.0, min(1.0, $this->betaIncomplete($x, $df / 2, 0.5)));
     }
 
     /**

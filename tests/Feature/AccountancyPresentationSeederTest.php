@@ -53,25 +53,32 @@ class AccountancyPresentationSeederTest extends TestCase
         $this->assertNotNull($class);
         $this->assertCount(10, $class->students);
 
-        // Verify 5 Modules (3 class modules + 2 mock board phase modules)
-        $this->assertEquals(5, Module::where('class_id', $class->id)->count());
+        // Verify 7 Modules (3 class modules + 4 mock board phase modules across 2 mock boards)
+        $this->assertEquals(7, Module::where('class_id', $class->id)->count());
         $this->assertEquals(3, Module::where('class_id', $class->id)->where('is_mock_board', false)->count());
-        $this->assertEquals(2, Module::where('class_id', $class->id)->where('is_mock_board', true)->count());
+        $this->assertEquals(4, Module::where('class_id', $class->id)->where('is_mock_board', true)->count());
 
         // Verify Module Attempts
         $this->assertGreaterThan(0, QuizAttempt::count());
 
-        // Verify Mock Board & Phases
-        $mockBoard = MockBoard::where('program', 'accountancy')->first();
-        $this->assertNotNull($mockBoard);
-        $this->assertCount(2, $mockBoard->phases);
+        // Verify Mock Boards & Phases (2 Mock Boards)
+        $mockBoards = MockBoard::where('program', 'accountancy')->get();
+        $this->assertCount(2, $mockBoards);
 
-        // Verify Mock Board Attempts
-        $this->assertEquals(20, MockBoardAttempt::where('mock_board_id', $mockBoard->id)->count());
+        foreach ($mockBoards as $mb) {
+            $this->assertCount(2, $mb->phases);
+            $this->assertEquals(20, MockBoardAttempt::where('mock_board_id', $mb->id)->count());
+            $this->assertDatabaseHas('mock_board_statistics', [
+                'mock_board_id' => $mb->id,
+            ]);
+        }
 
-        // Verify ANOVA / Mock Board Statistics were generated
+        // Verify Mock Board 2 has statistically significant ANOVA (p < 0.05)
+        $mockBoard2 = MockBoard::where('title', '2026 CPALE Intensive Pre-Board Simulation (Batch 2)')->first();
+        $this->assertNotNull($mockBoard2);
         $this->assertDatabaseHas('mock_board_statistics', [
-            'mock_board_id' => $mockBoard->id,
+            'mock_board_id' => $mockBoard2->id,
+            'anova_significant' => true,
         ]);
     }
 }
