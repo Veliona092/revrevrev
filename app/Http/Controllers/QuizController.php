@@ -17,7 +17,6 @@ use App\Services\CloudflareAI;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class QuizController extends Controller
 {
@@ -53,9 +52,11 @@ class QuizController extends Controller
 
         $strong = 'You answered '.$attempt->score.' out of '.$attempt->total.' questions correctly.';
         if ($correctAnswers->isNotEmpty()) {
-            $correctTopics = $correctAnswers->take(2)
+            $correctTopics = $correctAnswers->take(3)
                 ->map(fn ($answer) => trim((string) data_get($answer, 'question.question_text', '')))
-                ->filter()->map(fn ($text) => Str::limit($text, 80))->implode(' | ');
+                ->filter()
+                ->unique()
+                ->implode(' | ');
             if ($correctTopics !== '') {
                 $strong .= ' Strong items: '.$correctTopics.'.';
             }
@@ -63,9 +64,11 @@ class QuizController extends Controller
 
         $weak = 'No major weak areas detected.';
         if ($wrongAnswers->isNotEmpty()) {
-            $weakTopics = $wrongAnswers->take(2)
+            $weakTopics = $wrongAnswers->take(3)
                 ->map(fn ($answer) => trim((string) data_get($answer, 'question.question_text', '')))
-                ->filter()->map(fn ($text) => Str::limit($text, 80))->implode(' | ');
+                ->filter()
+                ->unique()
+                ->implode(' | ');
             $weak = $weakTopics !== '' ? 'Review: '.$weakTopics.'.' : 'Review missed items.';
         }
 

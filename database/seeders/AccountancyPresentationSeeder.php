@@ -17,7 +17,6 @@ use App\Services\MockBoardStatisticsService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 class AccountancyPresentationSeeder extends Seeder
 {
@@ -517,8 +516,8 @@ class AccountancyPresentationSeeder extends Seeder
         $percentage = (int) round(($score / $total) * 100);
         $title = $module->title;
 
-        $strongSnippet = collect($correctQuestionTexts)->take(2)->map(fn ($t) => Str::limit($t, 65))->implode(' | ');
-        $weakSnippet = collect($wrongQuestionTexts)->take(2)->map(fn ($t) => Str::limit($t, 65))->implode(' | ');
+        $strongSnippet = collect($correctQuestionTexts)->take(2)->implode(' | ');
+        $weakSnippet = collect($wrongQuestionTexts)->take(2)->implode(' | ');
 
         if ($phase && $phase->phase_type === 'pre_boards') {
             if ($percentage >= 90) {
@@ -544,13 +543,13 @@ class AccountancyPresentationSeeder extends Seeder
 
         if ($percentage >= 90) {
             return [
-                'strong' => 'Excellent mastery of '.Str::limit($title, 40).'. High proficiency on: '.($strongSnippet ?: 'all tested concepts'),
+                'strong' => "Excellent mastery of {$title}. High proficiency on: ".($strongSnippet ?: 'all tested concepts'),
                 'weak' => $weakSnippet ? 'Review minor edge cases: '.$weakSnippet : 'No weak areas identified.',
                 'recommendation' => 'Outstanding performance! You are well-prepared for more advanced assessment modules.',
             ];
         } elseif ($percentage >= 70) {
             return [
-                'strong' => 'Good comprehension of '.Str::limit($title, 40).'. Mastered concepts: '.($strongSnippet ?: 'core standard items'),
+                'strong' => "Good comprehension of {$title}. Mastered concepts: ".($strongSnippet ?: 'core standard items'),
                 'weak' => 'Needs reinforcement on: '.($weakSnippet ?: 'multi-step problem solving'),
                 'recommendation' => 'Revisit lecture handouts for the missed items and practice with supplementary exercises.',
             ];

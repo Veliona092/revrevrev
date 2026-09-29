@@ -236,10 +236,76 @@
     var loadedPhases = {}; // tracks which phases already had AI/history fetched (lazy load)
 
     function escHtml(str) {
+        if (str === null || str === undefined) return '';
         var d = document.createElement('div');
         d.textContent = String(str);
         return d.innerHTML;
     }
+
+    function formatExpandableInsightHtml(text, maxItemLen) {
+        if (!text) return 'None detected';
+        maxItemLen = maxItemLen || 50;
+
+        if (typeof text !== 'string') {
+            text = String(text);
+        }
+
+        if (text.indexOf(' | ') !== -1) {
+            var parts = text.split(' | ');
+            return parts.map(function (part) {
+                return formatSingleExpandable(part.trim(), maxItemLen);
+            }).join(' <span style="color:#d1d5db; margin:0 4px; user-select:none;">|</span> ');
+        }
+
+        return formatSingleExpandable(text, maxItemLen);
+    }
+
+    function formatSingleExpandable(item, maxLen) {
+        if (!item) return '';
+        if (item.length <= maxLen) {
+            return escHtml(item);
+        }
+
+        var cutIdx = maxLen;
+        var spaceIdx = item.lastIndexOf(' ', maxLen);
+        if (spaceIdx > maxLen - 15) {
+            cutIdx = spaceIdx;
+        }
+
+        var shortText = item.substring(0, cutIdx).trim();
+        var fullText = item;
+
+        return '<span class="qz-expandable" data-expanded="false">' +
+            '<span class="qz-exp-short">' + escHtml(shortText) + '</span>' +
+            '<span class="qz-exp-full" style="display:none;">' + escHtml(fullText) + '</span>' +
+            ' <span class="qz-expand-dots" onclick="window.toggleInsightItem(this, event)" role="button" tabindex="0" title="Click to expand / collapse" style="cursor:pointer; color:#7f77dd; font-weight:700; padding:1px 5px; border-radius:4px; background:rgba(127,119,221,0.12); margin-left:3px; user-select:none; display:inline-block; font-size:13px; line-height:1.2;">...</span>' +
+        '</span>';
+    }
+
+    window.toggleInsightItem = function (btn, ev) {
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        var parent = btn.closest('.qz-expandable');
+        if (!parent) return;
+        var isExpanded = parent.getAttribute('data-expanded') === 'true';
+        var shortEl = parent.querySelector('.qz-exp-short');
+        var fullEl = parent.querySelector('.qz-exp-full');
+
+        if (isExpanded) {
+            if (shortEl) shortEl.style.display = 'inline';
+            if (fullEl) fullEl.style.display = 'none';
+            btn.textContent = '...';
+            btn.title = 'Click to expand';
+            btn.style.fontSize = '13px';
+            parent.setAttribute('data-expanded', 'false');
+        } else {
+            if (shortEl) shortEl.style.display = 'none';
+            if (fullEl) fullEl.style.display = 'inline';
+            btn.textContent = ' (less)';
+            btn.title = 'Click to collapse';
+            btn.style.fontSize = '11px';
+            parent.setAttribute('data-expanded', 'true');
+        }
+    };
 
     function renderAiBox(phaseId, data) {
         var box = document.getElementById('aiBox_' + phaseId);
@@ -247,9 +313,9 @@
 
         box.innerHTML =
             '<p class="qz-ai-title"><i class="fas fa-brain"></i> AI Insights</p>' +
-            '<div class="qz-ai-sec"><p class="qz-ai-label">Strong Areas</p><p class="qz-ai-value">' + escHtml(data.strong || 'None detected') + '</p></div>' +
-            '<div class="qz-ai-sec"><p class="qz-ai-label">Weak Areas</p><p class="qz-ai-value">' + escHtml(data.weak || 'None detected') + '</p></div>' +
-            '<div class="qz-ai-sec"><p class="qz-ai-label">Recommendation</p><p class="qz-ai-value">' + escHtml(data.recommendation || 'Review the material again') + '</p></div>';
+            '<div class="qz-ai-sec"><p class="qz-ai-label">Strong Areas</p><p class="qz-ai-value">' + formatExpandableInsightHtml(data.strong) + '</p></div>' +
+            '<div class="qz-ai-sec"><p class="qz-ai-label">Weak Areas</p><p class="qz-ai-value">' + formatExpandableInsightHtml(data.weak) + '</p></div>' +
+            '<div class="qz-ai-sec"><p class="qz-ai-label">Recommendation</p><p class="qz-ai-value">' + formatExpandableInsightHtml(data.recommendation) + '</p></div>';
     }
 
     function loadAiInsights(phaseId) {
