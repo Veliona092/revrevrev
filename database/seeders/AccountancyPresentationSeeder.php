@@ -309,6 +309,80 @@ class AccountancyPresentationSeeder extends Seeder
         );
 
         // ─────────────────────────────────────────────────────────────
+        // 5c. Create Mock Board Exam 3 (Batch 3 Remedial Baseline - No Change / Low Scores)
+        // ─────────────────────────────────────────────────────────────
+        $mockBoard3 = MockBoard::updateOrCreate(
+            [
+                'class_id' => $class->id,
+                'title' => '2026 CPALE Remedial Diagnostic Assessment (Batch 3)',
+            ],
+            [
+                'teacher_id' => $teacher->id,
+                'description' => 'Baseline diagnostic assessment evaluating low-scoring retention and identifying topics requiring intervention.',
+                'program' => 'accountancy',
+                'review_period_start' => '2026-01-01',
+                'review_period_end' => '2026-12-31',
+                'passing_percentage' => 75,
+                'visibility' => 'all',
+                'status' => 'approved',
+                'approved_by' => $adminUser ? $adminUser->id : $teacher->id,
+                'approved_at' => now(),
+            ]
+        );
+
+        // Mock Board 3 Phase 1: Pre-Test
+        $mbPreTestModule3 = Module::updateOrCreate(
+            ['class_id' => $class->id, 'title' => '2026 CPALE Remedial Assessment (Batch 3) - Diagnostic Pre-Test'],
+            [
+                'is_quiz' => true,
+                'is_formal_assessment' => true,
+                'is_mock_board' => true,
+                'passing_grade' => 75,
+                'time_limit' => 60,
+                'is_active' => true,
+                'created_by' => $teacher->id,
+                'description' => 'Initial diagnostic baseline evaluation for the Batch 3 remedial group.',
+            ]
+        );
+        $this->seedQuestions($mbPreTestModule3, $this->getMockBoardPreTestQuestions(), null);
+
+        $mbPhasePreTest3 = MockBoardPhase::updateOrCreate(
+            ['mock_board_id' => $mockBoard3->id, 'phase_type' => 'pre_test'],
+            [
+                'sequence_number' => 1,
+                'label' => 'Pre-Test',
+                'title' => '2026 CPALE Remedial Assessment (Batch 3) - Diagnostic Pre-Test',
+                'module_id' => $mbPreTestModule3->id,
+            ]
+        );
+
+        // Mock Board 3 Phase 2: Pre-Boards
+        $mbPreBoardsModule3 = Module::updateOrCreate(
+            ['class_id' => $class->id, 'title' => '2026 CPALE Remedial Assessment (Batch 3) - Pre-Boards Final Simulation'],
+            [
+                'is_quiz' => true,
+                'is_formal_assessment' => true,
+                'is_mock_board' => true,
+                'passing_grade' => 75,
+                'time_limit' => 60,
+                'is_active' => true,
+                'created_by' => $teacher->id,
+                'description' => 'Follow-up evaluation showing minimal progress (No Change) requiring further review.',
+            ]
+        );
+        $this->seedQuestions($mbPreBoardsModule3, $this->getMockBoardPreBoardsQuestions(), null);
+
+        $mbPhasePreBoards3 = MockBoardPhase::updateOrCreate(
+            ['mock_board_id' => $mockBoard3->id, 'phase_type' => 'pre_boards'],
+            [
+                'sequence_number' => 1,
+                'label' => 'Pre-Boards',
+                'title' => '2026 CPALE Remedial Assessment (Batch 3) - Pre-Boards Final Simulation',
+                'module_id' => $mbPreBoardsModule3->id,
+            ]
+        );
+
+        // ─────────────────────────────────────────────────────────────
         // 6. Seed Student Quiz Attempts, Answers & Mock Board Attempts
         // ─────────────────────────────────────────────────────────────
         // Score matrices (out of 10) designed for statistically valid distributions:
@@ -348,6 +422,20 @@ class AccountancyPresentationSeeder extends Seeder
             7 => ['mb_pre' => 5, 'mb_post' => 9],
             8 => ['mb_pre' => 4, 'mb_post' => 8],
             9 => ['mb_pre' => 3, 'mb_post' => 8],
+        ];
+
+        // Mock Board 3 scores (Low scores throughout, no significant improvement -> No Change / p >= 0.05)
+        $scoreMatrix3 = [
+            0 => ['mb_pre' => 4, 'mb_post' => 4],
+            1 => ['mb_pre' => 4, 'mb_post' => 4],
+            2 => ['mb_pre' => 3, 'mb_post' => 4],
+            3 => ['mb_pre' => 4, 'mb_post' => 4],
+            4 => ['mb_pre' => 3, 'mb_post' => 3],
+            5 => ['mb_pre' => 4, 'mb_post' => 4],
+            6 => ['mb_pre' => 3, 'mb_post' => 3],
+            7 => ['mb_pre' => 4, 'mb_post' => 4],
+            8 => ['mb_pre' => 3, 'mb_post' => 4],
+            9 => ['mb_pre' => 3, 'mb_post' => 3],
         ];
 
         foreach ($students as $index => $student) {
@@ -422,6 +510,26 @@ class AccountancyPresentationSeeder extends Seeder
                 mockBoard: $mockBoard2,
                 phase: $mbPhasePreBoards2
             );
+
+            // 8. Mock Board 3 Pre-Test Attempt
+            $this->createAttemptAndAnswers(
+                student: $student,
+                module: $mbPreTestModule3,
+                score: $scoreMatrix3[$index]['mb_pre'],
+                quizStage: 'pre_test',
+                mockBoard: $mockBoard3,
+                phase: $mbPhasePreTest3
+            );
+
+            // 9. Mock Board 3 Pre-Boards Attempt
+            $this->createAttemptAndAnswers(
+                student: $student,
+                module: $mbPreBoardsModule3,
+                score: $scoreMatrix3[$index]['mb_post'],
+                quizStage: 'post_test',
+                mockBoard: $mockBoard3,
+                phase: $mbPhasePreBoards3
+            );
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -430,6 +538,7 @@ class AccountancyPresentationSeeder extends Seeder
         try {
             app(MockBoardStatisticsService::class)->computeClassStatistics($mockBoard);
             app(MockBoardStatisticsService::class)->computeClassStatistics($mockBoard2);
+            app(MockBoardStatisticsService::class)->computeClassStatistics($mockBoard3);
         } catch (\Throwable $e) {
             // Ignore if service calculation succeeds later during UI load
         }

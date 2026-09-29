@@ -53,17 +53,17 @@ class AccountancyPresentationSeederTest extends TestCase
         $this->assertNotNull($class);
         $this->assertCount(10, $class->students);
 
-        // Verify 7 Modules (3 class modules + 4 mock board phase modules across 2 mock boards)
-        $this->assertEquals(7, Module::where('class_id', $class->id)->count());
+        // Verify 9 Modules (3 class modules + 6 mock board phase modules across 3 mock boards)
+        $this->assertEquals(9, Module::where('class_id', $class->id)->count());
         $this->assertEquals(3, Module::where('class_id', $class->id)->where('is_mock_board', false)->count());
-        $this->assertEquals(4, Module::where('class_id', $class->id)->where('is_mock_board', true)->count());
+        $this->assertEquals(6, Module::where('class_id', $class->id)->where('is_mock_board', true)->count());
 
         // Verify Module Attempts
         $this->assertGreaterThan(0, QuizAttempt::count());
 
-        // Verify Mock Boards & Phases (2 Mock Boards)
+        // Verify Mock Boards & Phases (3 Mock Boards)
         $mockBoards = MockBoard::where('program', 'accountancy')->get();
-        $this->assertCount(2, $mockBoards);
+        $this->assertCount(3, $mockBoards);
 
         foreach ($mockBoards as $mb) {
             $this->assertCount(2, $mb->phases);
@@ -79,6 +79,14 @@ class AccountancyPresentationSeederTest extends TestCase
         $this->assertDatabaseHas('mock_board_statistics', [
             'mock_board_id' => $mockBoard2->id,
             'anova_significant' => true,
+        ]);
+
+        // Verify Mock Board 3 has non-significant ANOVA (p >= 0.05 - No Change)
+        $mockBoard3 = MockBoard::where('title', '2026 CPALE Remedial Diagnostic Assessment (Batch 3)')->first();
+        $this->assertNotNull($mockBoard3);
+        $this->assertDatabaseHas('mock_board_statistics', [
+            'mock_board_id' => $mockBoard3->id,
+            'anova_significant' => false,
         ]);
     }
 }
