@@ -17,6 +17,7 @@ use App\Services\MockBoardStatisticsService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class AccountancyPresentationSeeder extends Seeder
 {
@@ -383,6 +384,35 @@ class AccountancyPresentationSeeder extends Seeder
             ->where('module_id', $module->id)
             ->delete();
 
+        // Load questions for this module
+        $questions = $module->quizQuestions()->orderBy('order')->get();
+
+        // Determine which questions the student gets right vs wrong
+        // Distribute correct answers across indices based on $score
+        $questionIndices = range(0, max(count($questions) - 1, 0));
+        // Deterministic variation per student ID
+        $seed = ($student->id * 17) % max(count($questionIndices), 1);
+        $correctIndices = [];
+        for ($i = 0; $i < $score; $i++) {
+            $correctIndices[] = ($seed + $i) % count($questions);
+        }
+
+        $allOptions = ['A', 'B', 'C', 'D'];
+        $questionsSnapshot = [];
+        $correctQuestionTexts = [];
+        $wrongQuestionTexts = [];
+
+        // Pre-compute insights based on module, score, and questions
+        foreach ($questions as $qIndex => $question) {
+            if (in_array($qIndex, $correctIndices, true)) {
+                $correctQuestionTexts[] = $question->question_text;
+            } else {
+                $wrongQuestionTexts[] = $question->question_text;
+            }
+        }
+
+        $insights = $this->generateDynamicInsights($module, $score, $total, $correctQuestionTexts, $wrongQuestionTexts, $phase);
+
         $attempt = QuizAttempt::create([
             'user_id' => $student->id,
             'module_id' => $module->id,
@@ -398,26 +428,10 @@ class AccountancyPresentationSeeder extends Seeder
             'completed_at' => now()->subHours(2),
             'attempted_at' => now()->subHours(2),
             'attempt_count' => 1,
-            'ai_strong' => 'Demonstrates proficiency in conceptual framework fundamentals and standard asset recognition criteria.',
-            'ai_weak' => 'Requires reinforcement in multi-step problem solving and complex valuation adjustments.',
-            'ai_recommendation' => 'Review comprehensive practice sets and test bank questions for the lower-scoring topics.',
+            'ai_strong' => $insights['strong'],
+            'ai_weak' => $insights['weak'],
+            'ai_recommendation' => $insights['recommendation'],
         ]);
-
-        // Load questions for this module
-        $questions = $module->quizQuestions()->orderBy('order')->get();
-
-        // Determine which questions the student gets right vs wrong
-        // Distribute correct answers across indices based on $score
-        $questionIndices = range(0, count($questions) - 1);
-        // Deterministic variation per student ID
-        $seed = ($student->id * 17) % count($questionIndices);
-        $correctIndices = [];
-        for ($i = 0; $i < $score; $i++) {
-            $correctIndices[] = ($seed + $i) % count($questions);
-        }
-
-        $allOptions = ['A', 'B', 'C', 'D'];
-        $questionsSnapshot = [];
 
         foreach ($questions as $qIndex => $question) {
             $isCorrect = in_array($qIndex, $correctIndices, true);
@@ -478,9 +492,9 @@ class AccountancyPresentationSeeder extends Seeder
                 'percentage' => $percentage,
                 'passed' => $passed,
                 'attempt_count' => 1,
-                'ai_strong' => 'Strong performance on foundational accounting standards and audit governance.',
-                'ai_weak' => 'Review needed for nuanced disclosures and subsequent event assessments.',
-                'ai_recommendation' => 'Continue timed drills to enhance speed and precision during board examinations.',
+                'ai_strong' => $insights['strong'],
+                'ai_weak' => $insights['weak'],
+                'ai_recommendation' => $insights['recommendation'],
             ]);
         }
 
@@ -493,6 +507,60 @@ class AccountancyPresentationSeeder extends Seeder
                 'completed_at' => now()->subHours(2),
             ]
         );
+    }
+
+    /**
+     * Generate dynamic, topic-aligned AI insights based on module, phase, and score.
+     */
+    private function generateDynamicInsights(Module $module, int $score, int $total, array $correctQuestionTexts, array $wrongQuestionTexts, ?MockBoardPhase $phase): array
+    {
+        $percentage = (int) round(($score / $total) * 100);
+        $title = $module->title;
+
+        $strongSnippet = collect($correctQuestionTexts)->take(2)->map(fn ($t) => Str::limit($t, 65))->implode(' | ');
+        $weakSnippet = collect($wrongQuestionTexts)->take(2)->map(fn ($t) => Str::limit($t, 65))->implode(' | ');
+
+        if ($phase && $phase->phase_type === 'pre_boards') {
+            if ($percentage >= 90) {
+                return [
+                    'strong' => 'Mastery across CPALE comprehensive topics. High accuracy on: '.($strongSnippet ?: 'All core competencies'),
+                    'weak' => $weakSnippet ? 'Minor precision check on: '.$weakSnippet : 'No major weak areas detected.',
+                    'recommendation' => 'Exam-ready! Continue timed mock simulations to sustain high retention and speed.',
+                ];
+            } elseif ($percentage >= 70) {
+                return [
+                    'strong' => 'Solid foundation in CPALE standards. Mastered: '.($strongSnippet ?: 'Foundational accounting & auditing'),
+                    'weak' => 'Review needed for: '.($weakSnippet ?: 'Advanced computational items and complex standards'),
+                    'recommendation' => 'Practice the flagged topic drills and review related standard provisions before the licensure exam.',
+                ];
+            } else {
+                return [
+                    'strong' => 'Familiar with basic definitions: '.($strongSnippet ?: 'General principles'),
+                    'weak' => 'Substantial review required on: '.($weakSnippet ?: 'Comprehensive accounting and audit problems'),
+                    'recommendation' => 'Prioritize intensive remediation drills and revisit core textbook chapters.',
+                ];
+            }
+        }
+
+        if ($percentage >= 90) {
+            return [
+                'strong' => 'Excellent mastery of '.Str::limit($title, 40).'. High proficiency on: '.($strongSnippet ?: 'all tested concepts'),
+                'weak' => $weakSnippet ? 'Review minor edge cases: '.$weakSnippet : 'No weak areas identified.',
+                'recommendation' => 'Outstanding performance! You are well-prepared for more advanced assessment modules.',
+            ];
+        } elseif ($percentage >= 70) {
+            return [
+                'strong' => 'Good comprehension of '.Str::limit($title, 40).'. Mastered concepts: '.($strongSnippet ?: 'core standard items'),
+                'weak' => 'Needs reinforcement on: '.($weakSnippet ?: 'multi-step problem solving'),
+                'recommendation' => 'Revisit lecture handouts for the missed items and practice with supplementary exercises.',
+            ];
+        } else {
+            return [
+                'strong' => 'Baseline familiarity: '.($strongSnippet ?: 'elementary definitions'),
+                'weak' => 'Key concepts missed: '.($weakSnippet ?: 'valuation standards and recognition criteria'),
+                'recommendation' => 'Re-read the module materials thoroughly and take a practice remediation quiz.',
+            ];
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
