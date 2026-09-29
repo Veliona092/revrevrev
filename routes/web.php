@@ -32,6 +32,7 @@ use App\Services\GmailService;
 use Illuminate\Auth\Passwords\PasswordBroker;
 use Illuminate\Http\Request;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -833,3 +834,32 @@ Route::get('/lessons/{lesson}/docxjs', [SubpartLessonController::class, 'docxVie
 
 Route::get('/classes/{class}/modules/lectures', [ClassManagerController::class, 'listLectureModulesJson'])->name('classes.modules.lectures');
 Route::get('/classes/{class}/modules/list', [ClassManagerController::class, 'listModulesJson'])->name('classes.modules.list');
+
+// ── One-Click Presentation Demo Reseeder (for Railway / Live Demo) ──
+Route::get('/reseed-presentation-demo', function () {
+    try {
+        Artisan::call('db:seed', [
+            '--class' => 'AccountancyPresentationSeeder',
+            '--force' => true,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Accountancy Presentation test data seeded successfully!',
+            'details' => [
+                'teacher' => '23-9999 (teacher123)',
+                'students' => '23-9991 to 23-10001 (student123)',
+                'class' => 'BSA 2-1: Financial Accounting and Reporting 1 (ACC201-2026)',
+                'modules' => '3 Classroom Modules + 2 Mock Board Phases',
+                'scores' => '10 student attempts recorded',
+            ],
+            'artisan_output' => Artisan::output(),
+        ]);
+    } catch (Throwable $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'file' => $e->getFile().':'.$e->getLine(),
+        ], 500);
+    }
+});

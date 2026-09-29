@@ -41,9 +41,9 @@ while [ $COUNT -lt $MAX_TRIES ]; do
     if php artisan migrate --force --no-interaction; then
         echo "Database migration completed successfully."
         # Seed predetermined accounts
-        php artisan db:seed --class=AdminSeeder --force || true
-        php artisan db:seed --class=TeacherDemoSeeder --force || true
-        php artisan db:seed --class=AccountancyPresentationSeeder --force || true
+        php artisan db:seed --class=AdminSeeder --force --no-interaction || true
+        php artisan db:seed --class=TeacherDemoSeeder --force --no-interaction || true
+        php artisan db:seed --class=AccountancyPresentationSeeder --force --no-interaction || true
         break
     else
         COUNT=$((COUNT + 1))
