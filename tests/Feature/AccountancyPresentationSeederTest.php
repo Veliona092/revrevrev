@@ -25,7 +25,7 @@ class AccountancyPresentationSeederTest extends TestCase
             'idnumber' => '23-9999',
             'role' => 'teacher',
             'program' => 'accountancy',
-            'status' => 'active',
+            'status' => 'approved',
         ]);
 
         // Verify 10 Students
@@ -39,7 +39,7 @@ class AccountancyPresentationSeederTest extends TestCase
                 'idnumber' => $idnum,
                 'role' => 'student',
                 'program' => 'accountancy',
-                'status' => 'active',
+                'status' => 'approved',
             ]);
         }
 

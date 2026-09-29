@@ -45,7 +45,7 @@ class AccountancyPresentationSeeder extends Seeder
                 'password' => $teacherPassword,
                 'role' => 'teacher',
                 'program' => 'accountancy',
-                'status' => 'active',
+                'status' => 'approved',
                 'email_verified_at' => now(),
             ]
         );
@@ -76,7 +76,7 @@ class AccountancyPresentationSeeder extends Seeder
                     'password' => $studentPassword,
                     'role' => 'student',
                     'program' => 'accountancy',
-                    'status' => 'active',
+                    'status' => 'approved',
                     'email_verified_at' => now(),
                 ]
             );
