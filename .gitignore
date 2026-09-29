@@ -3,4 +3,8 @@ cacert.pem
 .env
 node_modules/
 *.log
+.phpunit.result.cache
+scratch/
+report/
+
 
