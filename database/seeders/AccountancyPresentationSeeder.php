@@ -10,6 +10,7 @@ use App\Models\Module;
 use App\Models\ModuleProgress;
 use App\Models\QuizAnswer;
 use App\Models\QuizAttempt;
+use App\Models\QuizAttemptSnapshot;
 use App\Models\QuizQuestion;
 use App\Models\User;
 use App\Services\MockBoardStatisticsService;
@@ -378,6 +379,10 @@ class AccountancyPresentationSeeder extends Seeder
             $existingAttempt->delete();
         }
 
+        QuizAttemptSnapshot::where('user_id', $student->id)
+            ->where('module_id', $module->id)
+            ->delete();
+
         $attempt = QuizAttempt::create([
             'user_id' => $student->id,
             'module_id' => $module->id,
@@ -412,6 +417,7 @@ class AccountancyPresentationSeeder extends Seeder
         }
 
         $allOptions = ['A', 'B', 'C', 'D'];
+        $questionsSnapshot = [];
 
         foreach ($questions as $qIndex => $question) {
             $isCorrect = in_array($qIndex, $correctIndices, true);
@@ -431,7 +437,33 @@ class AccountancyPresentationSeeder extends Seeder
                 'selected_option' => $selected,
                 'is_correct' => $isCorrect,
             ]);
+
+            $questionsSnapshot[] = [
+                'question_id' => $question->id,
+                'question_text' => $question->question_text,
+                'options' => $question->options,
+                'correct_option' => $question->correct_option,
+                'selected_option' => $selected,
+                'is_correct' => $isCorrect,
+            ];
         }
+
+        // Dedicated snapshot record for Attempt History view
+        QuizAttemptSnapshot::create([
+            'user_id' => $student->id,
+            'module_id' => $module->id,
+            'quiz_stage' => $quizStage,
+            'mock_board_id' => $mockBoard ? $mockBoard->id : null,
+            'phase_type' => $phase ? $phase->phase_type : null,
+            'attempt_number' => 1,
+            'score' => $score,
+            'total' => $total,
+            'percentage' => $percentage,
+            'passed' => $passed,
+            'started_at' => now()->subHours(3),
+            'completed_at' => now()->subHours(2),
+            'questions_snapshot' => $questionsSnapshot,
+        ]);
 
         // Mock board attempt link
         if ($mockBoard && $phase) {

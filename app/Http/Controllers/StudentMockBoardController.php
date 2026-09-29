@@ -827,12 +827,14 @@ class StudentMockBoardController extends Controller
             // one row per completed attempt, unlike QuizAttempt which is a
             // single overwritten row per (user, module, mock_board_id) and
             // can never hold more than one entry's worth of history.
-            return QuizAttemptSnapshot::where('user_id', $user->id)
+            $snapshots = QuizAttemptSnapshot::where('user_id', $user->id)
                 ->where('module_id', $phaseModel->module_id)
                 ->where('mock_board_id', $mockBoard->id)
                 ->orderBy('attempt_number', 'asc')
-                ->get()
-                ->map(function ($snap) {
+                ->get();
+
+            if ($snapshots->isNotEmpty()) {
+                return $snapshots->map(function ($snap) {
                     return [
                         'attempt_number' => $snap->attempt_number,
                         'score' => $snap->score,
@@ -850,8 +852,41 @@ class StudentMockBoardController extends Controller
                             ];
                         })->values(),
                     ];
-                })
-                ->values();
+                })->values();
+            }
+
+            // Fallback: Reconstruct history from QuizAttempt and QuizAnswers if snapshot records do not exist
+            $attempts = QuizAttempt::where('user_id', $user->id)
+                ->where('module_id', $phaseModel->module_id)
+                ->where('status', 'completed')
+                ->orderBy('id', 'asc')
+                ->get();
+
+            if ($attempts->isNotEmpty()) {
+                return $attempts->map(function ($attempt, $index) {
+                    $answers = $attempt->answers()->with('question')->get();
+
+                    return [
+                        'attempt_number' => $attempt->attempt_count ?: ($index + 1),
+                        'score' => $attempt->score,
+                        'total' => $attempt->total,
+                        'percentage' => $attempt->percentage,
+                        'passed' => $attempt->passed,
+                        'completed_at' => optional($attempt->completed_at ?? $attempt->attempted_at ?? $attempt->updated_at)->toIso8601String(),
+                        'questions' => $answers->map(function ($a) {
+                            return [
+                                'question_text' => $a->question->question_text ?? '',
+                                'options' => $a->question->options ?? [],
+                                'selected_option' => $a->selected_option ?? null,
+                                'correct_option' => $a->question->correct_option ?? null,
+                                'is_correct' => (bool) ($a->is_correct ?? false),
+                            ];
+                        })->values(),
+                    ];
+                })->values();
+            }
+
+            return [];
         };
 
         $history['pre_test'] = $buildHistoryForPhase($preTestPhase);
