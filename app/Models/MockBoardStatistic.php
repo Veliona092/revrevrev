@@ -67,13 +67,15 @@ class MockBoardStatistic extends Model
             return 'ANOVA not computed yet.';
         }
 
+        $pText = $this->anova_p_value !== null ? ($this->anova_p_value < 0.001 ? 'p < 0.001' : 'p = '.number_format($this->anova_p_value, 4)) : 'N/A';
+
         if ($this->anova_significant) {
             $improvement = $this->improvement_percentage > 0 ? 'improved' : 'decreased';
 
-            return "Significant difference found (p={$this->anova_p_value}). Scores {$improvement} by {$this->improvement_percentage}%.";
+            return "Significant difference found ({$pText}). Scores {$improvement} by {$this->improvement_percentage}%.";
         }
 
-        return "No significant difference found (p={$this->anova_p_value}).";
+        return "No significant difference found ({$pText}).";
     }
 
     /**
