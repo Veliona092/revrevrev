@@ -326,11 +326,11 @@ To populate complete, realistic presentation test data (Teacher, 10 Students, Re
 1. **`database/seeders/AccountancyPresentationSeeder.php`** (Primary Seeder):
    - **Teacher Account:** `23-9999` / `teacher123` (`Prof. Maria Teresa Diaz, CPA`)
    - **10 Student Accounts:** `23-9991` through `23-10001` / `student123`
-   - **Review Class:** `BSA 4-1: Financial Accounting & Reporting Review` (`ACC401-2026`)
+   - **Class:** `BSA 2-1: Financial Accounting and Reporting 1` (`ACC201-2026`)
    - **Class Modules (3 Modules):**
-     - Module 1: Pre-Test (*FAR Pre-Assessment: Conceptual Framework & Assets*, 10 CPALE questions)
-     - Module 2: Post-Test (*FAR Post-Assessment: Liabilities & Advanced Topics*, 10 CPALE questions)
-     - Module 3: Formal Assessment (*Auditing Practice & Assurance - Midterm Assessment*, 10 CPALE questions)
+     - Module 1: Pre-Test (*Module 1 Pre-Test: Conceptual Framework & Asset Recognition*, 10 questions)
+     - Module 2: Post-Test (*Module 2 Post-Test: Non-Current Assets & Liabilities Accounting*, 10 questions)
+     - Module 3: Formal Assessment (*Departmental Midterm Examination: Financial Accounting & Reporting*, 10 questions)
    - **Mock Board (2 Phases / 2 Modules):**
      - Phase 1: Pre-Test Diagnostic (10 CPALE questions)
      - Phase 2: Pre-Boards Final Simulation (10 CPALE questions)

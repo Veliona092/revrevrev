@@ -45,11 +45,11 @@ class AccountancyPresentationSeederTest extends TestCase
 
         // Verify Review Class
         $this->assertDatabaseHas('classes', [
-            'code' => 'ACC401-2026',
+            'code' => 'ACC201-2026',
             'program' => 'accountancy',
         ]);
 
-        $class = ClassModel::where('code', 'ACC401-2026')->first();
+        $class = ClassModel::where('code', 'ACC201-2026')->first();
         $this->assertNotNull($class);
         $this->assertCount(10, $class->students);
 

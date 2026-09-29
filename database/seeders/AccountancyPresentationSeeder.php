@@ -87,16 +87,16 @@ class AccountancyPresentationSeeder extends Seeder
         // 3. Create Class & Enroll All 10 Students
         // ─────────────────────────────────────────────────────────────
         $class = ClassModel::updateOrCreate(
-            ['code' => 'ACC401-2026'],
+            ['code' => 'ACC201-2026'],
             [
-                'name' => 'BSA 4-1: Financial Accounting & Reporting Review',
+                'name' => 'BSA 2-1: Financial Accounting and Reporting 1',
                 'program' => 'accountancy',
                 'school_year' => 2026,
-                'year_level' => 4,
-                'description' => 'Official CPALE Board Exam Review Class covering Financial Accounting and Reporting (FAR), Advanced Accounting, and Auditing Practice.',
+                'year_level' => 2,
+                'description' => 'Undergraduate curriculum course covering the Conceptual Framework for Financial Reporting, Philippine Accounting Standards (PAS/PFRS), asset and liability valuation, and financial statements preparation.',
                 'created_by' => $teacher->id,
                 'ai_summary' => 'The class demonstrates solid foundation in asset valuation and revenue recognition. Recommended focus areas include consolidation procedures under PFRS 10 and deferred taxes under PAS 12.',
-                'assessment_ai_summary' => 'Class average stands at 78%. High proficiency observed in Auditing Principles and Ethics; continued drill recommended for analytical review and audit risk assessment.',
+                'assessment_ai_summary' => 'Class average stands at 78%. High proficiency observed in Conceptual Framework and Asset recognition; continued practice recommended for complex liability valuation.',
             ]
         );
 
@@ -108,7 +108,7 @@ class AccountancyPresentationSeeder extends Seeder
         // ─────────────────────────────────────────────────────────────
         // Module 1: Pre-Test
         $preTestModule = Module::updateOrCreate(
-            ['class_id' => $class->id, 'title' => 'FAR Pre-Assessment: Conceptual Framework & Assets'],
+            ['class_id' => $class->id, 'title' => 'Module 1 Pre-Test: Conceptual Framework & Asset Recognition'],
             [
                 'order' => 1,
                 'is_quiz' => true,
@@ -118,14 +118,14 @@ class AccountancyPresentationSeeder extends Seeder
                 'time_limit' => 30,
                 'is_active' => true,
                 'created_by' => $teacher->id,
-                'description' => 'Diagnostic pre-test evaluating baseline knowledge in Conceptual Framework and Asset Recognition.',
+                'description' => 'Diagnostic pre-test evaluating baseline knowledge in the Conceptual Framework and Current Asset Recognition.',
             ]
         );
         $this->seedQuestions($preTestModule, $this->getPreTestQuestions(), 'pre_test');
 
         // Module 2: Post-Test
         $postTestModule = Module::updateOrCreate(
-            ['class_id' => $class->id, 'title' => 'FAR Post-Assessment: Liabilities & Advanced Topics'],
+            ['class_id' => $class->id, 'title' => 'Module 2 Post-Test: Non-Current Assets & Liabilities Accounting'],
             [
                 'order' => 2,
                 'is_quiz' => true,
@@ -135,14 +135,14 @@ class AccountancyPresentationSeeder extends Seeder
                 'time_limit' => 30,
                 'is_active' => true,
                 'created_by' => $teacher->id,
-                'description' => 'Comprehensive post-test measuring mastery across financial liabilities and advanced accounting topics.',
+                'description' => 'Comprehensive post-test measuring mastery across Property, Plant, Equipment, Intangibles, and Financial Liabilities.',
             ]
         );
         $this->seedQuestions($postTestModule, $this->getPostTestQuestions(), 'post_test');
 
         // Module 3: Formal Assessment
         $formalAssessmentModule = Module::updateOrCreate(
-            ['class_id' => $class->id, 'title' => 'Auditing Practice & Assurance - Midterm Assessment'],
+            ['class_id' => $class->id, 'title' => 'Departmental Midterm Examination: Financial Accounting & Reporting'],
             [
                 'order' => 3,
                 'is_quiz' => true,
@@ -152,7 +152,7 @@ class AccountancyPresentationSeeder extends Seeder
                 'time_limit' => 45,
                 'is_active' => true,
                 'created_by' => $teacher->id,
-                'description' => 'Formal examination on Auditing and Assurance Standards, Internal Control, and Audit Risk Model.',
+                'description' => 'Formal departmental midterm examination on Financial Accounting, Asset & Liability Valuation, and Assurance Principles.',
             ]
         );
         $this->seedQuestions($formalAssessmentModule, $this->getFormalAssessmentQuestions(), null);
