@@ -2352,17 +2352,17 @@ POWERSHELL;
                 };
 
                 $typeInstructions = match ($questionType) {
-                    'why' => "ALL {$bufferedCount} questions MUST be WHY questions.\n"
+                    'why' => "ALL {$bufferedCount} questions MUST be why questions.\n"
                         ."- Ask for reasoning, justification, purpose, or rationale behind a rule, principle, or outcome.\n"
                         ."- Answer options must concisely state the core rationale/purpose without repeating the question stem.\n"
                         ."- Set question_type to \"why\" on every object.\n"
                         ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
-                    'how' => "ALL {$bufferedCount} questions MUST be HOW questions.\n"
+                    'how' => "ALL {$bufferedCount} questions MUST be how questions.\n"
                         ."- Ask for process, method, computation, application steps, or procedure.\n"
                         ."- Answer options must concisely state the specific action/process without repeating the question stem.\n"
                         ."- Set question_type to \"how\" on every object.\n"
                         ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
-                    default => "ALL {$bufferedCount} questions MUST be WHAT questions.\n"
+                    default => "ALL {$bufferedCount} questions MUST be what questions.\n"
                         ."- Identify specific concepts, components, definitions, rules, or scenarios.\n"
                         ."- Set question_type to \"what\" on every object.\n"
                         ."- Include a short evidence field with a verbatim or near-verbatim 5-15 word phrase from the text.\n",
@@ -2719,6 +2719,19 @@ POWERSHELL;
             if (count($allGeneratedQuestions) > $requestedQuestionCount) {
                 $allGeneratedQuestions = array_slice($allGeneratedQuestions, 0, $requestedQuestionCount);
             }
+
+            // Normalize any rogue ALL-CAPS question stems (e.g. "WHY is..." -> "Why is...")
+            foreach ($allGeneratedQuestions as &$generatedQ) {
+                if (isset($generatedQ['question']) && is_string($generatedQ['question'])) {
+                    $generatedQ['question'] = preg_replace('/^WHY\b/', 'Why', $generatedQ['question']);
+                    $generatedQ['question'] = preg_replace('/\bWHY\b/', 'why', $generatedQ['question']);
+                    $generatedQ['question'] = preg_replace('/^HOW\b/', 'How', $generatedQ['question']);
+                    $generatedQ['question'] = preg_replace('/\bHOW\b/', 'how', $generatedQ['question']);
+                    $generatedQ['question'] = preg_replace('/^WHAT\b/', 'What', $generatedQ['question']);
+                    $generatedQ['question'] = preg_replace('/\bWHAT\b/', 'what', $generatedQ['question']);
+                }
+            }
+            unset($generatedQ);
 
             $answerDistribution = ['A' => 0, 'B' => 0, 'C' => 0, 'D' => 0, 'E' => 0, 'F' => 0, 'G' => 0, 'H' => 0, 'I' => 0, 'J' => 0];
             foreach ($allGeneratedQuestions as $question) {
