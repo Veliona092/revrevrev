@@ -486,13 +486,15 @@
                 <h4 style="margin:24px 0 12px; font-size: 18px; font-weight: 500;">Needs Review — Hardest Questions</h4>
                 <div class="class-grid" style="margin-bottom:32px;">
                     @foreach($hardest as $q)
-                    <div class="class-card">
-                        <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
-                            <span style="font-size: 12px; font-weight: 600; color: #245E55;">Question #{{ $q['order'] ?? $loop->iteration }}</span>
-                            <span style="font-weight:600; color:#C63F3E; font-size: 13px;">{{ round($q['difficulty'] * 100, 1) }}% Correct</span>
+                    <div class="class-card" style="display:flex; flex-direction:column; justify-content:space-between; height:auto; min-height:160px;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom: 8px;">
+                                <span style="font-size: 12px; font-weight: 600; color: #245E55;">Question #{{ $q['order'] ?? $loop->iteration }}</span>
+                                <span style="font-weight:600; color:#C63F3E; font-size: 13px;">{{ round($q['difficulty'] * 100, 1) }}% Correct</span>
+                            </div>
+                            <p style="font-size:14px; margin:0 0 14px; color:#2D2D2B; line-height: 1.5; word-break: break-word;">{{ $q['question_text'] }}</p>
                         </div>
-                        <p style="font-size:14px; margin:0 0 10px; color:#2D2D2B; line-height: 1.4;">{{ Str::limit($q['question_text'], 110) }}</p>
-                        <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid #e5dfd5; padding-top: 8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid #e5dfd5; padding-top: 8px; margin-top: auto;">
                             <span style="font-size:12px; color:#8a8580;">{{ $q['correct_count'] }}/{{ $q['total_count'] }} correct</span>
                             @if(isset($q['correct_option']))
                                 <span style="font-size: 12px; font-weight: 500; color: #15803d; background: #dcfce7; padding: 2px 8px; border-radius: 4px;">Key: {{ $q['correct_option'] }}</span>
@@ -509,22 +511,22 @@
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
-                            <th>Question</th>
-                            <th>Answered</th>
-                            <th>% Correct</th>
-                            <th>Difficulty</th>
-                            <th>Discrimination</th>
+                            <th style="min-width: 280px;">Question</th>
+                            <th style="white-space: nowrap;">Answered</th>
+                            <th style="white-space: nowrap;">% Correct</th>
+                            <th style="white-space: nowrap;">Difficulty</th>
+                            <th style="white-space: nowrap;">Discrimination</th>
                             <th>Distractor Choices</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($phaseQuestions as $q)
                         <tr>
-                            <td style="font-weight: 500;">{{ $q['order'] ?? $loop->iteration }}</td>
-                            <td>
-                                <div style="font-weight: 500; color: #2D2D2B;">{{ Str::limit($q['question_text'], 75) }}</div>
+                            <td style="font-weight: 500; vertical-align: top;">{{ $q['order'] ?? $loop->iteration }}</td>
+                            <td style="vertical-align: top;">
+                                <div style="font-weight: 500; color: #2D2D2B; line-height: 1.5; word-break: break-word;">{{ $q['question_text'] }}</div>
                                 @if(isset($q['correct_option']))
-                                    <div style="font-size: 12px; color: #15803d; margin-top: 2px;">
+                                    <div style="font-size: 12px; color: #15803d; margin-top: 4px;">
                                         <strong>Correct Key:</strong> {{ $q['correct_option'] }}
                                     </div>
                                 @endif

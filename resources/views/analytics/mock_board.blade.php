@@ -233,9 +233,9 @@
                 <h4 style="margin:24px 0 12px;">Needs Review — Difficult Question</h4>
                 <div class="class-grid" style="margin-bottom:32px;">
                     @foreach($hardest as $q)
-                    <div class="class-card">
-                        <p style="font-size:14px; margin:0 0 8px; color:#2D2D2B;">{{ Str::limit($q['question_text'], 90) }}</p>
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="class-card" style="display:flex; flex-direction:column; justify-content:space-between; height:auto; min-height:140px;">
+                        <p style="font-size:14px; margin:0 0 12px; color:#2D2D2B; line-height: 1.5; word-break: break-word;">{{ $q['question_text'] }}</p>
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid #e5dfd5; padding-top: 8px; margin-top: auto;">
                             <span style="font-size:12px; color:#8a8580;">{{ $q['correct_count'] }}/{{ $q['total_count'] }} tama</span>
                             <span style="font-weight:700; color:#C63F3E;">{{ round($q['difficulty'] * 100, 1) }}%</span>
                         </div>
@@ -249,19 +249,19 @@
                 <table class="rv-table">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Question</th>
-                            <th>Answered</th>
-                            <th>% Correct</th>
-                            <th>Difficulty</th>
-                            <th>Discrimination</th>
+                            <th style="width: 50px;">#</th>
+                            <th style="min-width: 280px;">Question</th>
+                            <th style="white-space: nowrap;">Answered</th>
+                            <th style="white-space: nowrap;">% Correct</th>
+                            <th style="white-space: nowrap;">Difficulty</th>
+                            <th style="white-space: nowrap;">Discrimination</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($phaseQuestions as $q)
                         <tr>
-                            <td>{{ $q['order'] ?? $loop->iteration }}</td>
-                            <td>{{ Str::limit($q['question_text'], 70) }}</td>
+                            <td style="font-weight: 500; vertical-align: top;">{{ $q['order'] ?? $loop->iteration }}</td>
+                            <td style="vertical-align: top; line-height: 1.5; word-break: break-word;">{{ $q['question_text'] }}</td>
                             <td>{{ $q['correct_count'] }}/{{ $q['total_count'] }}</td>
                             <td>{{ round($q['difficulty'] * 100, 1) }}%</td>
                             <td>
